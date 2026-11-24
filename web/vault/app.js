@@ -72,17 +72,17 @@ async function api(method, path, body) {
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     if (res.status === 401 && S.token) { lock(); throw new Error('Your session ended. Open your vault again.'); }
-    throw new Error(data.error || `Request failed (${res.status}).`);
+    throw Object.assign(new Error(data.error || `Request failed (${res.status}).`), { data });
   }
   return data;
 }
 
 // ---------- open, create, recover
 
-async function openVault(username, pass) {
+async function openVault(username, pass, totp) {
   const { salt, iterations } = await api('POST', '/api/auth/salt', { username });
   const k = await C.keysFromPassphrase(pass, salt, iterations);
-  const r = await api('POST', '/api/auth/login', { username, authKey: k.authKey });
+  const r = await api('POST', '/api/auth/login', { username, authKey: k.authKey, totp: totp || undefined });
   const vk = await C.unwrapKey(k.kek, r.keys.wrappedVaultKey, 'vk/passphrase');
   await enter(r, vk, username);
 }
@@ -117,7 +117,9 @@ async function recoverVault(username, phrase, newPass) {
   S.token = r.token;
   await setPassphrase(vk, newPass);
   await enter(r, vk, username);
-  toast('Vault recovered. Your new passphrase is set.');
+  toast(r.twoFactorReset
+    ? 'Vault recovered and your new passphrase is set. Two-step sign-in was turned off; turn it on again in Settings.'
+    : 'Vault recovered. Your new passphrase is set.');
 }
 
 async function setPassphrase(vk, pass) {
@@ -558,12 +560,23 @@ async function submitAuth(form, mode, btn, err, T) {
   for (const el of f) if (el !== btn) el.readOnly = true;
   try {
     S.lastUser = username;
-    if (mode === 'open') await openVault(username, f.pass.value);
+    if (mode === 'open') await openVault(username, f.pass.value, f.totp?.value.replace(/\s/g, ''));
     if (mode === 'create') await createVault(username, f.pass.value);
     if (mode === 'recover') await recoverVault(username, f.phrase.value, f.pass.value);
   } catch (e) {
-    console.error(e);
-    if (btn.isConnected) fail(e.message || String(e));
+    if (e.data?.needTotp && btn.isConnected) {
+      // The passphrase was right and this vault has two-step sign-in: ask for the code
+      // in place, so what was typed stays.
+      if (!f.totp) {
+        const code = h('input', { name: 'totp', inputmode: 'numeric', autocomplete: 'one-time-code', maxlength: 7, pattern: '[0-9 ]*', placeholder: '123 456' });
+        err.before(h('label', { class: 'au-field' }, h('span', { class: 'au-label' }, 'Code from your authenticator app'), code));
+        requestAnimationFrame(() => code.focus());
+      } else f.totp.value = '';
+      fail(e.message);
+    } else {
+      console.error(e);
+      if (btn.isConnected) fail(e.message || String(e));
+    }
   } finally {
     if (btn.isConnected) {
       btn.disabled = false; btn.classList.remove('is-busy'); label.textContent = T.cta;
@@ -1058,10 +1071,11 @@ function viewSettings() {
     busy(pw.querySelector('[type=submit]'), 'Making keys…', async () => {
       if (f.next.value.length < 10) throw new Error('Use a passphrase of at least 10 characters.');
       if (f.next.value !== f.next2.value) throw new Error('The two new passphrases are not the same.');
+      // checked here: the current passphrase must unwrap the vault key
       const { salt, iterations } = await api('POST', '/api/auth/salt', { username: S.username });
       const k = await C.keysFromPassphrase(f.current.value, salt, iterations);
-      await C.unwrapKey(k.kek, (await api('POST', '/api/auth/login', { username: S.username, authKey: k.authKey })).keys.wrappedVaultKey, 'vk/passphrase')
-        .catch(() => { throw new Error('Your current passphrase is wrong.'); });
+      const { keys } = await api('GET', '/api/account');
+      await C.unwrapKey(k.kek, keys.wrappedVaultKey, 'vk/passphrase').catch(() => { throw new Error('Your current passphrase is wrong.'); });
       await setPassphrase(S.vk, f.next.value);
       pw.reset();
       toast('Passphrase changed. Other sessions were signed out.');
@@ -1090,11 +1104,128 @@ function viewSettings() {
   return h('div', { class: 'page' },
     pageHead('05', 'account', 'Settings', `Signed in as ${S.username}.`),
     sessionsCard(),
+    twoFactorCard(),
+    importCard(),
     h('div', { class: 'card' },
       h('h2', {}, 'Export'),
       h('p', { class: 'muted' }, 'Download every folder and memory, decrypted here on your device, as one JSON file.'),
       h('button', { class: 'btn', onclick: exportVault }, icon('download'), h('span', {}, 'Download export'))),
     pw, del);
+}
+
+// Two-step sign-in: after the passphrase, a 6-digit code from an authenticator app.
+function twoFactorCard() {
+  const body = h('div', {}, h('p', { class: 'fine' }, 'Loading…'));
+  const card = h('div', { class: 'card' }, h('h2', {}, 'Two-step sign-in'), body);
+  const codeForm = (label, onCode) => {
+    const input = h('input', { name: 'code', inputmode: 'numeric', autocomplete: 'one-time-code', maxlength: 7, required: true, placeholder: '123 456' });
+    const form = h('form', { class: 'row', onsubmit: (e) => { e.preventDefault(); busy(form.querySelector('button'), '…', () => onCode(input.value.replace(/\s/g, ''))); } },
+      h('label', { class: 'grow' }, 'Code from the app', input), h('button', { class: 'btn primary', type: 'submit' }, label));
+    return form;
+  };
+  const show = async () => {
+    const { twoFactor } = await api('GET', '/api/account');
+    if (twoFactor) {
+      body.replaceChildren(
+        h('p', { class: 'ok' }, '✓ On. Opening this vault asks for a code from your authenticator app.'),
+        h('p', { class: 'muted' }, 'Lost the phone? Your 24 recovery words still open the vault, and turn this off.'),
+        codeForm('Turn off', async (code) => { await api('POST', '/api/account/2fa/disable', { code }); toast('Two-step sign-in is off.'); await show(); }));
+    } else {
+      body.replaceChildren(
+        h('p', { class: 'muted' }, 'Off. Turn it on so that a stolen passphrase alone cannot open your vault.'),
+        h('button', { class: 'btn', onclick: (e) => busy(e.currentTarget, '…', async () => {
+          const { secret, uri } = await api('POST', '/api/account/2fa/setup');
+          body.replaceChildren(
+            h('p', {}, 'In your authenticator app (Google Authenticator, Aegis, 1Password, …) add an account by setup key, and type this key:'),
+            h('div', { class: 'keybox' }, h('code', {}, secret.match(/.{1,4}/g).join(' ')), h('button', { class: 'btn small', type: 'button', onclick: () => copy(secret) }, 'Copy key')),
+            h('p', { class: 'fine' }, 'On a phone, this link may open the app directly: ', h('a', { href: uri }, 'add to authenticator')),
+            h('p', {}, 'Then type the 6-digit code it shows, to finish:'),
+            codeForm('Turn on', async (code) => { await api('POST', '/api/account/2fa/enable', { code }); toast('Two-step sign-in is on.'); await show(); }),
+            h('button', { class: 'btn', onclick: () => show() }, 'Cancel'));
+        }) }, 'Turn on two-step sign-in'));
+    }
+  };
+  show().catch((e) => body.replaceChildren(h('p', { class: 'bad' }, e.message)));
+  return card;
+}
+
+// Import: our own export file, or a list of facts pasted from another assistant
+// (ChatGPT: Settings → Personalization → Manage memories; Claude: Settings →
+// Memory), one memory per line, bullet or paragraph.
+function parseImport(text) {
+  const t = text.trim();
+  if (!t) return [];
+  if (t.startsWith('{') || t.startsWith('[')) {
+    let data;
+    try { data = JSON.parse(t); } catch { throw new Error('That looks like JSON, but it does not parse.'); }
+    const list = Array.isArray(data) ? data : Array.isArray(data.memories) ? data.memories : null;
+    if (!list) throw new Error('This JSON has no "memories" list.');
+    return list.map((m) => (typeof m === 'string' ? fromLine(m) : {
+      title: String(m.title ?? '').trim() || fromLine(String(m.body ?? m.content ?? m.text ?? '')).title,
+      body: String(m.body ?? m.content ?? m.text ?? m.title ?? '').trim(),
+      tags: Array.isArray(m.tags) ? m.tags.map(String).slice(0, 20) : [],
+      folder: typeof m.folder === 'string' ? m.folder : null,
+    })).filter((m) => m.body);
+  }
+  const lines = t.split(/\r?\n/);
+  const bulleted = lines.filter((l) => /^\s*([-*•–]|\d+[.)])\s+/.test(l)).length;
+  const items = bulleted >= 2 || lines.filter((l) => l.trim()).length === lines.length
+    ? lines.map((l) => l.replace(/^\s*([-*•–]|\d+[.)])\s+/, '').trim()).filter(Boolean)
+    : t.split(/\n\s*\n/).map((p) => p.replace(/\s+/g, ' ').trim()).filter(Boolean);
+  return items.map(fromLine);
+}
+function fromLine(s) {
+  const body = String(s).trim();
+  const first = body.split(/(?<=[.!?])\s/)[0];
+  const title = (first.length <= 80 ? first : `${first.slice(0, 77).replace(/\s+\S*$/, '')}…`).replace(/[.!?]$/, '');
+  return { title, body, tags: [], folder: null };
+}
+
+function importCard() {
+  const ta = h('textarea', { rows: 6, placeholder: '- Prefers metric units\n- Works as a nurse in Bandung\n- Allergic to penicillin' });
+  const file = h('input', { type: 'file', accept: '.json,.txt,.md,text/plain,application/json' });
+  const target = folderSelect('folder', [...S.folders.values()].find((f) => f.name === 'About me')?.id);
+  const note = h('p', { class: 'fine' });
+  let found = [];
+  const preview = () => {
+    try {
+      found = parseImport(ta.value);
+      const have = new Set([...S.memories.values()].map((m) => `${m.title}\n${m.body}`));
+      const dupes = found.filter((m) => have.has(`${m.title}\n${m.body}`)).length;
+      note.className = 'fine';
+      note.textContent = found.length ? `Found ${found.length} memor${found.length === 1 ? 'y' : 'ies'}${dupes ? `, ${dupes} already in your vault (skipped)` : ''}.` : '';
+    } catch (e) { found = []; note.className = 'bad'; note.textContent = e.message; }
+  };
+  ta.addEventListener('input', preview);
+  file.addEventListener('change', async () => { if (file.files[0]) { ta.value = await file.files[0].text(); preview(); } });
+  const go = h('button', { class: 'btn primary', onclick: (e) => busy(e.currentTarget, 'Encrypting…', async () => {
+    preview();
+    if (!found.length) throw new Error('Paste some memories, or pick a file, first.');
+    const have = new Set([...S.memories.values()].map((m) => `${m.title}\n${m.body}`));
+    const byName = new Map([...S.folders.values()].map((f) => [f.name.toLowerCase(), f.id]));
+    let n = 0;
+    for (const m of found) {
+      if (have.has(`${m.title}\n${m.body}`)) continue;
+      let folderId = target.value;
+      if (m.folder) {
+        folderId = byName.get(m.folder.toLowerCase()) ?? null;
+        if (!folderId) { folderId = await saveFolder(null, m.folder.slice(0, 60)); byName.set(m.folder.toLowerCase(), folderId); }
+      }
+      await saveMemory({ folderId, title: m.title.slice(0, 200), body: m.body.slice(0, 200_000), tags: m.tags, source: 'import' });
+      have.add(`${m.title}\n${m.body}`);
+      n++;
+    }
+    ta.value = ''; found = []; note.textContent = '';
+    toast(`Imported ${n} memor${n === 1 ? 'y' : 'ies'}, encrypted on this device.`);
+    render();
+  }) }, 'Import');
+  return h('div', { class: 'card' },
+    h('h2', {}, 'Import'),
+    h('p', { class: 'muted' }, 'Paste what another assistant remembers about you, one fact per line. In ChatGPT: Settings → Personalization → Manage memories. In Claude: Settings → Memory. A file exported from this vault (.json) also works, folders and all.'),
+    ta,
+    h('div', { class: 'grid2' }, h('label', {}, 'Or a file', file), h('label', {}, 'Save into folder', target)),
+    note,
+    h('div', { class: 'row' }, go));
 }
 
 // Signed-in devices: each open vault is a session; sign out any of them here.

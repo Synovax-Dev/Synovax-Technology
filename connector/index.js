@@ -82,20 +82,85 @@ async function heads(folderId, retried = false) {
   return out;
 }
 
-const words = (s) => String(s).toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((w) => w.length > 1);
+// ---------- search
+// Still keyword search (no model, nothing leaves this computer), but forgiving:
+// accents folded, light stemming (English and Indonesian), one typo allowed in
+// longer words, a few everyday synonyms, and rarer words count for more (BM25-like).
 
-function score(terms, m) {
-  if (!terms.length) return 1;
-  const title = m.title.toLowerCase();
-  const tags = m.tags.join(' ').toLowerCase();
-  const text = m.snippet.toLowerCase();
-  let s = 0;
-  for (const t of terms) {
-    if (title.includes(t)) s += 3;
-    if (tags.includes(t)) s += 2;
-    if (text.includes(t)) s += 1;
+const fold = (s) => String(s).normalize('NFKD').replace(/\p{M}/gu, '').toLowerCase();
+const STOP = new Set('the a an and or of to in on for with is are was be my me i you it this that what which who how do does about yang dan di ke dari ini itu untuk dengan atau saya aku ada apa'.split(' '));
+
+function stem(w) {
+  if (w.length <= 3 || /\d/.test(w)) return w;
+  // Indonesian: drop common prefixes and suffixes (kan, an, i, nya, lah, kah)
+  let x = w.replace(/(nya|lah|kah|pun)$/, '');
+  x = x.replace(/^(meng|meny|mem|men|me|peng|peny|pem|pen|pe|ber|be|ter|di|ke|se)(?=[a-z]{4,})/, '');
+  x = x.replace(/(kan|an|i)$/, (m, _s, off) => (off >= 4 ? '' : m));
+  // English
+  x = x.replace(/(ies)$/, 'y').replace(/(sses)$/, 'ss').replace(/([^s])s$/, '$1')
+    .replace(/(ing|edly|ed|ly)$/, (m, _s, off) => (off >= 4 ? '' : m));
+  return x.length >= 3 ? x : w;
+}
+
+const SYNONYMS = [
+  ['job', 'work', 'career', 'occupation', 'kerja', 'pekerjaan', 'profession'],
+  ['like', 'love', 'enjoy', 'prefer', 'favorite', 'favourite', 'suka', 'senang'],
+  ['dislike', 'hate', 'avoid', 'benci', 'tidak suka'],
+  ['food', 'eat', 'diet', 'meal', 'makan', 'makanan'],
+  ['drink', 'coffee', 'tea', 'minum', 'kopi', 'teh'],
+  ['family', 'wife', 'husband', 'kid', 'child', 'children', 'son', 'daughter', 'keluarga', 'anak', 'istri', 'suami'],
+  ['home', 'live', 'city', 'address', 'rumah', 'tinggal', 'kota'],
+  ['health', 'allergy', 'allergic', 'medical', 'medicine', 'sakit', 'alergi', 'kesehatan', 'obat'],
+  ['language', 'speak', 'bahasa'],
+  ['name', 'call', 'nama', 'panggil'],
+  ['birthday', 'born', 'age', 'ulang tahun', 'lahir', 'umur'],
+  ['project', 'building', 'proyek'],
+  ['style', 'tone', 'format', 'answer', 'reply', 'gaya', 'jawaban'],
+].map((g) => g.map((w) => stem(fold(w))));
+const synonymsOf = (t) => [...new Set(SYNONYMS.filter((g) => g.includes(t)).flat())].filter((x) => x !== t);
+
+const tokens = (s) => fold(s).split(/[^\p{L}\p{N}]+/u).filter((w) => w.length > 1 && !STOP.has(w)).map(stem);
+const words = tokens; // kept for the empty-query check
+
+function nearMiss(a, b) { // edit distance <= 1, for words of 5+ letters
+  if (a.length < 5 || b.length < 5 || Math.abs(a.length - b.length) > 1) return false;
+  let i = 0, j = 0, edits = 0;
+  while (i < a.length && j < b.length) {
+    if (a[i] === b[j]) { i++; j++; continue; }
+    if (++edits > 1) return false;
+    if (a.length > b.length) i++; else if (b.length > a.length) j++; else { i++; j++; }
   }
-  return s;
+  return edits + (a.length - i) + (b.length - j) <= 1;
+}
+
+// How well one query term matches a field's tokens: exact 1, prefix 0.8, synonym 0.6, typo 0.5.
+function termHit(t, toks) {
+  let best = 0;
+  const syn = synonymsOf(t);
+  for (const w of toks) {
+    if (w === t) return 1;
+    if (t.length >= 3 && (w.startsWith(t) || t.startsWith(w) && w.length >= 3)) best = Math.max(best, 0.8);
+    else if (syn.includes(w)) best = Math.max(best, 0.6);
+    else if (nearMiss(t, w)) best = Math.max(best, 0.5);
+  }
+  return best;
+}
+
+// Ranks memories for a query. Field weights: title 3, tags 2, text 1; each
+// term weighted by how rare it is across what this app can read.
+function rank(terms, mems) {
+  if (!terms.length) return mems.map((m) => ({ m, s: 1 }));
+  const docs = mems.map((m) => ({ m, title: tokens(m.title), tags: tokens(m.tags.join(' ')), text: tokens(m.snippet) }));
+  const N = docs.length;
+  return docs.map((d) => {
+    let s = 0;
+    for (const t of terms) {
+      const df = docs.filter((x) => termHit(t, x.title) || termHit(t, x.tags) || termHit(t, x.text)).length;
+      const idf = Math.log(1 + (N - df + 0.5) / (df + 0.5));
+      s += idf * (3 * termHit(t, d.title) + 2 * termHit(t, d.tags) + termHit(t, d.text));
+    }
+    return { m: d.m, s };
+  });
 }
 
 const day = (ts) => new Date(ts).toISOString().slice(0, 10);
@@ -135,9 +200,8 @@ const TOOLS = [
         if (!f) return `There is no folder called "${folder}" that this app may read. Use list_folders.`;
         folderId = f.id;
       }
-      const terms = words(query);
-      const found = (await heads(folderId))
-        .map((m) => ({ m, s: score(terms, m) }))
+      const terms = [...new Set(words(query))];
+      const found = rank(terms, await heads(folderId))
         .filter((x) => x.s > 0)
         .sort((a, b) => b.s - a.s || b.m.updatedAt - a.m.updatedAt)
         .slice(0, Math.min(50, Math.max(1, limit)));

@@ -18,7 +18,13 @@ Terus buka http://127.0.0.1:8787/ (landing page) atau langsung http://127.0.0.1:
 npm test
 ```
 
-Test end-to-end (29 cek): server beneran, "browser" yang dibikin dari modul kripto yang sama, dan connector yang diajak ngobrol lewat MCP. Termasuk cek bahwa file database **nggak nyimpen plaintext sama sekali**.
+```powershell
+npm run test:ui
+```
+
+Test browser (17 alur): halaman beneran dijalanin di Chrome/Edge headless (tanpa dependency, pake DevTools protocol), dari bikin vault sampe recover. Gagal kalau ada error JS, pelanggaran CSP, request gagal, atau halaman yang bisa digeser ke samping di layar HP. `UI_SHOTS=<folder>` buat nyimpen screenshot desktop + HP.
+
+Test end-to-end (31 cek): server beneran, "browser" yang dibikin dari modul kripto yang sama, dan connector yang diajak ngobrol lewat MCP. Termasuk cek bahwa file database **nggak nyimpen plaintext sama sekali**.
 
 Env server: `PORT` (8787), `HOST` (127.0.0.1), `DATA_DIR` (`./data`), `SEAL_PERIOD_MS` (3600000 = 1 jam), `ADMIN_KEY` (opsional, min. 32 karakter), `KDF_ITERATIONS` (600000; semua vault baru wajib pakai angka ini, biar endpoint salt nggak bocorin username mana yang terdaftar), `TRUST_PROXY` (0; isi jumlah reverse proxy di depan server, biasanya `1`, supaya rate limit pakai IP asli dari `X-Forwarded-For`. Jangan diisi kalau server diakses langsung, nanti IP-nya bisa dipalsuin).
 
@@ -94,6 +100,10 @@ app key            vlt_app.<id>.<secret> ──HKDF──▶ auth (server cuma s
 - **Rantai seal:** tiap seal ngiket hash seal sebelumnya. Browser nyimpen hash terakhir yang pernah dia liat, dan tiap buka Read log dicek rantainya masih nyambung dari situ. Kalau server nulis ulang atau ngapus seal lama, langsung ketahuan.
 - **Ganti kunci folder:** pas izin folder dicabut dari sebuah app (atau app-nya di-revoke), folder itu otomatis dapet kunci baru dan semua memorinya dienkripsi ulang di browser. Kunci lama yang dipegang app itu nggak bisa buka apa pun yang ditulis setelahnya. Bisa juga manual: buka folder → **Replace key**.
 - **Perangkat yang login:** Settings → Signed-in devices. Bisa logout satu-satu atau semua sekaligus.
+- **Two-step sign-in (2FA):** Settings → Turn on. Kode 6 digit dari app authenticator, tiap kode cuma bisa dipake sekali. Rahasianya disimpen terenkripsi pake kunci dari `server-secret`. Recover pake 24 kata ikut matiin 2FA (buat kasus HP-nya yang ilang).
+- **Import:** Settings → Import. Paste daftar memori dari ChatGPT/Claude (satu fakta per baris) atau file export vault ini. Duplikat dilewatin, semua dienkripsi di browser.
+- **Pencarian connector:** masih kata kunci (nggak ada model, nggak ada yang keluar dari komputer lu), tapi toleran: aksen, bentuk jamak/imbuhan (Inggris + Indonesia), satu salah ketik, sinonim umum, kata langka dibobot lebih.
+- **HP:** `/vault/` bisa di-install ke home screen (manifest + ikon), dan semua halaman dites nggak geser ke samping di lebar 390px.
 - **Hapus = hapus beneran:** `PRAGMA secure_delete=ON`.
 - CSP ketat (`script-src 'self'`), tanpa script/font pihak ketiga.
 
@@ -102,7 +112,7 @@ app key            vlt_app.<id>.<secret> ──HKDF──▶ auth (server cuma s
 - **Belum diaudit.** Desainnya mengikuti pola standar, tapi sebelum nyimpen data sensitif orang lain, minta pihak ketiga audit dulu.
 - Kalau passphrase **dan** 24 kata recovery ilang, vault nggak bisa dibuka siapa pun. Itu disengaja.
 - Nyabut folder dari app bikin folder itu ganti kunci, jadi isi baru aman. Tapi apa yang udah sempet dibaca app sebelumnya bisa aja dia simpen. Itu nggak bisa ditarik balik.
-- Pencarian di connector masih pake kata kunci, belum semantic/embedding.
+- Pencarian di connector masih kata kunci (udah toleran), belum semantic/embedding. Yang beneran "ngerti makna" butuh model embedding, artinya dependency pertama project ini.
 - Rantai seal cuma sekuat saksinya: browser lu (per browser) dan `SEAL_PUBLISH_URL` kalau diisi. Tanpa keduanya, seal tetep cuma ada di server.
 - Inbox ngecek otomatis tiap 30 detik (dan pas tab dibuka lagi). Kalau lu lagi ngetik, layar nggak di-refresh biar tulisan nggak ilang, cuma muncul notifikasi.
 - Buat production: taruh di belakang HTTPS (reverse proxy), set `HOST=0.0.0.0` dan `TRUST_PROXY=1`, dan backup `DATA_DIR`.
@@ -111,4 +121,4 @@ app key            vlt_app.<id>.<secret> ──HKDF──▶ auth (server cuma s
 
 ## Belum dibikin (kandidat versi berikutnya)
 
-Login passkey (WebAuthn PRF), import export ChatGPT/Claude, semantic search lokal, "AI self", browser extension, berbagi folder antar-vault, versi HP.
+Login passkey (WebAuthn PRF), semantic search lokal, "AI self", browser extension, berbagi folder antar-vault, app HP native.

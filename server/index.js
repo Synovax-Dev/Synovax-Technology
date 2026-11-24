@@ -4,7 +4,8 @@ import http from 'node:http';
 import https from 'node:https';
 import { readFile, mkdir, writeFile, readdir, rm, stat } from 'node:fs/promises';
 import { existsSync, readFileSync } from 'node:fs';
-import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, randomBytes, timingSafeEqual, createCipheriv, createDecipheriv } from 'node:crypto';
+import { newTotpSecret, matchStep, otpauthUri } from './totp.js';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { openDb, tx } from './db.js';
@@ -45,7 +46,7 @@ const db = openDb(path.join(DATA_DIR, 'vault.db'));
 // ---------- helpers
 
 class HttpError extends Error {
-  constructor(status, message) { super(message); this.status = status; }
+  constructor(status, message, extra = {}) { super(message); this.status = status; this.extra = extra; }
 }
 const need = (ok, status, message) => { if (!ok) throw new HttpError(status, message); };
 const now = () => Date.now();
@@ -169,6 +170,32 @@ const keyBundle = (v) => ({ vaultId: v.id, wrappedVaultKey: v.wrapped_vk, boxPub
 // A made-up but stable salt for names that do not exist, so the salt endpoint
 // does not tell anyone which names are registered.
 const fakeSalt = (u) => createHmac('sha256', SERVER_SECRET).update(`salt:${u}`).digest().subarray(0, 16).toString('base64url');
+
+// Two-step sign-in secrets are the one thing the server must be able to read
+// (it checks the codes), so they are encrypted with a key from server-secret
+// rather than stored as they are.
+const TOTP_KEY = createHmac('sha256', SERVER_SECRET).update('totp-at-rest/v1').digest();
+function sealServer(text, aad) {
+  const iv = randomBytes(12);
+  const c = createCipheriv('aes-256-gcm', TOTP_KEY, iv).setAAD(Buffer.from(aad));
+  const ct = Buffer.concat([c.update(text, 'utf8'), c.final()]);
+  return `s1.${Buffer.concat([iv, c.getAuthTag(), ct]).toString('base64url')}`;
+}
+function openServer(token, aad) {
+  const all = Buffer.from(String(token).slice(3), 'base64url');
+  const d = createDecipheriv('aes-256-gcm', TOTP_KEY, all.subarray(0, 12)).setAAD(Buffer.from(aad));
+  d.setAuthTag(all.subarray(12, 28));
+  return Buffer.concat([d.update(all.subarray(28)), d.final()]).toString('utf8');
+}
+const totpAad = (vaultId) => `totp:${vaultId}`;
+
+// A code is good once: its time step must be newer than the last one accepted.
+function useTotp(v, code) {
+  const step = matchStep(openServer(v.totp_enc, totpAad(v.id)), String(code ?? '').replace(/\s/g, ''));
+  if (step == null || step <= (v.totp_last ?? -1)) return false;
+  db.prepare('UPDATE vaults SET totp_last = ? WHERE id = ?').run(step, v.id);
+  return true;
+}
 
 // ---------- auth
 
@@ -301,6 +328,13 @@ route('POST', '/api/auth/login', 'none', ({ req, body, ip }) => {
     noteGuessFailed('login', u, ip);
     throw new HttpError(401, 'Wrong name or passphrase.');
   }
+  if (v.totp_enc) {
+    if (!body.totp) throw new HttpError(401, 'Enter the 6-digit code from your authenticator app.', { needTotp: true });
+    if (!useTotp(v, body.totp)) {
+      noteGuessFailed('login', u, ip);
+      throw new HttpError(401, 'That code is not right, or it was already used. Wait for the next one.', { needTotp: true });
+    }
+  }
   return { token: newSession(v.id, req), keys: keyBundle(v) };
 });
 
@@ -314,7 +348,11 @@ route('POST', '/api/auth/recover', 'none', ({ req, body, ip }) => {
     noteGuessFailed('recover', u, ip);
     throw new HttpError(401, 'Wrong name or recovery phrase.');
   }
-  return { token: newSession(v.id, req), keys: { ...keyBundle(v), wrappedVaultKeyRecovery: v.wrapped_vk_rec } };
+  // The 24 words are the way back in after losing everything, the authenticator
+  // phone included, so they also turn two-step sign-in off. The person is told.
+  const twoFactorReset = !!v.totp_enc;
+  if (twoFactorReset) db.prepare('UPDATE vaults SET totp_enc = NULL, totp_pending_enc = NULL, totp_last = NULL WHERE id = ?').run(v.id);
+  return { token: newSession(v.id, req), twoFactorReset, keys: { ...keyBundle(v), wrappedVaultKeyRecovery: v.wrapped_vk_rec } };
 });
 
 route('POST', '/api/auth/logout', 'owner', ({ auth }) => {
@@ -520,6 +558,38 @@ route('GET', '/api/log/:id/proof', 'owner', async ({ auth, params }) => {
   return p;
 });
 
+// The key bundle and account switches, for the Settings page (checking the
+// current passphrase happens in the browser, by unwrapping the vault key).
+route('GET', '/api/account', 'owner', ({ auth }) => {
+  const v = db.prepare('SELECT * FROM vaults WHERE id = ?').get(auth.vaultId);
+  return { username: v.username, twoFactor: !!v.totp_enc, keys: keyBundle(v) };
+});
+
+route('POST', '/api/account/2fa/setup', 'owner', ({ auth }) => {
+  const v = db.prepare('SELECT id, username, totp_enc FROM vaults WHERE id = ?').get(auth.vaultId);
+  need(!v.totp_enc, 409, 'Two-step sign-in is already on.');
+  const secret = newTotpSecret();
+  db.prepare('UPDATE vaults SET totp_pending_enc = ? WHERE id = ?').run(sealServer(secret, totpAad(v.id)), v.id);
+  return { secret, uri: otpauthUri(secret, v.username, APP_NAME) };
+});
+
+route('POST', '/api/account/2fa/enable', 'owner', ({ auth, body }) => {
+  rateLimit(`2fa:${auth.vaultId}`, 10, 600_000);
+  const v = db.prepare('SELECT id, totp_pending_enc FROM vaults WHERE id = ?').get(auth.vaultId);
+  need(v.totp_pending_enc, 400, 'Start the setup again.');
+  const step = matchStep(openServer(v.totp_pending_enc, totpAad(v.id)), String(body.code ?? '').replace(/\s/g, ''));
+  need(step != null, 400, 'That code is not right. Check the time on your phone and try the next code.');
+  db.prepare('UPDATE vaults SET totp_enc = totp_pending_enc, totp_pending_enc = NULL, totp_last = ? WHERE id = ?').run(step, v.id);
+});
+
+route('POST', '/api/account/2fa/disable', 'owner', ({ auth, body }) => {
+  rateLimit(`2fa:${auth.vaultId}`, 10, 600_000);
+  const v = db.prepare('SELECT * FROM vaults WHERE id = ?').get(auth.vaultId);
+  need(v.totp_enc, 400, 'Two-step sign-in is already off.');
+  need(useTotp(v, body.code), 400, 'That code is not right, or it was already used.');
+  db.prepare('UPDATE vaults SET totp_enc = NULL, totp_pending_enc = NULL, totp_last = NULL WHERE id = ?').run(v.id);
+});
+
 route('PUT', '/api/account/passphrase', 'owner', ({ auth, body }) => {
   checkIterations(body.iterations);
   const salt = field(body.salt, RE.salt, 'salt');
@@ -686,7 +756,7 @@ const SECURITY_HEADERS = {
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
   '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp',
-  '.ico': 'image/x-icon', '.woff2': 'font/woff2', '.txt': 'text/plain; charset=utf-8',
+  '.ico': 'image/x-icon', '.woff2': 'font/woff2', '.txt': 'text/plain; charset=utf-8', '.webmanifest': 'application/manifest+json',
 };
 
 function send(res, status, data) {
@@ -742,7 +812,7 @@ const server = (TLS ? (handler) => https.createServer(TLS, handler) : (handler) 
     if (req.method !== 'GET' && req.method !== 'HEAD') throw new HttpError(405, 'Method not allowed.');
     await serveStatic(req, res, url);
   } catch (e) {
-    if (e instanceof HttpError) return send(res, e.status, { error: e.message });
+    if (e instanceof HttpError) return send(res, e.status, { ...e.extra, error: e.message });
     console.error(e);
     send(res, 500, { error: 'Something went wrong on the server.' });
   }

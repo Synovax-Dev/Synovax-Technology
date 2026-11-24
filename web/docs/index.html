@@ -319,7 +319,7 @@
         <h2>The inbox</h2>
         <p>When an app learns something about you, it can call <code>suggest_memory</code>. The suggestion is sealed in the connector with your vault's public key, so only your vault can open it.</p>
         <ol class="d-steps">
-          <li><b>Open Inbox</b><p>Press <b>Refresh</b>; the inbox does not update by itself yet.</p></li>
+          <li><b>Open Inbox</b><p>New suggestions show up by themselves within 30 seconds (and as soon as you come back to the tab). <b>Refresh</b> checks right away.</p></li>
           <li><b>Read, edit, decide</b><p>Fix the wording, choose the folder and tags, then press <b>Approve</b> to save it, or <b>Remove</b> to throw it away.</p></li>
         </ol>
         <p>The vault also checks a <b>vouch</b>: a signature over its inbox key made with a secret only the vault and the app share. If anyone swapped that key on the server to read suggestions, the check fails and the suggestion is refused.</p>
@@ -331,10 +331,11 @@
         <h2>Change or revoke access</h2>
         <p>Under <b>Apps</b>, each app shows what it can read, whether it may suggest, and when it was last used.</p>
         <ul class="d-list">
-          <li><b>Edit access</b> to tick or untick folders, then <b>Save access</b>. Unticked folders stop being handed out on the next request.</li>
-          <li><b>Revoke</b> to cancel the key. The very next request with it fails.</li>
+          <li><b>Edit access</b> to tick or untick folders, then <b>Save access</b>. Unticked folders stop being handed out on the next request, and each one gets a <b>new key</b>: every memory in it is re-encrypted in your browser, and only the apps that still have access receive the new key.</li>
+          <li><b>Revoke</b> to cancel the key. The very next request with it fails, and the folders it could read get new keys too.</li>
+          <li>Open a folder and press <b>Replace key</b> to do the same by hand at any time.</li>
         </ul>
-        <div class="call call--warn"><svg aria-hidden="true"><use href="#i-warn"/></svg><div><b>Revoking is not erasing</b><p>An app that already read a memory may have kept a copy in its own history. Revoking stops future reads, not past ones. Folder keys are not rotated yet.</p></div></div>
+        <div class="call call--warn"><svg aria-hidden="true"><use href="#i-warn"/></svg><div><b>Revoking is not erasing</b><p>An app that already read a memory may have kept a copy in its own history. The new folder key protects everything written from now on; it cannot take back what was already read.</p></div></div>
       </section>
 
       <section class="d-ch" id="read-log" data-level="03">
@@ -346,6 +347,7 @@
           <li><b>Sealed</b> lines belong to a published seal. Press <b>Verify #&lt;seal&gt;</b> and your browser recomputes the line's hash and checks its proof against the public root.</li>
         </ul>
         <p>If anyone changed, removed or reordered a line after sealing, the proof no longer leads to the root, and verification fails. Level 04 shows the math.</p>
+        <p>The seals themselves form a <b>hash chain</b>: each one includes the hash of the one before. Your browser remembers the newest chain hash it has seen, and every time you open the read log it checks the chain still leads from there to the newest seal. If the server rewrote or dropped an older seal, you see <b>✗</b> instead of <b>✓ Seal chain intact</b>. A server owner can also post every seal to a webhook (<code>SEAL_PUBLISH_URL</code>) so a copy lives somewhere the server cannot edit.</p>
       </section>
 
       <section class="d-ch" id="account" data-level="03">
@@ -354,10 +356,14 @@
         <div class="d-grid2">
           <div class="d-fact"><b>Change passphrase</b><p>Settings → Change passphrase. Every other signed-in session is signed out and the old passphrase stops working.</p></div>
           <div class="d-fact"><b>Forgot it?</b><p>On the sign-in page choose <b>Recover</b>, enter the vault name, the 24 words and a new passphrase.</p></div>
+          <div class="d-fact"><b>Two-step sign-in</b><p>Settings → <b>Turn on two-step sign-in</b>. Add the setup key to an authenticator app (Google Authenticator, Aegis, 1Password…) and type its 6-digit code. From then on, opening the vault asks for a code after the passphrase. Each code works once. Recovering with the 24 words turns it off, in case the phone is what you lost.</p></div>
+          <div class="d-fact"><b>Signed-in devices</b><p>Settings → Signed-in devices lists every place the vault is open, with browser and system, and lets you sign out any of them or all others at once.</p></div>
+          <div class="d-fact"><b>Import</b><p>Settings → <b>Import</b>. Paste what another assistant remembers (ChatGPT: Settings → Personalization → Manage memories; Claude: Settings → Memory), one fact per line, or choose a file this vault exported. Duplicates are skipped; everything is encrypted on your device before it is sent.</p></div>
           <div class="d-fact"><b>Export</b><p>Settings → <b>Download export</b> saves every folder and memory as one JSON file, decrypted on your device. Store it somewhere safe: it is plain text.</p></div>
           <div class="d-fact"><b>Delete everything</b><p>Settings → Delete everything removes the vault, memories, app keys and read log. Type the vault name to confirm. Public seals stay, because they reveal nothing.</p></div>
         </div>
         <p>Sessions last up to 7 days. Reloading the vault page locks it, because keys live only in the page's memory.</p>
+        <p><b>On a phone:</b> open <code>/vault/</code> in the browser and choose “Add to Home Screen” (Safari) or “Install app” (Chrome). It opens full screen like an app.</p>
       </section>
 
       <!-- ===================== 04 · security model ===================== -->
@@ -437,16 +443,23 @@ const ok = await verifyProof(leaf, proof, root);
             <tr><td><code>DATA_DIR</code></td><td><code>./data</code></td><td>Where <code>vault.db</code> and <code>admin-key</code> live.</td></tr>
             <tr><td><code>SEAL_PERIOD_MS</code></td><td><code>3600000</code></td><td>How often the log is sealed (one hour).</td></tr>
             <tr><td><code>ADMIN_KEY</code></td><td>random</td><td>Admin panel key, at least 32 characters. Otherwise one is made in <code>DATA_DIR/admin-key</code>.</td></tr>
+            <tr><td><code>KDF_ITERATIONS</code></td><td><code>600000</code></td><td>PBKDF2 rounds every new vault must use (so the salt answer does not reveal which names exist).</td></tr>
+            <tr><td><code>TRUST_PROXY</code></td><td><code>0</code></td><td>Number of reverse proxies in front (usually <code>1</code>). Rate limits then use the client address from <code>X-Forwarded-For</code>. Leave at 0 when clients connect directly.</td></tr>
+            <tr><td><code>TLS_CERT</code>, <code>TLS_KEY</code></td><td>none</td><td>PEM files: serve HTTPS directly (adds HSTS).</td></tr>
+            <tr><td><code>TLS_PFX</code>, <code>TLS_PFX_PASSPHRASE</code></td><td>none</td><td>The same with a <code>.pfx</code>/<code>.p12</code> file, as Windows exports.</td></tr>
+            <tr><td><code>BACKUP_INTERVAL_MS</code></td><td><code>21600000</code></td><td>How often a copy of the database goes to <code>DATA_DIR/backups</code> (6 hours). <code>0</code> turns it off.</td></tr>
+            <tr><td><code>BACKUP_KEEP</code></td><td><code>14</code></td><td>How many backups to keep.</td></tr>
+            <tr><td><code>SEAL_PUBLISH_URL</code></td><td>none</td><td>A webhook (Discord, Slack, your own) that receives every new seal.</td></tr>
           </tbody>
         </table></div>
         <h3 id="self-host-https">Put it behind HTTPS</h3>
-        <p>The server speaks plain HTTP. Online, always put a reverse proxy with TLS in front. If the proxy runs on the same machine, keep <code>HOST=127.0.0.1</code>. For example with Caddy:</p>
+        <p>Online, always use HTTPS. Either set <code>TLS_CERT</code> and <code>TLS_KEY</code> (or <code>TLS_PFX</code>), or put a reverse proxy with TLS in front and set <code>TRUST_PROXY=1</code>. If the proxy runs on the same machine, keep <code>HOST=127.0.0.1</code>. For example with Caddy:</p>
         <div class="code"><div class="code-bar"><span>Caddyfile</span><button type="button" data-copy>copy</button></div><pre><code>vault.example.com {
   reverse_proxy 127.0.0.1:8787
 }</code></pre></div>
-        <div class="call call--warn"><svg aria-hidden="true"><use href="#i-warn"/></svg><div><b>Rate limits behind a proxy</b><p>Limits are counted per client address, and behind a proxy every request comes from the proxy. Per-vault limits still apply, but per-address ones become shared. Add limits at the proxy too.</p></div></div>
+        <div class="call call--warn"><svg aria-hidden="true"><use href="#i-warn"/></svg><div><b>Set TRUST_PROXY behind a proxy</b><p>Without it, every request seems to come from the proxy, so per-address limits are shared by everyone. Do not set it when clients reach the server directly: they could then fake their address.</p></div></div>
         <h3 id="self-host-backup">Backups</h3>
-        <p>Everything is in <code>DATA_DIR</code>. Back up the folder while the server is stopped, or use SQLite's own backup. A backup is still ciphertext: useless without passphrases, but it does include metadata.</p>
+        <p>The server writes a consistent copy of the database to <code>DATA_DIR/backups</code> every 6 hours and keeps the newest 14. Copy that folder to another disk or machine: a backup on the same disk does not survive the disk. A backup is still ciphertext: useless without passphrases, but it does include metadata. To restore, stop the server and put a backup in place of <code>vault.db</code> (delete <code>vault.db-wal</code> and <code>vault.db-shm</code>).</p>
         <h3 id="self-host-admin">The admin panel</h3>
         <p><code>/admin/</code> publishes the $SYNOVAX token details to the landing page. Its key is in <code>DATA_DIR/admin-key</code>, read it with <code>Get-Content data\admin-key</code>. New contract addresses must be confirmed by typing their last six characters; every change is logged. Sessions last 12 hours and end on restart.</p>
       </section>
@@ -475,6 +488,9 @@ const ok = await verifyProof(leaf, proof, root);
             <tr><td>POST</td><td><code>/api/auth/logout</code></td><td>owner</td><td>End this session</td></tr>
             <tr><td>GET</td><td><code>/api/vault</code></td><td>owner</td><td>Wrapped keys, folders, memories (all ciphertext)</td></tr>
             <tr><td>PUT · DELETE</td><td><code>/api/folders/:id</code>, <code>/api/memories/:id</code></td><td>owner</td><td>Save or delete</td></tr>
+            <tr><td>POST</td><td><code>/api/folders/:id/rotate</code></td><td>owner</td><td>New folder key: all its memories re-encrypted, new grants, in one step</td></tr>
+            <tr><td>GET · DELETE · POST</td><td><code>/api/sessions</code>, <code>/api/sessions/:id</code>, <code>/api/sessions/sign-out-others</code></td><td>owner</td><td>Signed-in devices</td></tr>
+            <tr><td>GET · POST</td><td><code>/api/account</code>, <code>/api/account/2fa/setup</code>, <code>/enable</code>, <code>/disable</code></td><td>owner</td><td>Key bundle, two-step sign-in</td></tr>
             <tr><td>GET · PUT · PATCH · DELETE</td><td><code>/api/apps</code>, <code>/api/apps/:id</code></td><td>owner</td><td>List, create, change grants, revoke</td></tr>
             <tr><td>GET · DELETE</td><td><code>/api/inbox</code>, <code>/api/inbox/:id</code></td><td>owner</td><td>Sealed suggestions</td></tr>
             <tr><td>GET</td><td><code>/api/log</code>, <code>/api/log/:id/proof</code></td><td>owner</td><td>Read log and Merkle proofs</td></tr>
@@ -490,8 +506,9 @@ const ok = await verifyProof(leaf, proof, root);
           <tbody>
             <tr><td>salt</td><td>60 a minute per address</td></tr>
             <tr><td>register</td><td>10 an hour per address</td></tr>
-            <tr><td>login</td><td>20 a minute per address, 10 a minute per vault</td></tr>
-            <tr><td>recover</td><td>10 per 10 minutes per address, 5 per 10 minutes per vault</td></tr>
+            <tr><td>login</td><td>20 a minute per address; 10 failed a minute per vault and address; 200 failed an hour per vault (blocks only addresses that failed)</td></tr>
+            <tr><td>recover</td><td>10 per 10 minutes per address; 5 failed per 10 minutes per vault and address; 50 failed an hour per vault</td></tr>
+            <tr><td>2FA codes</td><td>10 per 10 minutes per vault</td></tr>
             <tr><td>admin login</td><td>5 per 15 minutes per address</td></tr>
           </tbody>
         </table></div>
@@ -518,7 +535,7 @@ node connector/index.js</code></pre></div>
         <header class="d-ch-h"><span class="lvl">05 · expert</span><span class="mins">2 min</span></header>
         <h2>Testing</h2>
         <div class="code"><div class="code-bar"><span>terminal</span><button type="button" data-copy>copy</button></div><pre><code>npm test</code></pre></div>
-        <p>23 end-to-end checks against a real server in a throwaway data folder, a “browser” built from the same crypto module, and the real connector spoken to over MCP. Among them:</p>
+        <p>31 end-to-end checks against a real server in a throwaway data folder, a “browser” built from the same crypto module, and the real connector spoken to over MCP. Then <code>npm run test:ui</code> drives the real pages in headless Chrome or Edge (17 flows, from creating a vault to recovering it) and fails on any JS error, CSP violation, failed request or page that scrolls sideways on a phone. Among the checks:</p>
         <ul class="d-list">
           <li>AES-GCM refuses a wrong context or a single flipped bit.</li>
           <li>An app sees only its folders; a removed folder or revoked key stops it.</li>
@@ -535,7 +552,8 @@ node connector/index.js</code></pre></div>
         <details class="d-faq"><summary>The AI app shows no SYNOVAX tools</summary><p>Check that the path in <code>args</code> is absolute and points at <code>connector/index.js</code>, that <code>node</code> is on the app's PATH (or use the full path to <code>node</code>), then fully restart the app. Run the connector by hand to see its error.</p></details>
         <details class="d-faq"><summary>“VAULT_APP_KEY is not set”</summary><p>The <code>env</code> block is missing or misspelled in the app's config. It must contain <code>VAULT_APP_KEY</code>.</p></details>
         <details class="d-faq"><summary>“This app key was revoked or is not valid”</summary><p>The key was removed under Apps, mistyped, or belongs to another server. Make a new key and replace it in the config.</p></details>
-        <details class="d-faq"><summary>The app finds nothing</summary><p>It only sees folders you ticked for it, and search is by words. Check its folders under Apps and use the words you would ask with in titles and tags.</p></details>
+        <details class="d-faq"><summary>The app finds nothing</summary><p>It only sees folders you ticked for it, and search is by words (it forgives plurals, one typo and common synonyms, but not a different idea). Check its folders under Apps and use the words you would ask with in titles and tags.</p></details>
+        <details class="d-faq"><summary>I lost the phone with my authenticator</summary><p>Use <b>Recover</b> with your 24 words. That opens the vault and turns two-step sign-in off; turn it on again with the new phone in Settings.</p></details>
         <details class="d-faq"><summary>The port is already in use</summary><p>Something else runs on 8787. Start with another port, then use that port in <code>VAULT_URL</code> too:</p><div class="code"><div class="code-bar"><span>powershell</span><button type="button" data-copy>copy</button></div><pre><code>$env:PORT = "8790"; npm start</code></pre></div></details>
         <details class="d-faq"><summary>I forgot my passphrase</summary><p>Use <b>Recover</b> on the sign-in page with your 24 words. Without them, the vault cannot be opened by anyone.</p></details>
         <details class="d-faq"><summary>Unlocking takes a moment</summary><p>That is the 600,000 PBKDF2 rounds running in your browser. It is the same work an attacker has to do for every guess.</p></details>
@@ -545,8 +563,8 @@ node connector/index.js</code></pre></div>
         <header class="d-ch-h"><span class="lvl">05 · expert</span><span class="mins">2 min</span></header>
         <h2>Limits and roadmap</h2>
         <div class="d-grid2">
-          <div class="d-fact d-fact--plain"><b>Known limits today</b><ul><li>Not independently audited</li><li>Search by words, not meaning</li><li>Folder keys are not rotated after revoking</li><li>Seals are stored on the same server</li><li>The inbox needs a manual refresh</li></ul></div>
-          <div class="d-fact d-fact--solid"><b>Being considered next</b><ul><li>Passkey sign-in (WebAuthn PRF)</li><li>Import from ChatGPT and Claude exports</li><li>Local semantic search</li><li>Sharing a folder between vaults</li><li>Browser extension and mobile</li></ul></div>
+          <div class="d-fact d-fact--plain"><b>Known limits today</b><ul><li>Not independently audited</li><li>Search by words (forgiving), not by meaning</li><li>The seal chain is only as strong as its witnesses: your browser, and a webhook if one is set</li><li>An app can keep what it already read</li></ul></div>
+          <div class="d-fact d-fact--solid"><b>Being considered next</b><ul><li>Passkey sign-in (WebAuthn PRF)</li><li>Local semantic search</li><li>Sharing a folder between vaults</li><li>Browser extension</li><li>Native phone app</li></ul></div>
         </div>
       </section>
 

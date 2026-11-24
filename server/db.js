@@ -128,8 +128,9 @@ export function openDb(file) {
   const db = new DatabaseSync(file);
   // secure_delete: deleted rows are overwritten on disk, not just unlinked.
   db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA secure_delete = ON; PRAGMA busy_timeout = 5000;');
-  db.exec(SCHEMA);
-  migrate(db);
+  // One transaction for the whole schema: each statement on its own would wait
+  // for its own disk flush, which made starting take seconds on some machines.
+  tx(db, () => { db.exec(SCHEMA); migrate(db); });
   return db;
 }
 
@@ -141,6 +142,9 @@ const ADDED_COLUMNS = [
   ['sessions', 'agent', 'TEXT'],         // a short device label, e.g. "Chrome on Windows"
   ['seals', 'prev', 'TEXT'],             // the chain hash of the seal before this one
   ['seals', 'chain', 'TEXT'],            // SHA-256 over prev + this seal, so history cannot be rewritten quietly
+  ['vaults', 'totp_enc', 'TEXT'],        // two-step sign-in secret, encrypted with a key derived from server-secret
+  ['vaults', 'totp_pending_enc', 'TEXT'],// a secret being set up, not yet confirmed with a code
+  ['vaults', 'totp_last', 'INTEGER'],    // the last time step accepted, so a code cannot be used twice
 ];
 
 function migrate(db) {

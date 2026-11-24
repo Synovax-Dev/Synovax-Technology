@@ -7,6 +7,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
 import * as C from '../shared/crypto.js';
+import { totpAt, currentStep } from '../server/totp.js';
 import { WORDS } from '../shared/wordlist.js';
 import { leafHash, merkleRoot, merkleProof, verifyProof, toHex, verifySealChain, GENESIS } from '../shared/merkle.js';
 
@@ -254,6 +255,14 @@ try {
     assert.doesNotMatch(r2.text, /Allergy|allergic/);
   });
 
+  await step('search forgives plurals, typos and everyday synonyms', async () => {
+    assert.match((await connector.tool('search_memories', { query: 'mornings' })).text, /Morning person/, 'plural');
+    assert.match((await connector.tool('search_memories', { query: 'metrik units' })).text, /Answer style/, 'one typo');
+    assert.match((await connector.tool('search_memories', { query: 'my job' })).text, /Morning person/, 'job ~ work');
+    assert.match((await connector.tool('search_memories', { query: 'answers' })).text.split('\n')[0], /Answer style/, 'title match ranks first');
+    assert.match((await connector.tool('search_memories', { query: 'zebra quantum' })).text, /^Nothing in the vault matches/);
+  });
+
   await step('read_memory returns the full text; Health is refused', async () => {
     const r = await connector.tool('read_memory', { id: workMem });
     assert.match(r.text, /before nine in the morning/);
@@ -388,9 +397,34 @@ try {
     assert.match(r.text, /revoked/);
   });
 
+  await step('two-step sign-in: a code is needed, and a code works only once', async () => {
+    assert.equal((await ok('GET', '/api/account', null, token)).twoFactor, false);
+    const { secret, uri } = await ok('POST', '/api/account/2fa/setup', null, token);
+    assert.match(uri, /^otpauth:\/\/totp\//);
+    assert.equal((await api('POST', '/api/account/2fa/enable', { code: '000000' }, token)).status, 400, 'a wrong code does not turn it on');
+    const step0 = currentStep();
+    await ok('POST', '/api/account/2fa/enable', { code: totpAt(secret, step0) }, token);
+    assert.equal((await ok('GET', '/api/account', null, token)).twoFactor, true);
+    assert.ok(!JSON.stringify(await ok('GET', '/api/account', null, token)).includes(secret), 'the secret is never sent back');
+
+    const noCode = await api('POST', '/api/auth/login', { username, authKey: k.authKey });
+    assert.equal(noCode.status, 401);
+    assert.equal(noCode.data.needTotp, true);
+    const wrongPass = await api('POST', '/api/auth/login', { username, authKey: (await C.keysFromPassphrase('nope', salt, iterations)).authKey });
+    assert.ok(!wrongPass.data.needTotp, 'a wrong passphrase does not reveal that 2FA is on');
+    assert.equal((await api('POST', '/api/auth/login', { username, authKey: k.authKey, totp: totpAt(secret, step0) })).status, 401, 'the code used to turn it on cannot be used again');
+    assert.equal((await api('POST', '/api/auth/login', { username, authKey: k.authKey, totp: totpAt(secret, step0 + 1) })).status, 200, 'a fresh code works');
+    assert.equal((await api('POST', '/api/auth/login', { username, authKey: k.authKey, totp: totpAt(secret, step0 + 1) })).status, 401, 'and only once');
+    assert.equal((await api('POST', '/api/account/2fa/disable', { code: '123456' }, token)).status, 400, 'turning it off needs a real code');
+    const raw = (await readdir(dataDir)).filter((f) => f.startsWith('vault.db'));
+    const bytes = Buffer.concat(await Promise.all(raw.map((f) => readFile(path.join(dataDir, f))))).toString('latin1');
+    assert.ok(!bytes.includes(secret), 'the 2FA secret is not stored in the clear');
+  });
+
   await step('recovery phrase opens the vault and sets a new passphrase', async () => {
     const rk = await C.keysFromRecovery(phrase);
     const r = await ok('POST', '/api/auth/recover', { username, recoveryAuthKey: rk.authKey });
+    assert.equal(r.twoFactorReset, true, 'the 24 words also turn two-step sign-in off');
     assert.deepEqual(await C.unwrapKey(rk.kek, r.keys.wrappedVaultKeyRecovery, 'vk/recovery'), vk);
     const newSalt = C.b64(C.randomBytes(16));
     const nk = await C.keysFromPassphrase('a brand new passphrase', newSalt, iterations);
@@ -452,6 +486,9 @@ try {
     assert.equal(res.status, 200);
     assert.match(res.headers.get('content-security-policy'), /script-src 'self'/);
     assert.equal((await fetch(`${BASE}/shared/crypto.js`)).status, 200);
+    const mf = await fetch(`${BASE}/vault/manifest.webmanifest`);
+    assert.equal(mf.headers.get('content-type'), 'application/manifest+json');
+    for (const icon of (await mf.json()).icons) assert.equal((await fetch(BASE + icon.src)).status, 200, icon.src);
     assert.equal((await fetch(`${BASE}/../server/index.js`)).status, 404);
     assert.equal((await fetch(`${BASE}/%2e%2e/server/index.js`)).status, 404);
   });

@@ -9,6 +9,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
+import { totpAt, currentStep } from '../server/totp.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const ADMIN_KEY = `ui_admin_${'y'.repeat(40)}`;
@@ -313,13 +314,40 @@ try {
     noProblems();
   });
 
-  await step('lock, then open again with the passphrase: everything still decrypts', async () => {
+  await step('settings: import a pasted list of memories (as from ChatGPT)', async () => {
+    const list = '- Prefers metric units\n- Works night shifts as a nurse\n- Name';
+    await js(`type(byText('.card', 'Import').querySelector('textarea'), ${JSON.stringify(list)}); return true`);
+    await until('return byText(".card .fine", "Found 3")', 'the import preview');
+    await js('click(".btn.primary", "Import")');
+    await toast('Imported 3');
+    noProblems();
+  });
+
+  let totpSecret;
+  await step('settings: turn on two-step sign-in with an authenticator code', async () => {
+    await js('click(".nav-item", "Settings")');
+    await until('return byText(".btn", "Turn on two-step")', 'the 2FA card');
+    await js('click(".btn", "Turn on two-step")');
+    totpSecret = (await until('return byText(".card", "setup key")?.querySelector(".keybox code")?.textContent', 'the setup key')).replace(/\s/g, '');
+    await js(`type(byText('.card', 'setup key').querySelector('input[name=code]'), ${JSON.stringify(totpAt(totpSecret, currentStep()))});
+      byText('.btn.primary', 'Turn on').closest('form').requestSubmit(); return true`);
+    await until('return byText(".ok", "On.")', '2FA on');
+    noProblems();
+  });
+
+  await step('lock, then open again with passphrase + code: everything still decrypts', async () => {
     await js('click(".side-lock")');
     await until('return $(".au-form")', 'the sign-in form');
+    allowStatus.add('/api/auth/login 401'); // the first try, without a code, is answered "code needed"
     await js(`type('input[name=pass]', ${JSON.stringify(pass)}); $('.au-form').requestSubmit(); return true`);
+    await until('return $("input[name=totp]")', 'the code field', 30_000);
+    assert.equal(await js('return $("input[name=pass]").value'), pass, 'what was typed stays');
+    await js(`type('input[name=totp]', ${JSON.stringify(totpAt(totpSecret, currentStep() + 1))}); $('.au-form').requestSubmit(); return true`);
     await until('return $(".shell")', 'the dashboard', 30_000);
+    problems.splice(0, problems.length, ...problems.filter((p) => !/status of 401 .*\/api\/auth\/login/.test(p)));
+    allowStatus.clear();
     const titles = await js('return $$(".item-title").map((e) => e.textContent)');
-    assert.deepEqual([...titles].sort(), ['Coffee order', 'Likes jazz', 'Name']);
+    assert.deepEqual([...titles].sort(), ['Coffee order', 'Likes jazz', 'Name', 'Name', 'Prefers metric units', 'Works night shifts as a nurse']);
     assert.ok(!(await js('return document.body.textContent.includes("Unreadable")')), 'nothing is unreadable after the key changes');
     noProblems();
   });
@@ -332,7 +360,7 @@ try {
     await js(`type('input[name=username]', ${JSON.stringify(user)}); type('textarea[name=phrase]', ${JSON.stringify(phrase)});
       type('input[name=pass]', 'a whole new passphrase'); type('input[name=pass2]', 'a whole new passphrase'); $('.au-form').requestSubmit(); return true`);
     await until('return $(".shell")', 'the dashboard', 30_000);
-    await toast('recovered');
+    await toast('Two-step sign-in was turned off');
     noProblems();
   });
 
