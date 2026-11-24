@@ -167,6 +167,7 @@ try {
     const ghost = await ok('POST', '/api/auth/salt', { username: 'nobody-here' });
     assert.equal(ghost.iterations, real.iterations);
     assert.equal((await ok('GET', '/api/config')).iterations, iterations);
+    assert.equal((await ok('GET', '/api/config')).statsMinVaults, 100, 'landing counts hidden below 100 vaults by default');
     const other = await C.keysFromPassphrase('x', salt, 100_000);
     const r = await api('POST', '/api/auth/register', {
       username: 'odd-rounds', salt, iterations: 600_000, authKey: other.authKey, recoveryAuthKey: other.authKey,

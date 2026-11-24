@@ -225,6 +225,9 @@ html.no-motion .st-t, html.no-motion .st-copy, html.no-motion .st-plate { opacit
 .stats dt { font-size: var(--type-eyebrow); text-transform: uppercase; letter-spacing: -0.04em; white-space: nowrap; line-height: 0.9; }
 .stats dd { font-family: var(--font-display); font-weight: 500; font-size: var(--type-heading); line-height: 0.72; letter-spacing: -0.08em; }
 .stats dd .tx { flex-wrap: nowrap; }
+/* shown instead of the counts until the server has STATS_MIN_VAULTS vaults */
+.early-big { margin-top: 1.5rem; font-family: var(--font-display); font-weight: 500; font-size: var(--type-heading); line-height: 0.9; letter-spacing: -0.06em; text-transform: uppercase; }
+.early-sub { margin-top: 0.5rem; font-size: var(--type-eyebrow); text-transform: uppercase; letter-spacing: -0.04em; line-height: 1; opacity: 0.7; }
 
 .actions { display: flex; flex-direction: column; gap: 1rem; margin-top: 0.5rem; }
 @media (min-width: 640px) { .actions { display: grid; grid-template-columns: 1fr auto 1fr; align-items: end; gap: 2rem; margin-top: 0; } }

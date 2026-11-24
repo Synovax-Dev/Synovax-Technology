@@ -28,9 +28,16 @@ async function getJSON(url) {
 // ---------- live data ----------
 async function loadData() {
   const [stats, seals, config] = await Promise.allSettled([getJSON('/api/stats'), getJSON('/api/seals?limit=1'), getJSON('/api/config')]);
-  if (stats.status === 'fulfilled') {
+  // The counts appear only once there are enough real vaults to be worth showing;
+  // until then (or if anything fails) the panel says "early access".
+  const min = config.status === 'fulfilled' && Number.isFinite(config.value.statsMinVaults) ? config.value.statsMinVaults : 100;
+  const showCounts = stats.status === 'fulfilled' && (stats.value.vaults ?? 0) >= min;
+  if (showCounts) {
     for (const dd of $$('[data-stat]')) dd.textContent = compact(stats.value[dd.dataset.stat] ?? 0);
   }
+  const live = $('[data-hero-live]'), early = $('[data-hero-early]');
+  if (live) live.hidden = !showCounts;
+  if (early) early.hidden = showCounts;
   if (config.status === 'fulfilled' && config.value.sealPeriodMs) {
     const w = periodWords(config.value.sealPeriodMs);
     for (const el of $$('[data-period-text]')) el.textContent = w.text;

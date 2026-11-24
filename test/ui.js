@@ -179,6 +179,10 @@ try {
   await step('landing page loads without errors, and fits a phone', async () => {
     await open('/');
     await sleep(2500);
+    // a fresh server has fewer vaults than STATS_MIN_VAULTS: early access, no counts
+    assert.equal(await js('return $("[data-hero-early]").hidden'), false, 'early access shows');
+    assert.equal(await js('return $("[data-hero-live]").hidden'), true, 'the counts stay hidden');
+    await sleep(2500); await shot('landing-hero');
     await js('window.scrollTo(0, document.body.scrollHeight / 2)'); await sleep(800);
     await js('window.scrollTo(0, document.body.scrollHeight)'); await sleep(800);
     await shot('landing'); await js('window.scrollTo(0, 0)'); await shot('landing', true);

@@ -116,12 +116,20 @@
                     <svg class="corner corner--tr" aria-hidden="true"><use href="#i-corner"/></svg>
                     <svg class="corner corner--bl" aria-hidden="true"><use href="#i-corner"/></svg>
                     <svg class="corner corner--br" aria-hidden="true"><use href="#i-corner"/></svg>
-                    <p class="eyebrow">live on this server</p>
-                    <dl class="stats" data-hero-stats>
-                      <div><dt>vaults</dt><dd data-stat="vaults">0</dd></div>
-                      <div><dt>memories</dt><dd data-stat="memories">0</dd></div>
-                      <div><dt>reads</dt><dd data-stat="reads">0</dd></div>
-                    </dl>
+                    <!-- The counts show only once this server has a real crowd (STATS_MIN_VAULTS); until then, early access. -->
+                    <div data-hero-live hidden>
+                      <p class="eyebrow">live on this server</p>
+                      <dl class="stats" data-hero-stats>
+                        <div><dt>vaults</dt><dd data-stat="vaults">0</dd></div>
+                        <div><dt>memories</dt><dd data-stat="memories">0</dd></div>
+                        <div><dt>reads</dt><dd data-stat="reads">0</dd></div>
+                      </dl>
+                    </div>
+                    <div class="early" data-hero-early>
+                      <p class="eyebrow">early access</p>
+                      <p class="early-big">be one of the first</p>
+                      <p class="early-sub">open a vault while it is early</p>
+                    </div>
                   </div>
                 </div>
               </div>

@@ -30,6 +30,8 @@ const KDF_ITERATIONS = Number(process.env.KDF_ITERATIONS ?? PBKDF2_ITERATIONS);
 // number of proxies in front of the server (usually 1). Off by default, because a
 // client talking to the server directly could otherwise fake its IP.
 const TRUST_PROXY = Number(process.env.TRUST_PROXY ?? 0);
+// The landing page shows its live counts only from this many vaults on (0 = always).
+const STATS_MIN_VAULTS = (() => { const n = Number.parseInt(process.env.STATS_MIN_VAULTS ?? '100', 10); return Number.isFinite(n) ? Math.max(0, n) : 100; })();
 if (!Number.isInteger(KDF_ITERATIONS) || KDF_ITERATIONS < 100_000 || KDF_ITERATIONS > 10_000_000) {
   console.error('KDF_ITERATIONS must be a whole number from 100000 to 10000000.'); process.exit(1);
 }
@@ -261,6 +263,7 @@ route('GET', '/api/config', 'none', () => ({
   appName: APP_NAME,
   sealPeriodMs: SEAL_PERIOD_MS,
   iterations: KDF_ITERATIONS,
+  statsMinVaults: STATS_MIN_VAULTS,
   connectorPath: LOOPBACK ? path.join(ROOT, 'connector', 'index.js') : null,
 }));
 
