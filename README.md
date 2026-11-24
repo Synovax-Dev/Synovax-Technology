@@ -143,3 +143,7 @@ app key            vlt_app.<id>.<secret> ──HKDF──▶ auth (server cuma s
 ## Belum dibikin (kandidat versi berikutnya)
 
 Login passkey (WebAuthn PRF), pencarian makna di aplikasi vault (browser), "AI self", browser extension, berbagi folder antar-vault, app HP native.
+
+## Lisensi
+
+[MIT](LICENSE). Bebas dipakai, diubah, dan didistribusiin, termasuk buat komersial, asal catatan copyright dan lisensinya tetep disertakan.
