@@ -529,6 +529,17 @@ const ok = await verifyProof(leaf, proof, root);
         <div class="code"><div class="code-bar"><span>powershell</span><button type="button" data-copy>copy</button></div><pre><code>$env:VAULT_APP_KEY = "vlt_app.&lt;id&gt;.&lt;secret&gt;"
 node connector/index.js</code></pre></div>
         <p>It waits for MCP messages on stdin; that silence means it started. Errors go to stderr.</p>
+        <h3 id="connector-semantic">Search by meaning (optional)</h3>
+        <p>Run <code>npm install</code> once in the vault folder and the connector also searches by meaning, in any language: “what medicine should I avoid” finds “I am allergic to penicillin”, and “kapan saya paling produktif” finds “I do my best work before nine”. The model runs on your computer; no memory text leaves it. The only network use is downloading the model once into <code>.cache/models</code>.</p>
+        <div class="tbl"><table>
+          <thead><tr><th><code>VAULT_SEMANTIC</code></th><th>Model</th><th>Trade-off</th></tr></thead>
+          <tbody>
+            <tr><td><code>bge-m3</code> (default)</td><td>BGE-M3</td><td>Most accurate (14 of 14 on the test set). About 560 MB on disk, 1 GB of memory, 0.12 s to index each memory.</td></tr>
+            <tr><td><code>e5-small</code></td><td>multilingual E5 small</td><td>About 130 MB and much faster, but less accurate, especially on vague questions.</td></tr>
+            <tr><td><code>off</code></td><td>none</td><td>Words only.</td></tr>
+          </tbody>
+        </table></div>
+        <p>The index of what the app may read is saved in <code>.cache/index</code>, encrypted with a key from the app key, so a restart does not index again. Each result is labelled <code>strong</code>, <code>possible</code> or <code>words</code>: no model can say for certain that nothing is relevant, so the AI is told how sure each match is. Without <code>npm install</code> the connector quietly keeps its word search.</p>
       </section>
 
       <section class="d-ch" id="testing" data-level="05">
@@ -552,7 +563,7 @@ node connector/index.js</code></pre></div>
         <details class="d-faq"><summary>The AI app shows no SYNOVAX tools</summary><p>Check that the path in <code>args</code> is absolute and points at <code>connector/index.js</code>, that <code>node</code> is on the app's PATH (or use the full path to <code>node</code>), then fully restart the app. Run the connector by hand to see its error.</p></details>
         <details class="d-faq"><summary>“VAULT_APP_KEY is not set”</summary><p>The <code>env</code> block is missing or misspelled in the app's config. It must contain <code>VAULT_APP_KEY</code>.</p></details>
         <details class="d-faq"><summary>“This app key was revoked or is not valid”</summary><p>The key was removed under Apps, mistyped, or belongs to another server. Make a new key and replace it in the config.</p></details>
-        <details class="d-faq"><summary>The app finds nothing</summary><p>It only sees folders you ticked for it, and search is by words (it forgives plurals, one typo and common synonyms, but not a different idea). Check its folders under Apps and use the words you would ask with in titles and tags.</p></details>
+        <details class="d-faq"><summary>The app finds nothing</summary><p>It only sees folders you ticked for it, and without <code>npm install</code> search is by words only (it forgives plurals, one typo and common synonyms, but not a different idea). Run <code>npm install</code> in the vault folder for search by meaning. Check its folders under Apps and use the words you would ask with in titles and tags.</p></details>
         <details class="d-faq"><summary>I lost the phone with my authenticator</summary><p>Use <b>Recover</b> with your 24 words. That opens the vault and turns two-step sign-in off; turn it on again with the new phone in Settings.</p></details>
         <details class="d-faq"><summary>The port is already in use</summary><p>Something else runs on 8787. Start with another port, then use that port in <code>VAULT_URL</code> too:</p><div class="code"><div class="code-bar"><span>powershell</span><button type="button" data-copy>copy</button></div><pre><code>$env:PORT = "8790"; npm start</code></pre></div></details>
         <details class="d-faq"><summary>I forgot my passphrase</summary><p>Use <b>Recover</b> on the sign-in page with your 24 words. Without them, the vault cannot be opened by anyone.</p></details>
@@ -563,8 +574,8 @@ node connector/index.js</code></pre></div>
         <header class="d-ch-h"><span class="lvl">05 · expert</span><span class="mins">2 min</span></header>
         <h2>Limits and roadmap</h2>
         <div class="d-grid2">
-          <div class="d-fact d-fact--plain"><b>Known limits today</b><ul><li>Not independently audited</li><li>Search by words (forgiving), not by meaning</li><li>The seal chain is only as strong as its witnesses: your browser, and a webhook if one is set</li><li>An app can keep what it already read</li></ul></div>
-          <div class="d-fact d-fact--solid"><b>Being considered next</b><ul><li>Passkey sign-in (WebAuthn PRF)</li><li>Local semantic search</li><li>Sharing a folder between vaults</li><li>Browser extension</li><li>Native phone app</li></ul></div>
+          <div class="d-fact d-fact--plain"><b>Known limits today</b><ul><li>Not independently audited</li><li>Search by meaning needs <code>npm install</code> and works in the connector only, not in the vault page</li><li>On vague questions the right memory is in the top 3, not always first</li><li>The seal chain is only as strong as its witnesses: your browser, and a webhook if one is set</li><li>An app can keep what it already read</li></ul></div>
+          <div class="d-fact d-fact--solid"><b>Being considered next</b><ul><li>Passkey sign-in (WebAuthn PRF)</li><li>Search by meaning in the vault page</li><li>Sharing a folder between vaults</li><li>Browser extension</li><li>Native phone app</li></ul></div>
         </div>
       </section>
 

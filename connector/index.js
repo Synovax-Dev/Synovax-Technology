@@ -5,9 +5,11 @@
 //
 //   VAULT_APP_KEY  the key made in the vault under Apps (vlt_app.<id>.<secret>)
 //   VAULT_URL      where the vault server runs (default http://127.0.0.1:8787)
+//   VAULT_SEMANTIC meaning-based search model: bge-m3 (default), e5-small or off
 import readline from 'node:readline';
 import * as C from '../shared/crypto.js';
 import { APP_NAME } from '../shared/brand.js';
+import { createSemantic } from './semantic.js';
 
 const VERSION = '0.1.0';
 const BASE = (process.env.VAULT_URL || 'http://127.0.0.1:8787').replace(/\/+$/, '');
@@ -32,6 +34,16 @@ async function call(path, init = {}) {
     throw new Error(data.error || `The vault answered ${res.status}.`);
   }
   return data;
+}
+
+let semantic = null;
+function semanticSearch() {
+  if (semantic) return semantic;
+  try {
+    const { appId, secret } = C.parseAppKey(process.env.VAULT_APP_KEY ?? '');
+    semantic = createSemantic({ log, appId, secret });
+  } catch { semantic = { enabled: false, warm() {}, async scores() { return null; } }; } // no valid key: nothing to index
+  return semantic;
 }
 
 async function ready(force = false) {
@@ -79,7 +91,32 @@ async function heads(folderId, retried = false) {
   }
   // A folder key may have been rotated since the cached info: fetch the keys again once.
   if (stale && !retried) { await ready(true); return heads(folderId, true); }
+  out.fullList = !folderId;
   return out;
+}
+
+// Word scores and meaning scores together. Without the model, words only.
+async function search(query, all) {
+  const terms = [...new Set(words(query))];
+  const kw = new Map(rank(terms, all).map((x) => [x.m.id, terms.length ? x.s : 0]));
+  const sem = semanticSearch();
+  const res = sem.enabled ? await sem.scores(query, all) : null;
+  const maxKw = Math.max(0, ...kw.values()) || 1;
+  if (!res) {
+    const note = sem.enabled && !sem.failed ? 'Meaning-based search is still starting on this computer, so these are word matches only.' : '';
+    return { hits: all.filter((m) => kw.get(m.id) > 0).map((m) => ({ m, s: kw.get(m.id), how: 'words' })), note };
+  }
+  const { floor, strong, words: wordWeight } = sem.spec;
+  const hits = [];
+  for (const m of all) {
+    const cos = res.scores.get(m.id);
+    const k = kw.get(m.id) / maxKw;
+    if (cos == null) { if (k > 0) hits.push({ m, s: k * wordWeight, how: 'words' }); continue; }
+    if (cos < floor && k === 0) continue;
+    hits.push({ m, s: cos + wordWeight * k, how: cos >= strong ? 'strong' : k > 0 ? 'words + meaning' : 'possible' });
+  }
+  const note = res.pending ? `${res.pending} memories are still being indexed for meaning-based search; they may be missing until it finishes.` : '';
+  return { hits, note };
 }
 
 // ---------- search
@@ -88,7 +125,14 @@ async function heads(folderId, retried = false) {
 // longer words, a few everyday synonyms, and rarer words count for more (BM25-like).
 
 const fold = (s) => String(s).normalize('NFKD').replace(/\p{M}/gu, '').toLowerCase();
-const STOP = new Set('the a an and or of to in on for with is are was be my me i you it this that what which who how do does about yang dan di ke dari ini itu untuk dengan atau saya aku ada apa'.split(' '));
+const STOP = new Set((
+  'the a an and or but of to in on at by for with from as is am are was were be been being my me mine i you your yours it its this that these those ' +
+  'what which who whom whose when where why how do does did done have has had can could should would will shall may might must ' +
+  'most more much many very so too also just not no any some all there their they them we our us he she his her him than then ' +
+  'about into over under again only own same such get got like ' +
+  'yang dan di ke dari ini itu untuk dengan atau saya aku gue gua kamu anda dia ia kami kita mereka ada apa apakah kapan mana dimana ' +
+  'bagaimana gimana kenapa mengapa siapa punya sudah udah akan bisa harus paling lebih sangat juga tidak nggak gak bukan ya dong sih kah lah nya pada oleh'
+).split(' '));
 
 function stem(w) {
   if (w.length <= 3 || /\d/.test(w)) return w;
@@ -181,7 +225,7 @@ const TOOLS = [
   },
   {
     name: 'search_memories',
-    description: `Search the user's personal memory vault for facts, preferences and context about them. Call this before answering anything that depends on who the user is, how they like answers, or their projects. Returns titles and short snippets; use read_memory for the full text. An empty query lists the most recent memories.`,
+    description: `Search the user's personal memory vault for facts, preferences and context about them. Call this before answering anything that depends on who the user is, how they like answers, or their projects. Ask in plain words, in any language ("what should I avoid eating", "kapan saya paling produktif"): it matches by meaning as well as by words. Each result says how it matched (strong, possible, words); treat "possible" as a lead to check, not a fact. Returns titles and short snippets; use read_memory for the full text. An empty query lists the most recent memories.`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -200,14 +244,19 @@ const TOOLS = [
         if (!f) return `There is no folder called "${folder}" that this app may read. Use list_folders.`;
         folderId = f.id;
       }
-      const terms = [...new Set(words(query))];
-      const found = rank(terms, await heads(folderId))
-        .filter((x) => x.s > 0)
-        .sort((a, b) => b.s - a.s || b.m.updatedAt - a.m.updatedAt)
-        .slice(0, Math.min(50, Math.max(1, limit)));
-      if (!found.length) return query ? `Nothing in the vault matches "${query}".` : 'The folders this app may read are empty.';
-      return found.map(({ m }) =>
-        `[${m.id}] ${m.title} (${m.folder}, ${day(m.updatedAt)})${m.tags.length ? ` #${m.tags.join(' #')}` : ''}\n    ${m.snippet.replace(/\s+/g, ' ').slice(0, 200)}`).join('\n');
+      const all = await heads(folderId);
+      const n = Math.min(50, Math.max(1, limit));
+      const fmtHit = ({ m, how }) =>
+        `[${m.id}] ${m.title} (${m.folder}, ${day(m.updatedAt)})${m.tags.length ? ` #${m.tags.join(' #')}` : ''}${how ? ` · match: ${how}` : ''}\n    ${m.snippet.replace(/\s+/g, ' ').slice(0, 200)}`;
+      if (!String(query).trim()) {
+        if (!all.length) return 'The folders this app may read are empty.';
+        return [...all].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, n).map((m) => fmtHit({ m })).join('\n');
+      }
+      const { hits, note } = await search(query, all);
+      const found = hits.sort((a, b) => b.s - a.s || b.m.updatedAt - a.m.updatedAt).slice(0, n);
+      if (!found.length) return `Nothing in the vault matches "${query}".${note ? ` (${note})` : ''}`;
+      const legend = found.some((x) => x.how === 'possible') ? '\n(“possible” = loosely related by meaning; check it fits before relying on it.)' : '';
+      return found.map(fmtHit).join('\n') + legend + (note ? `\n(${note})` : '');
     },
   },
   {
@@ -266,6 +315,7 @@ const send = (msg) => process.stdout.write(JSON.stringify(msg) + '\n');
 async function handle(method, params) {
   switch (method) {
     case 'initialize':
+      semanticSearch().warm(); // load the model in the background, ready for the first search
       return {
         protocolVersion: SUPPORTED_PROTOCOLS.includes(params?.protocolVersion) ? params.protocolVersion : SUPPORTED_PROTOCOLS[0],
         capabilities: { tools: { listChanged: false } },
@@ -292,6 +342,7 @@ async function handle(method, params) {
 
 const rl = readline.createInterface({ input: process.stdin });
 rl.on('line', async (line) => {
+  line = line.replace(/^﻿/, ''); // some shells prepend a byte-order mark
   if (!line.trim()) return;
   let msg;
   try { msg = JSON.parse(line); } catch { return send({ jsonrpc: '2.0', id: null, error: { code: -32700, message: 'Parse error' } }); }

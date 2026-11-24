@@ -157,7 +157,7 @@ const noSideScroll = async (where) => {
 // ---------- MCP connector (to check what the browser made is usable by an app)
 
 function startConnector(appKey) {
-  const proc = spawn(process.execPath, ['connector/index.js'], { cwd: ROOT, env: { ...process.env, VAULT_APP_KEY: appKey, VAULT_URL: BASE }, stdio: ['pipe', 'pipe', 'ignore'] });
+  const proc = spawn(process.execPath, ['connector/index.js'], { cwd: ROOT, env: { ...process.env, VAULT_APP_KEY: appKey, VAULT_URL: BASE, VAULT_SEMANTIC: 'off' }, stdio: ['pipe', 'pipe', 'ignore'] });
   let buf = '', id = 1;
   const waiting = new Map();
   proc.stdout.on('data', (d) => {

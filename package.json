@@ -14,7 +14,11 @@
     "start": "node server/index.js",
     "connector": "node connector/index.js",
     "test": "node test/e2e.js",
-    "test:ui": "node test/ui.js"
+    "test:ui": "node test/ui.js",
+    "test:semantic": "node test/semantic.js"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "optionalDependencies": {
+    "@huggingface/transformers": "4.3.2"
+  }
 }

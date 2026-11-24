@@ -98,7 +98,7 @@ const ok = async (...a) => { const r = await api(...a); assert.ok(r.status === 2
 // ---------- MCP client for the connector
 
 function startConnector(appKey) {
-  const proc = spawn(process.execPath, ['connector/index.js'], { cwd: ROOT, env: { ...process.env, VAULT_APP_KEY: appKey, VAULT_URL: BASE }, stdio: ['pipe', 'pipe', 'pipe'] });
+  const proc = spawn(process.execPath, ['connector/index.js'], { cwd: ROOT, env: { ...process.env, VAULT_APP_KEY: appKey, VAULT_URL: BASE, VAULT_SEMANTIC: process.env.E2E_SEMANTIC ?? 'off' }, stdio: ['pipe', 'pipe', 'pipe'] });
   let buf = '';
   let nextId = 1;
   const waiting = new Map();

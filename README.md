@@ -6,7 +6,7 @@ Satu tempat buat nyimpen apa yang AI lu harus tahu tentang lu. Isinya dienkripsi
 
 ## Jalanin
 
-Butuh Node.js 22.13+ (dites di Node 24). **Tanpa `npm install`**, karena nggak ada dependency sama sekali.
+Butuh Node.js 22.13+ (dites di Node 24 dan 26). Server **nggak butuh `npm install`**. `npm install` cuma buat pencarian makna di connector (opsional, lihat di bawah).
 
 ```powershell
 npm start
@@ -53,6 +53,24 @@ Batas login: yang dihitung cuma percobaan **gagal**, per (username, IP). Orang l
 ```
 
 Tools yang didapet AI: `list_folders`, `search_memories`, `read_memory`, `suggest_memory` (usulan masuk Inbox, lu yang approve).
+
+### Pencarian makna (semantic search, opsional)
+
+```powershell
+npm install
+```
+
+Sekali aja, di folder vault. Ini satu-satunya dependency project, dan cuma dipake connector. Server tetep jalan tanpa itu. Setelah itu AI bisa nanya pake kalimat biasa, bahasa apa aja: "obat apa yang harus dihindari" nemu memori "I am allergic to penicillin".
+
+- **Modelnya jalan di komputer lu.** Isi memori nggak dikirim ke mana-mana. Internet cuma dipake sekali buat download model (dari Hugging Face) ke `.cache/models`.
+- **Pilih model** pake env `VAULT_SEMANTIC` di config MCP:
+  - `bge-m3` (default): paling akurat (14/14 di set uji), ~560 MB disk, ~1 GB RAM, indexing ~0,12 detik per memori.
+  - `e5-small`: ~130 MB, jauh lebih cepet, tapi kurang akurat (10/14 sebelum digabung kata kunci; sering meleset di pertanyaan ambigu).
+  - `off`: kata kunci aja.
+- **Index-nya disimpen terenkripsi** di `.cache/index/`, pake kunci dari app key. Jadi restart nggak perlu index ulang, dan file index nggak lebih gampang dibaca dari vault-nya sendiri.
+- Tiap hasil dikasih label `strong`, `possible`, atau `words`. Nggak ada model yang bisa mastiin 100% "nggak ada yang relevan", jadi AI dikasih tau seberapa yakin hasilnya.
+- Pencarian di aplikasi vault (browser) tetep kata kunci. Pencarian makna cuma di connector, tempat AI nyari.
+- Test: `npm run test:semantic` (download modelnya kalau belum ada). `VAULT_SEMANTIC=e5-small npm run test:semantic` buat model kecil.
 
 ## Struktur
 
@@ -102,7 +120,7 @@ app key            vlt_app.<id>.<secret> ──HKDF──▶ auth (server cuma s
 - **Perangkat yang login:** Settings → Signed-in devices. Bisa logout satu-satu atau semua sekaligus.
 - **Two-step sign-in (2FA):** Settings → Turn on. Kode 6 digit dari app authenticator, tiap kode cuma bisa dipake sekali. Rahasianya disimpen terenkripsi pake kunci dari `server-secret`. Recover pake 24 kata ikut matiin 2FA (buat kasus HP-nya yang ilang).
 - **Import:** Settings → Import. Paste daftar memori dari ChatGPT/Claude (satu fakta per baris) atau file export vault ini. Duplikat dilewatin, semua dienkripsi di browser.
-- **Pencarian connector:** masih kata kunci (nggak ada model, nggak ada yang keluar dari komputer lu), tapi toleran: aksen, bentuk jamak/imbuhan (Inggris + Indonesia), satu salah ketik, sinonim umum, kata langka dibobot lebih.
+- **Pencarian connector:** kata kunci yang toleran (aksen, bentuk jamak/imbuhan Inggris + Indonesia, satu salah ketik, sinonim umum, kata langka dibobot lebih), plus **pencarian makna** kalau diaktifin (lihat di bawah).
 - **HP:** `/vault/` bisa di-install ke home screen (manifest + ikon), dan semua halaman dites nggak geser ke samping di lebar 390px.
 - **Hapus = hapus beneran:** `PRAGMA secure_delete=ON`.
 - CSP ketat (`script-src 'self'`), tanpa script/font pihak ketiga.
@@ -112,7 +130,7 @@ app key            vlt_app.<id>.<secret> ──HKDF──▶ auth (server cuma s
 - **Belum diaudit.** Desainnya mengikuti pola standar, tapi sebelum nyimpen data sensitif orang lain, minta pihak ketiga audit dulu.
 - Kalau passphrase **dan** 24 kata recovery ilang, vault nggak bisa dibuka siapa pun. Itu disengaja.
 - Nyabut folder dari app bikin folder itu ganti kunci, jadi isi baru aman. Tapi apa yang udah sempet dibaca app sebelumnya bisa aja dia simpen. Itu nggak bisa ditarik balik.
-- Pencarian di connector masih kata kunci (udah toleran), belum semantic/embedding. Yang beneran "ngerti makna" butuh model embedding, artinya dependency pertama project ini.
+- Pencarian makna nggak sempurna: di pertanyaan ambigu ("what do I drink in the morning") model bisa naruh memori yang mirip ("Morning person") di atas yang bener; yang bener tetep ada di 3 besar. Pertanyaan yang nggak ada hubungannya kadang masih dapet hasil berlabel `possible`.
 - Rantai seal cuma sekuat saksinya: browser lu (per browser) dan `SEAL_PUBLISH_URL` kalau diisi. Tanpa keduanya, seal tetep cuma ada di server.
 - Inbox ngecek otomatis tiap 30 detik (dan pas tab dibuka lagi). Kalau lu lagi ngetik, layar nggak di-refresh biar tulisan nggak ilang, cuma muncul notifikasi.
 - Buat production: taruh di belakang HTTPS (reverse proxy), set `HOST=0.0.0.0` dan `TRUST_PROXY=1`, dan backup `DATA_DIR`.
@@ -121,4 +139,4 @@ app key            vlt_app.<id>.<secret> ──HKDF──▶ auth (server cuma s
 
 ## Belum dibikin (kandidat versi berikutnya)
 
-Login passkey (WebAuthn PRF), semantic search lokal, "AI self", browser extension, berbagi folder antar-vault, app HP native.
+Login passkey (WebAuthn PRF), pencarian makna di aplikasi vault (browser), "AI self", browser extension, berbagi folder antar-vault, app HP native.
