@@ -33,36 +33,77 @@ const BROWSERS = [
 const browserPath = BROWSERS.find((p) => existsSync(p));
 if (!browserPath) { console.log('No Chrome or Edge found; set BROWSER=<path>. Skipping the wallet test.'); process.exit(0); }
 
-// ---------- fake chain data
+// ---------- fake chain: a JSON-RPC node with the token's Transfer history
 const CA = '0x5e1f00000000000000000000000000000000c0de';
 const ME = '0x1111111111111111111111111111111111111111';
+const POOL = '0x2222222222222222222222222222222222222222';
+const DEV = '0x3333333333333333333333333333333333333333';
 const DEAD = '0x000000000000000000000000000000000000dEaD';
+const ZERO = '0x0000000000000000000000000000000000000000';
+const EXPLORER = 'https://explorer.test';
 const E18 = 10n ** 18n;
 const SUPPLY = 1_000_000_000n * E18;
 const MY_BALANCE = 45_000_000n * E18;
-const hex = (n) => n.toString(16);
-const holderItems = [
-  { address: { hash: '0x2222222222222222222222222222222222222222', is_contract: true, name: 'LP Pool <b>x</b>' }, value: String(120_000_000n * E18) },
-  { address: { hash: ME, is_contract: false, name: null }, value: String(MY_BALANCE) },
-  { address: { hash: DEAD, is_contract: false, name: null }, value: String(30_000_000n * E18) },
-  ...Array.from({ length: 22 }, (_, i) => ({ address: { hash: '0x' + (i + 1).toString(16).padStart(40, 'a'), is_contract: false, name: null }, value: String(BigInt(20_000_000 - i * 500_000) * E18) })),
-];
-let explorerHits = 0;
-const explorer = createServer((req, res) => {
-  explorerHits++;
-  const send = (code, body) => { res.writeHead(code, { 'content-type': 'application/json' }); res.end(JSON.stringify(body)); };
-  if (req.url === `/api/v2/tokens/${CA}`) return send(200, { address_hash: CA, decimals: '18', total_supply: String(SUPPLY), holders_count: '1234', symbol: 'SYNOVAX' });
-  if (req.url === `/api/v2/tokens/${CA}/holders`) return send(200, { items: holderItems, next_page_params: { value: '1' } });
-  send(404, { message: 'Not found' });
+const HEAD = 25_000_000n, MAX_SPAN = 4_000_000n; // the node refuses wider queries, like the real one (10M)
+const TRANSFER = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
+const topic = (a) => '0x' + a.slice(2).toLowerCase().padStart(64, '0');
+const word = (n) => '0x' + BigInt(n).toString(16).padStart(64, '0');
+const others = Array.from({ length: 22 }, (_, i) => ['0x' + (i + 1).toString(16).padStart(40, 'a'), BigInt(20_000_000 - i * 500_000) * E18]);
+// the dev mints everything, hands it out over time, then burns the rest
+const events = [];
+const ev = (block, from, to, value, extra = {}) => events.push({ block: BigInt(block), log: { address: CA, topics: [TRANSFER, topic(from), topic(to)], data: word(value), blockNumber: '0x' + block.toString(16), ...extra } });
+ev(100, ZERO, DEV, SUPPLY);
+ev(1_000_000, DEV, POOL, 120_000_000n * E18);
+ev(5_500_000, DEV, ME, 50_000_000n * E18);
+ev(9_000_000, ME, DEV, 5_000_000n * E18);
+others.forEach(([a, v], i) => ev(10_000_000 + i * 600_000, DEV, a, v));
+ev(12_000_000, DEV, ME, 0n); // zero transfers change nothing
+events.push({ block: 13_000_000n, log: { address: CA, topics: [TRANSFER, topic(DEV), topic(ME), word(7)], data: '0x', blockNumber: '0xc65d40' } }); // NFT-shaped: ignored
+const BURNED = SUPPLY - 120_000_000n * E18 - MY_BALANCE - others.reduce((s, [, v]) => s + v, 0n); // 510.5M
+ev(24_000_000, DEV, DEAD, BURNED);
+const finalBalances = new Map();
+for (const { log } of events) {
+  if (log.topics.length !== 3) continue;
+  const v = BigInt(log.data), f = '0x' + log.topics[1].slice(26), t = '0x' + log.topics[2].slice(26);
+  finalBalances.set(f, (finalBalances.get(f) ?? 0n) - v); finalBalances.set(t, (finalBalances.get(t) ?? 0n) + v);
+}
+let rpcCalls = 0, rpcRefusals = 0, logQueries = 0;
+function answer({ id, method, params }) {
+  rpcCalls++;
+  if (method === 'eth_getLogs') logQueries++;
+  const ok = (result) => ({ jsonrpc: '2.0', id, result });
+  const bad = (code, message) => ({ jsonrpc: '2.0', id, error: { code, message } });
+  if (method === 'eth_blockNumber') return ok('0x' + HEAD.toString(16));
+  if (method === 'eth_getLogs') {
+    const q = params[0], from = BigInt(q.fromBlock), to = BigInt(q.toBlock);
+    if (to - from + 1n > MAX_SPAN) { rpcRefusals++; return bad(-32602, `query spans ${to - from + 1n} blocks, but only ${MAX_SPAN} are allowed for this request; narrow the block range`); }
+    return ok(events.filter((e) => e.block >= from && e.block <= to && q.address.toLowerCase() === CA && q.topics[0] === TRANSFER).map((e) => e.log));
+  }
+  if (method === 'eth_call') {
+    const { to, data } = params[0];
+    if (to.toLowerCase() !== CA) return bad(-32000, 'execution reverted');
+    if (data === '0x18160ddd') return ok(word(SUPPLY));
+    if (data === '0x313ce567') return ok(word(18));
+    if (data.startsWith('0x70a08231')) return ok(word(finalBalances.get('0x' + data.slice(-40)) ?? 0n));
+    return bad(-32000, 'execution reverted');
+  }
+  if (method === 'eth_getCode') return ok(params[0].toLowerCase() === POOL ? '0x6080604052' : '0x');
+  return bad(-32601, 'method not found');
+}
+const chain = createServer(async (req, res) => {
+  let body = ''; for await (const c of req) body += c;
+  const q = JSON.parse(body);
+  res.writeHead(200, { 'content-type': 'application/json' });
+  res.end(JSON.stringify(Array.isArray(q) ? q.map(answer) : answer(q)));
 });
-await new Promise((r) => explorer.listen(0, '127.0.0.1', r));
-const EXPLORER = `http://127.0.0.1:${explorer.address().port}`;
+await new Promise((r) => chain.listen(0, '127.0.0.1', r));
+const CHAIN_RPC = `http://127.0.0.1:${chain.address().port}`;
 
 // ---------- server and browser
 const dataDir = await mkdtemp(path.join(os.tmpdir(), 'vault-wallet-'));
 const profile = await mkdtemp(path.join(os.tmpdir(), 'vault-wallet-browser-'));
 const server = spawn(process.execPath, ['server/index.js'], {
-  cwd: ROOT, env: { ...process.env, PORT: '0', DATA_DIR: dataDir, ADMIN_KEY, KDF_ITERATIONS: '100000', BACKUP_INTERVAL_MS: '0', EXPLORER_API: EXPLORER, HOLDERS_TTL_MS: '1500' },
+  cwd: ROOT, env: { ...process.env, PORT: '0', DATA_DIR: dataDir, ADMIN_KEY, KDF_ITERATIONS: '100000', BACKUP_INTERVAL_MS: '0', CHAIN_RPC, EXPLORER_URL: EXPLORER, HOLDERS_TTL_MS: '1500' },
   stdio: ['ignore', 'pipe', 'pipe'],
 });
 server.stderr.on('data', (d) => { if (!/\[holders\]/.test(String(d))) process.stderr.write(`[server] ${d}`); });
@@ -200,7 +241,7 @@ try {
   await step('no wallet installed: says so, holders wait for the contract', async () => {
     const h = await api('GET', '/api/token/holders');
     assert.deepEqual(h.data, { available: false, reason: 'no-contract' });
-    assert.equal(explorerHits, 0, 'no contract, no explorer calls');
+    assert.equal(rpcCalls, 0, 'no contract, no chain calls');
     await open('/');
     await until(`return txt('[data-wallet-msg]').includes('No browser wallet found')`, 'no-wallet message');
     assert.equal(await js(`return $('[data-wallet-btn]').disabled`), true);
@@ -224,7 +265,7 @@ try {
   });
 
   let adminToken;
-  await step('admin publishes the contract: the server reads holders from the explorer', async () => {
+  await step('admin publishes the contract: the server counts holders from the Transfer events', async () => {
     const login = await api('POST', '/api/admin/login', { password: ADMIN_KEY });
     assert.equal(login.status, 200, JSON.stringify(login.data));
     adminToken = login.data.token;
@@ -232,18 +273,38 @@ try {
     const saved = await api('PUT', '/api/admin/token', { status: 'live', contract: CA, explorerUrl: '', twitter: '', supply: '1,000,000,000', launchDate: '', rev: cur.rev, confirmContract: CA.slice(-6) }, adminToken);
     assert.equal(saved.status, 200, JSON.stringify(saved.data));
     const h = (await api('GET', '/api/token/holders')).data;
-    assert.equal(h.available, true);
+    assert.equal(h.available, true, JSON.stringify(h));
+    assert.equal(h.source, 'rpc');
+    assert.ok(rpcRefusals > 0, 'the node refused a too-wide range at least once (so splitting was used)');
     assert.equal(h.holders.length, 20, 'top 20 only');
-    assert.equal(h.holdersCount, 1234);
+    assert.equal(h.holdersCount, 25, 'dev (0 left) and the zero address do not count');
     assert.equal(h.decimals, 18);
-    assert.equal(h.holders[0].pct, 12, '120M of 1B is 12%');
-    assert.equal(h.holders[1].pct, 4.5);
-    assert.equal(h.holders[0].label, 'LP Pool bx/b', 'names are stripped of < and >');
-    assert.equal(h.holders[2].label, 'burn', 'the dead address is marked');
-    assert.equal(h.holders[3].label, '', 'plain wallets have no label');
-    const hits = explorerHits;
+    assert.equal(h.totalSupply, String(SUPPLY));
+    assert.deepEqual(h.holders.slice(0, 4).map((x) => [x.rank, x.address, x.value, x.pct, x.label]), [
+      [1, DEAD.toLowerCase(), String(BURNED), 51.05, 'burn'],
+      [2, POOL, String(120_000_000n * E18), 12, 'contract'],
+      [3, ME, String(MY_BALANCE), 4.5, ''],
+      [4, others[0][0], String(others[0][1]), 2, ''],
+    ]);
+    assert.equal(h.holders[19].value, String(12_000_000n * E18), 'rank 20 is the 17th of the others');
+    for (const x of h.holders) assert.equal(x.value, String(finalBalances.get(x.address.toLowerCase())), `balance of ${x.address} matches the chain`);
+    const calls = rpcCalls, scans = logQueries;
     await api('GET', '/api/token/holders');
-    assert.equal(explorerHits, hits, 'second call within the TTL comes from the cache');
+    assert.equal(rpcCalls, calls, 'second call within the TTL comes from the cache');
+    await sleep(1600);
+    await api('GET', '/api/token/holders');
+    assert.equal(logQueries, scans, 'a refresh does not rescan old blocks (the head did not move)');
+  });
+
+  await step('Blockscout source (opt-in): same shape, names cleaned', async () => {
+    const { fromBlockscout } = await import('../server/holders.js');
+    const fake = async (url) => ({ ok: true, json: async () => url.endsWith('/holders')
+      ? { items: [{ address: { hash: POOL, is_contract: true, name: 'LP <b>Pool</b>' }, value: String(120_000_000n * E18) }, { address: { hash: DEAD, is_contract: false, name: null }, value: String(BURNED) }, { address: { hash: 'nope' }, value: '1' }] }
+      : { decimals: '18', total_supply: String(SUPPLY), holders_count: '1234' } });
+    const b = await fromBlockscout({ api: 'https://x.test', contract: CA, shown: 20, fetchImpl: fake });
+    assert.equal(b.holdersCount, 1234);
+    assert.deepEqual(b.holders.map((x) => [x.rank, x.pct, x.label]), [[1, 12, 'LP bPool/b'], [2, 51.05, 'burn']]);
+    await assert.rejects(fromBlockscout({ api: 'https://x.test', contract: CA, shown: 20, fetchImpl: async () => ({ ok: false, status: 403 }) }), /403/);
   });
 
   await step('reload: wallet restores without a prompt; wrong network offers a switch', async () => {
@@ -266,23 +327,24 @@ try {
     assert.deepEqual(added.rpcUrls, ['https://rpc.mainnet.chain.robinhood.com']);
     assert.deepEqual(added.blockExplorerUrls, ['https://robinhoodchain.blockscout.com']);
     await until(`return txt('[data-w="balance"]') === '45,000,000 · 4.50%'`, 'balance');
-    assert.equal(await js(`return txt('[data-w="rank"]')`), '#2');
-    assert.match(await js(`return txt('[data-wallet-msg]')`), /holder #2/);
+    assert.equal(await js(`return txt('[data-w="rank"]')`), '#3');
+    assert.match(await js(`return txt('[data-wallet-msg]')`), /holder #3/);
     assert.equal(await js(`return visible('[data-wallet-switch]')`), false);
     noProblems();
   });
 
   await step('holders table: ranks, amounts, shares, you, burned, explorer links', async () => {
     const rows = await js(`return $$('[data-holders-list] tr').map((tr) => ({ cls: tr.className, cells: [...tr.cells].map((c) => c.textContent.trim()), href: tr.querySelector('a').getAttribute('href') }))`);
-    assert.deepEqual(rows[0].cells, ['01', '0x2222…2222LP Pool bx/b', '120M', '12.00%']);
-    assert.equal(rows[1].cls, 'is-you');
-    assert.deepEqual(rows[1].cells, ['02', '0x1111…1111you', '45M', '4.50%']);
-    assert.match(rows[2].cls, /is-burn/);
-    assert.deepEqual(rows[2].cells, ['03', '0x0000…dEaDburned', '30M', '3.00%']);
-    assert.equal(rows[0].href, `${EXPLORER}/address/0x2222222222222222222222222222222222222222`);
-    assert.equal(rows[19].cells[0], '20');
+    assert.match(rows[0].cls, /is-burn/);
+    assert.deepEqual(rows[0].cells, ['01', '0x0000…deadburned', '510.5M', '51.05%']);
+    assert.deepEqual(rows[1].cells, ['02', '0x2222…2222contract', '120M', '12.00%']);
+    assert.equal(rows[2].cls, 'is-you');
+    assert.deepEqual(rows[2].cells, ['03', '0x1111…1111you', '45M', '4.50%']);
+    assert.deepEqual(rows[3].cells, ['04', '0xaaaa…aaa1', '20M', '2.00%']);
+    assert.equal(rows[1].href, `${EXPLORER}/address/${POOL}`);
+    assert.deepEqual(rows[19].cells, ['20', '0xaaaa…aa11', '12M', '1.20%']);
     assert.equal(await js(`return $('[data-holders-all]').getAttribute('href')`), `${EXPLORER}/token/${CA}?tab=holders`);
-    assert.equal(await js(`return txt('[data-holders-meta]')`), '1,234 holders');
+    assert.equal(await js(`return txt('[data-holders-meta]')`), '25 holders');
     assert.equal(await js('return window.__dangerous ?? null'), null, 'never asked to sign or send');
     await shot('wallet-connected');
     await shot('wallet-connected', true);
@@ -299,9 +361,8 @@ try {
     assert.ok(boardOver <= 1, `wallet/holders board sticks out by ${boardOver}px`);
   });
 
-  await step('explorer down: the last good list is served, marked cached', async () => {
-    await new Promise((r) => explorer.close(r));
-    explorer.closeAllConnections?.();
+  await step('chain RPC down: the last good list is served, marked cached', async () => {
+    await new Promise((r) => { chain.close(r); chain.closeAllConnections?.(); });
     await sleep(1700);
     const h = (await api('GET', '/api/token/holders')).data;
     assert.equal(h.available, true);
@@ -324,5 +385,5 @@ try {
 
   console.log(`\nwallet test: ${passed} checks passed`);
 } finally {
-  ws.close(); browser.kill(); server.kill(); explorer.close();
+  ws.close(); browser.kill(); server.kill(); chain.close();
 }

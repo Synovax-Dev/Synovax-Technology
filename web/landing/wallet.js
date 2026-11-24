@@ -338,7 +338,7 @@ function renderHolders() {
     table.hidden = true; all.hidden = true;
     empty.hidden = false;
     if (!ADDR.test(ca ?? '')) { empty.textContent = 'The top 20 holders appear here once the contract address is posted.'; meta.textContent = 'at launch'; }
-    else if (h && !h.available && h.reason === 'explorer-unreachable') { empty.textContent = 'The explorer is not answering right now. The list will load on its own.'; meta.textContent = 'retrying'; }
+    else if (h && !h.available && h.reason === 'source-unreachable') { empty.textContent = 'Robinhood Chain is not answering right now. The list will load on its own.'; meta.textContent = 'retrying'; }
     else if (h?.available) { empty.textContent = 'No holders yet.'; meta.textContent = 'live'; }
     else { empty.textContent = 'Loading holders…'; meta.textContent = ''; }
     return;

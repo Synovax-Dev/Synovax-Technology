@@ -10,6 +10,7 @@ import { ensurePassword, verifyPassword, readPasswordHash, savePasswordHash, has
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { openDb, tx } from './db.js';
+import { createRpcIndex, fromBlockscout } from './holders.js';
 import { startSealer, proofFor, sealOut } from './seals.js';
 import { leafHash } from '../shared/merkle.js';
 import { PBKDF2_ITERATIONS } from '../shared/crypto.js';
@@ -699,54 +700,33 @@ route('GET', '/api/token', 'none', () => {
   return pub;
 });
 
-// Top holders of the published contract, read from the chain's Blockscout API.
-// The server asks and caches (60 s), so the page keeps connect-src 'self' and
-// visitors never hit the explorer's rate limit. A failed refresh serves the last
-// good answer, marked stale.
-const EXPLORER_API = (process.env.EXPLORER_API || 'https://robinhoodchain.blockscout.com').replace(/\/+$/, '');
+// Top holders of the published contract. By default the server reads the token's
+// Transfer events from Robinhood Chain's own RPC (HOLDERS_SOURCE=rpc); a Blockscout
+// API can be used instead (HOLDERS_SOURCE=blockscout). The answer is cached, so the
+// page keeps connect-src 'self', and a failed refresh serves the last good list,
+// marked stale.
+const CHAIN_RPC = process.env.CHAIN_RPC || 'https://rpc.mainnet.chain.robinhood.com';
+const EXPLORER_URL = (process.env.EXPLORER_URL || 'https://robinhoodchain.blockscout.com').replace(/\/+$/, '');
+const EXPLORER_API = (process.env.EXPLORER_API || EXPLORER_URL).replace(/\/+$/, '');
+const HOLDERS_SOURCE = process.env.HOLDERS_SOURCE === 'blockscout' ? 'blockscout' : 'rpc';
 const HOLDERS_TTL_MS = Math.max(Number(process.env.HOLDERS_TTL_MS) || 60_000, 1000), HOLDERS_SHOWN = 20;
-const BURN_ADDRESSES = new Set(['0x0000000000000000000000000000000000000000', '0x000000000000000000000000000000000000dead']);
 const holdersCache = { contract: '', at: 0, data: null, pending: null };
-
-async function explorerJson(pathname) {
-  const res = await fetch(`${EXPLORER_API}${pathname}`, { headers: { accept: 'application/json' }, signal: AbortSignal.timeout(8000) });
-  if (!res.ok) throw new Error(`explorer answered ${res.status}`);
-  return res.json();
-}
-
-// "1234500000" with 6 decimals → share of supply as a percentage with 4 decimals
-function pctOf(value, total) {
-  if (total <= 0n) return null;
-  return Number((value * 1_000_000n) / total) / 10_000;
-}
+const rpcIndex = createRpcIndex({ url: CHAIN_RPC, startBlock: BigInt(Number(process.env.TOKEN_START_BLOCK) || 0) });
 
 async function loadHolders(contract) {
-  const [tok, list] = await Promise.all([
-    explorerJson(`/api/v2/tokens/${contract}`),
-    explorerJson(`/api/v2/tokens/${contract}/holders`),
-  ]);
-  const isNum = (v) => typeof v === 'string' && /^\d{1,80}$/.test(v);
-  const total = isNum(tok?.total_supply) ? BigInt(tok.total_supply) : 0n;
-  const decimals = Number.isInteger(Number(tok?.decimals)) ? Math.min(Math.max(Number(tok.decimals), 0), 36) : 18;
-  const holders = (Array.isArray(list?.items) ? list.items : [])
-    .filter((h) => /^0x[0-9a-fA-F]{40}$/.test(h?.address?.hash ?? '') && isNum(h.value))
-    .slice(0, HOLDERS_SHOWN)
-    .map((h, i) => {
-      const address = h.address.hash;
-      const burn = BURN_ADDRESSES.has(address.toLowerCase());
-      const name = typeof h.address.name === 'string' ? h.address.name.replace(/[\u0000-\u001f\u007f<>]/g, '').slice(0, 40) : '';
-      return { rank: i + 1, address, value: h.value, pct: pctOf(BigInt(h.value), total), label: burn ? 'burn' : (h.address.is_contract ? (name || 'contract') : name) };
-    });
-  return {
-    available: true,
-    contract,
-    decimals,
-    totalSupply: total.toString(),
-    holdersCount: Number.isFinite(Number(tok?.holders_count ?? tok?.holders)) ? Number(tok.holders_count ?? tok.holders) : null,
-    holders,
-    explorer: EXPLORER_API,
-  };
+  const data = HOLDERS_SOURCE === 'blockscout'
+    ? await fromBlockscout({ api: EXPLORER_API, contract, shown: HOLDERS_SHOWN })
+    : await rpcIndex.top(contract, HOLDERS_SHOWN);
+  return { available: true, contract, source: HOLDERS_SOURCE, ...data, explorer: EXPLORER_URL };
 }
+
+// start counting as soon as there is a contract, so the first visitor does not wait
+function warmHolders() {
+  const { contract } = tokenInfo();
+  if (!/^0x[0-9a-fA-F]{40}$/.test(contract) || HOLDERS_SOURCE !== 'rpc') return;
+  rpcIndex.sync(contract).catch((e) => console.warn('[holders]', e.message));
+}
+setTimeout(warmHolders, 1000).unref();
 
 route('GET', '/api/token/holders', 'none', async () => {
   const { contract } = tokenInfo();
@@ -762,7 +742,7 @@ route('GET', '/api/token/holders', 'none', async () => {
   }
   await c.pending;
   if (c.data) return { ...c.data, updatedAt: c.at, stale: Date.now() - c.at >= HOLDERS_TTL_MS };
-  return { available: false, reason: 'explorer-unreachable' };
+  return { available: false, reason: 'source-unreachable' };
 });
 
 route('POST', '/api/admin/login', 'none', async ({ body, ip }) => {
@@ -821,6 +801,7 @@ route('PUT', '/api/admin/token', 'admin', ({ body, ip }) => {
     const add = db.prepare('INSERT INTO admin_audit (at, ip, field, old, new) VALUES (?, ?, ?, ?, ?)');
     for (const k of changed) add.run(t, ip, k, cur[k], next[k]);
   });
+  if (changed.includes('contract')) warmHolders();
   return { token: tokenInfo(), changed };
 });
 
