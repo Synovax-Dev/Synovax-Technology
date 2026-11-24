@@ -449,6 +449,8 @@ const ok = await verifyProof(leaf, proof, root);
             <tr><td><code>TLS_PFX</code>, <code>TLS_PFX_PASSPHRASE</code></td><td>none</td><td>The same with a <code>.pfx</code>/<code>.p12</code> file, as Windows exports.</td></tr>
             <tr><td><code>BACKUP_INTERVAL_MS</code></td><td><code>21600000</code></td><td>How often a copy of the database goes to <code>DATA_DIR/backups</code> (6 hours). <code>0</code> turns it off.</td></tr>
             <tr><td><code>BACKUP_KEEP</code></td><td><code>14</code></td><td>How many backups to keep.</td></tr>
+            <tr><td><code>EXPLORER_API</code></td><td><code>https://robinhoodchain.blockscout.com</code></td><td>The Blockscout explorer the server reads the top 20 $SYNOVAX holders from, once the contract address is published in the admin panel. The answer is cached.</td></tr>
+            <tr><td><code>HOLDERS_TTL_MS</code></td><td><code>60000</code></td><td>How long the holders list is cached. If the explorer is down, the last good list is served and marked as cached.</td></tr>
             <tr><td><code>STATS_MIN_VAULTS</code></td><td><code>100</code></td><td>The landing page shows its live counts only from this many vaults on; before that it says “early access”. <code>0</code> always shows them.</td></tr>
             <tr><td><code>SEAL_PUBLISH_URL</code></td><td>none</td><td>A webhook (Discord, Slack, your own) that receives every new seal.</td></tr>
           </tbody>

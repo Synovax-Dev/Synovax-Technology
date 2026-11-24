@@ -699,6 +699,72 @@ route('GET', '/api/token', 'none', () => {
   return pub;
 });
 
+// Top holders of the published contract, read from the chain's Blockscout API.
+// The server asks and caches (60 s), so the page keeps connect-src 'self' and
+// visitors never hit the explorer's rate limit. A failed refresh serves the last
+// good answer, marked stale.
+const EXPLORER_API = (process.env.EXPLORER_API || 'https://robinhoodchain.blockscout.com').replace(/\/+$/, '');
+const HOLDERS_TTL_MS = Math.max(Number(process.env.HOLDERS_TTL_MS) || 60_000, 1000), HOLDERS_SHOWN = 20;
+const BURN_ADDRESSES = new Set(['0x0000000000000000000000000000000000000000', '0x000000000000000000000000000000000000dead']);
+const holdersCache = { contract: '', at: 0, data: null, pending: null };
+
+async function explorerJson(pathname) {
+  const res = await fetch(`${EXPLORER_API}${pathname}`, { headers: { accept: 'application/json' }, signal: AbortSignal.timeout(8000) });
+  if (!res.ok) throw new Error(`explorer answered ${res.status}`);
+  return res.json();
+}
+
+// "1234500000" with 6 decimals → share of supply as a percentage with 4 decimals
+function pctOf(value, total) {
+  if (total <= 0n) return null;
+  return Number((value * 1_000_000n) / total) / 10_000;
+}
+
+async function loadHolders(contract) {
+  const [tok, list] = await Promise.all([
+    explorerJson(`/api/v2/tokens/${contract}`),
+    explorerJson(`/api/v2/tokens/${contract}/holders`),
+  ]);
+  const isNum = (v) => typeof v === 'string' && /^\d{1,80}$/.test(v);
+  const total = isNum(tok?.total_supply) ? BigInt(tok.total_supply) : 0n;
+  const decimals = Number.isInteger(Number(tok?.decimals)) ? Math.min(Math.max(Number(tok.decimals), 0), 36) : 18;
+  const holders = (Array.isArray(list?.items) ? list.items : [])
+    .filter((h) => /^0x[0-9a-fA-F]{40}$/.test(h?.address?.hash ?? '') && isNum(h.value))
+    .slice(0, HOLDERS_SHOWN)
+    .map((h, i) => {
+      const address = h.address.hash;
+      const burn = BURN_ADDRESSES.has(address.toLowerCase());
+      const name = typeof h.address.name === 'string' ? h.address.name.replace(/[\u0000-\u001f\u007f<>]/g, '').slice(0, 40) : '';
+      return { rank: i + 1, address, value: h.value, pct: pctOf(BigInt(h.value), total), label: burn ? 'burn' : (h.address.is_contract ? (name || 'contract') : name) };
+    });
+  return {
+    available: true,
+    contract,
+    decimals,
+    totalSupply: total.toString(),
+    holdersCount: Number.isFinite(Number(tok?.holders_count ?? tok?.holders)) ? Number(tok.holders_count ?? tok.holders) : null,
+    holders,
+    explorer: EXPLORER_API,
+  };
+}
+
+route('GET', '/api/token/holders', 'none', async () => {
+  const { contract } = tokenInfo();
+  if (!/^0x[0-9a-fA-F]{40}$/.test(contract)) return { available: false, reason: 'no-contract' };
+  const c = holdersCache;
+  if (c.contract !== contract) Object.assign(c, { contract, at: 0, data: null, pending: null });
+  if (c.data && Date.now() - c.at < HOLDERS_TTL_MS) return { ...c.data, updatedAt: c.at, stale: false };
+  if (!c.pending) {
+    c.pending = loadHolders(contract)
+      .then((data) => { if (c.contract === contract) Object.assign(c, { data, at: Date.now() }); })
+      .catch((e) => console.warn('[holders]', e.message))
+      .finally(() => { c.pending = null; });
+  }
+  await c.pending;
+  if (c.data) return { ...c.data, updatedAt: c.at, stale: Date.now() - c.at >= HOLDERS_TTL_MS };
+  return { available: false, reason: 'explorer-unreachable' };
+});
+
 route('POST', '/api/admin/login', 'none', async ({ body, ip }) => {
   // only failed attempts count: 5 per 15 minutes per address
   need(recentHits(`admin-fail:${ip}`, 15 * 60_000) < 5, 429, TOO_MANY);

@@ -16,6 +16,7 @@
     "admin:password": "node server/admin-password.js",
     "test": "node test/e2e.js",
     "test:ui": "node test/ui.js",
+    "test:wallet": "node test/wallet.js",
     "test:semantic": "node test/semantic.js"
   },
   "license": "MIT",

@@ -5,6 +5,7 @@ import { effects } from './effects.js';
 import { showcase } from './showcase.js';
 import { coin } from './coin.js';
 import { tokenInfo } from './tokeninfo.js';
+import { wallet } from './wallet.js';
 import { security } from './security.js';
 
 if (reduced) document.documentElement.classList.add('no-motion');
@@ -16,7 +17,7 @@ stack(document.querySelector('[data-stack]'));
 for (const c of document.querySelectorAll('[data-seam]')) seam(c);
 for (const c of document.querySelectorAll('[data-contours]')) contours(c, c.dataset.contours);
 
-tokenInfo();
+wallet(tokenInfo()).catch((err) => console.error(err));
 
 hero()
   .catch((err) => {

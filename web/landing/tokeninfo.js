@@ -6,13 +6,18 @@ const $ = (s, r = document) => r.querySelector(s);
 
 export async function tokenInfo() {
   const sec = $('[data-tok]');
-  if (!sec) return;
+  if (!sec) return null;
   let t;
   try {
     const res = await fetch('/api/token', { cache: 'no-store' });
-    if (!res.ok) return;
+    if (!res.ok) return null;
     t = await res.json();
-  } catch { return; }
+  } catch { return null; }
+  try { fill(sec, t); } catch (err) { console.error(err); }
+  return t;
+}
+
+function fill(sec, t) {
 
   const set = (k, v, fallback) => {
     const el = $(`[data-tok="${k}"]`, sec);

@@ -87,7 +87,10 @@
                     <li><a href="/docs/">docs</a></li>
                   </ul>
                 </nav>
-                <a class="mast-cta" href="/vault/"><span aria-hidden="true">[ </span>open vault<span aria-hidden="true"> → ]</span></a>
+                <div class="mast-end">
+                  <a class="mast-wallet" href="#token" data-wallet-mast>connect wallet</a>
+                  <a class="mast-cta" href="/vault/"><span aria-hidden="true">[ </span>open vault<span aria-hidden="true"> → ]</span></a>
+                </div>
                 <button class="burger" type="button" aria-label="Open menu" aria-expanded="false" data-burger><span></span><span></span></button>
               </header>
 
@@ -692,6 +695,34 @@
           <span class="tok-corner tok-corner--tr">robinhood chain</span>
           <span class="tok-corner tok-corner--bl">hover to flip</span>
           <span class="tok-corner tok-corner--br" data-tok-corner>supply · tba</span>
+        </div>
+      </div>
+      <div class="tok-board">
+        <div class="tok-wallet" data-wallet>
+          <div class="tb-head"><p class="tb-k">your wallet</p><span class="tb-meta">robinhood chain</span></div>
+          <p class="tw-msg" data-wallet-msg aria-live="polite">Connect to see your $SYNOVAX balance and where you stand among holders.</p>
+          <div class="tw-pick" data-wallet-pick hidden></div>
+          <dl class="tw-facts" data-wallet-facts hidden>
+            <div><dt>address</dt><dd data-w="address"></dd></div>
+            <div><dt>network</dt><dd data-w="network"></dd></div>
+            <div><dt>balance</dt><dd data-w="balance"></dd></div>
+            <div><dt>holder rank</dt><dd data-w="rank"></dd></div>
+          </dl>
+          <div class="tw-act">
+            <button type="button" class="tok-btn tok-btn--solid" data-wallet-btn>connect wallet</button>
+            <button type="button" class="tok-btn tok-btn--solid" data-wallet-switch hidden>switch to robinhood chain</button>
+            <button type="button" class="tok-btn" data-wallet-off hidden>disconnect</button>
+          </div>
+          <p class="tw-note">Read only. SYNOVAX never asks you to sign a message, approve a token or send a transaction. If a site asks you to, it is not us.</p>
+        </div>
+        <div class="tok-holders" data-holders>
+          <div class="tb-head"><p class="tb-k">top holders</p><span class="tb-meta" data-holders-meta>at launch</span></div>
+          <p class="th-empty" data-holders-empty>The top 20 holders appear here once the contract address is posted.</p>
+          <table class="th-table" hidden>
+            <thead><tr><th scope="col">#</th><th scope="col">holder</th><th scope="col">amount</th><th scope="col">share of supply</th></tr></thead>
+            <tbody data-holders-list></tbody>
+          </table>
+          <a class="tok-btn th-all" data-holders-all href="#" target="_blank" rel="noopener noreferrer" hidden>all holders on the explorer ↗</a>
         </div>
       </div>
       <div class="tok-warn">

@@ -31,6 +31,8 @@ Env server: `PORT` (8787), `HOST` (127.0.0.1), `DATA_DIR` (`./data`), `SEAL_PERI
 Env lain:
 - `TLS_CERT` + `TLS_KEY` (file PEM), atau `TLS_PFX` (+ `TLS_PFX_PASSPHRASE`): HTTPS langsung tanpa reverse proxy. Header HSTS otomatis nyala.
 - `BACKUP_INTERVAL_MS` (21600000 = 6 jam, `0` = mati) dan `BACKUP_KEEP` (14): salinan database otomatis di `data/backups/`. Isinya sama kayak database (ciphertext + hash), jadi tetep jaga. Copy folder itu ke disk/mesin lain, karena backup di disk yang sama nggak nolong kalau disk-nya rusak.
+- `EXPLORER_API` (`https://robinhoodchain.blockscout.com`): explorer Blockscout tempat server ngambil top 20 holder $SYNOVAX, setelah CA diisi di admin panel. Di-cache `HOLDERS_TTL_MS` (60000) ms; kalau explorer down, list terakhir tetap ditampilin (ditandai "cached").
+- Connect wallet di landing page itu read only: cuma minta alamat, bisa switch/add Robinhood Chain (chain ID 4663), dan baca saldo pakai `eth_call`. Gak pernah minta sign atau transaksi. Tesnya: `npm run test:wallet`.
 - `STATS_MIN_VAULTS` (100): angka "live on this server" di landing page baru muncul kalau jumlah vault udah segini. Sebelumnya panel itu nampilin "early access · be one of the first". `0` = selalu tampil.
 - `SEAL_PUBLISH_URL`: tiap seal baru di-POST ke URL ini (webhook Discord/Slack, log service, dsb), jadi ada salinan chain hash di tempat yang nggak bisa diubah server.
 
