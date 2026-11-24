@@ -206,6 +206,8 @@ html.no-motion .st-t, html.no-motion .st-copy, html.no-motion .st-plate { opacit
 .ident-meta li { display: flex; align-items: center; gap: 0.5rem; font-size: var(--type-lead); text-transform: uppercase; line-height: 0.9; }
 @media (max-width: 639px) { .ident-meta li { font-size: var(--type-label); } }
 .ident-meta svg { width: 1rem; height: 1rem; flex: none; }
+.ident-gh { text-decoration: underline; text-underline-offset: 0.2em; text-decoration-thickness: 1px; transition: color 150ms var(--ease-entrance); }
+.ident-gh:hover, .ident-gh:focus-visible { color: var(--accent); }
 
 .panels { display: none; flex-direction: column; gap: 2rem; }
 @media (min-width: 640px) { .panels { display: flex; flex-direction: row; flex-wrap: wrap; } }
@@ -533,7 +535,7 @@ html.no-motion .st-t, html.no-motion .st-copy, html.no-motion .st-plate { opacit
 .btn-hollow { position: absolute; z-index: 20; left: var(--cta-left, calc(583 * var(--u))); bottom: var(--cta-bottom, max(calc(32 * var(--u)), var(--foot-bottom-min, 0px))); width: var(--cta-w, 275px); translate: var(--cta-shift, 0); }
 .btn-hollow .btn-label { color: var(--accent); }
 .btn-hollow::before { content: ""; position: absolute; inset: 0; background: var(--surface-black); clip-path: polygon(0 0, 100% 0, 100% 82.33%, 96.79% 100%, 0 100%); }
-.foot-links { position: absolute; z-index: 20; right: var(--social-right, var(--G)); left: var(--social-left, auto); bottom: var(--social-bottom, max(calc(32 * var(--u)), var(--foot-bottom-min, 0px))); width: max(calc(206 * var(--u)), var(--social-min-w, 0px)); display: flex; justify-content: space-between; gap: 1.5rem; font-size: max(calc(14 * var(--u)), 13px); text-transform: uppercase; line-height: 0.9; }
+.foot-links { position: absolute; z-index: 20; right: var(--social-right, var(--G)); left: var(--social-left, auto); bottom: var(--social-bottom, max(calc(32 * var(--u)), var(--foot-bottom-min, 0px))); min-width: max(calc(206 * var(--u)), var(--social-min-w, 0px)); white-space: nowrap; display: flex; justify-content: space-between; gap: 1.5rem; font-size: max(calc(14 * var(--u)), 13px); text-transform: uppercase; line-height: 0.9; }
 .foot-links a { transition: color 150ms var(--ease-entrance); }
 .foot-links a:hover { color: var(--accent); }
 @media (max-width: 1023px) { .foot { --foot-bottom-min: 5cqw; --head-w-min: 44cqw; --foot-head-min: 6.6667cqw; } }

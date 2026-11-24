@@ -84,9 +84,11 @@ function burger() {
     x.addEventListener('click', close);
     top.append(logo, x);
     const nav = document.createElement('nav'); nav.setAttribute('aria-label', 'Menu');
-    const links = [...$$('.mast-nav a').map((a) => [a.textContent, a.getAttribute('href')]), ['open vault', '/vault/']];
+    const gh = $('[data-github]')?.getAttribute('href');
+    const links = [...$$('.mast-nav a').map((a) => [a.textContent, a.getAttribute('href')]), ...(gh ? [['github ↗', gh]] : []), ['open vault', '/vault/']];
     links.forEach(([label, href], i) => {
       const a = document.createElement('a'); a.href = href; a.textContent = label;
+      if (/^https?:/.test(href)) { a.target = '_blank'; a.rel = 'noopener noreferrer'; }
       a.addEventListener('click', close);
       nav.append(a);
       rise(a, { delay: 120 + i * 55, config: C.ITEM });
