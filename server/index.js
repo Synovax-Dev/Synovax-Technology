@@ -1,7 +1,8 @@
 // The vault server. It stores ciphertext and keeps the read log; it never sees
 // a passphrase, a vault key, a folder key, an app's secret or a word of a memory.
 import http from 'node:http';
-import { readFile, mkdir, writeFile } from 'node:fs/promises';
+import https from 'node:https';
+import { readFile, mkdir, writeFile, readdir, rm, stat } from 'node:fs/promises';
 import { existsSync, readFileSync } from 'node:fs';
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import path from 'node:path';
@@ -21,6 +22,19 @@ const SESSION_TTL_MS = 7 * 24 * 3600 * 1000;
 const MAX_BODY = 4 * 1024 * 1024;
 const LOOPBACK = ['127.0.0.1', 'localhost', '::1'].includes(HOST);
 const LIMITS = { folders: 200, memories: 20_000, apps: 50, suggestions: 500 };
+// Every new vault and passphrase uses exactly this many PBKDF2 rounds, so the salt
+// endpoint answers the same for names that exist and names that do not.
+const KDF_ITERATIONS = Number(process.env.KDF_ITERATIONS ?? PBKDF2_ITERATIONS);
+// Behind a reverse proxy, the client's IP comes from X-Forwarded-For. Set this to the
+// number of proxies in front of the server (usually 1). Off by default, because a
+// client talking to the server directly could otherwise fake its IP.
+const TRUST_PROXY = Number(process.env.TRUST_PROXY ?? 0);
+if (!Number.isInteger(KDF_ITERATIONS) || KDF_ITERATIONS < 100_000 || KDF_ITERATIONS > 10_000_000) {
+  console.error('KDF_ITERATIONS must be a whole number from 100000 to 10000000.'); process.exit(1);
+}
+if (!Number.isInteger(TRUST_PROXY) || TRUST_PROXY < 0 || TRUST_PROXY > 10) {
+  console.error('TRUST_PROXY must be the number of proxies in front of the server (0 to 10).'); process.exit(1);
+}
 
 await mkdir(DATA_DIR, { recursive: true });
 const secretFile = path.join(DATA_DIR, 'server-secret');
@@ -65,17 +79,39 @@ function intParam(v, min, max, dflt) {
   return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : dflt;
 }
 
-const hits = new Map();
+// Attempts are kept in the database, so restarting the server does not reset them.
+const recentHits = (key, windowMs) => db.prepare('SELECT COUNT(*) n FROM rate_hits WHERE key = ? AND ts > ?').get(key, now() - windowMs).n;
+const noteHit = (key) => { db.prepare('INSERT INTO rate_hits (key, ts) VALUES (?, ?)').run(key, now()); };
+const TOO_MANY = 'Too many attempts. Wait a moment and try again.';
 function rateLimit(key, max, windowMs) {
-  const t = now();
-  const recent = (hits.get(key) ?? []).filter((x) => t - x < windowMs);
-  need(recent.length < max, 429, 'Too many attempts. Wait a moment and try again.');
-  recent.push(t);
-  hits.set(key, recent);
+  need(recentHits(key, windowMs) < max, 429, TOO_MANY);
+  noteHit(key);
+}
+
+// Guessing limits for one account. Only failed attempts count, and they count
+// per (account, IP), so a stranger typing wrong passphrases cannot lock the owner
+// out. A high per-account cap still stops a guesser spread over many IPs, and it
+// only blocks IPs that have themselves failed on that account.
+function checkGuesses(kind, u, ip, perIpMax, perIpWindowMs, accountMax) {
+  need(recentHits(`${kind}-fail:${u}|${ip}`, perIpWindowMs) < perIpMax, 429, TOO_MANY);
+  need(!(recentHits(`${kind}-fail:${u}`, 3_600_000) >= accountMax && recentHits(`${kind}-fail:${u}|${ip}`, 3_600_000) > 0), 429, TOO_MANY);
+}
+function noteGuessFailed(kind, u, ip) {
+  noteHit(`${kind}-fail:${u}|${ip}`);
+  noteHit(`${kind}-fail:${u}`);
+}
+
+function clientIp(req) {
+  const direct = req.socket.remoteAddress ?? '?';
+  if (!TRUST_PROXY) return direct;
+  // Each proxy appends the address it saw, so the trustworthy entry is the
+  // TRUST_PROXY-th from the right; anything left of it the client could have written.
+  const chain = String(req.headers['x-forwarded-for'] ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+  return chain[chain.length - TRUST_PROXY] ?? direct;
 }
 setInterval(() => {
   const t = now();
-  for (const [k, v] of hits) if (!v.some((x) => t - x < 3_600_000)) hits.delete(k);
+  db.prepare('DELETE FROM rate_hits WHERE ts < ?').run(t - 3_600_000); // the longest window is one hour
   db.prepare('DELETE FROM sessions WHERE expires_at < ?').run(t);
   db.prepare('DELETE FROM admin_sessions WHERE expires_at < ?').run(t);
 }, 600_000).unref();
@@ -104,10 +140,28 @@ async function logRead(vaultId, appId, action, target) {
     .run(entry.id, vaultId, appId, action, entry.target, entry.ts, entry.salt, leaf);
 }
 
-function newSession(vaultId) {
+// A short label for the session list, from the User-Agent. Only browser and OS
+// families are kept, never the full string.
+function deviceLabel(ua) {
+  ua = String(ua ?? '');
+  if (!ua) return 'Unknown device';
+  const browser = /Edg\//.test(ua) ? 'Edge' : /OPR\//.test(ua) ? 'Opera' : /Firefox\//.test(ua) ? 'Firefox'
+    : /Chrome\//.test(ua) ? 'Chrome' : /Safari\//.test(ua) ? 'Safari' : /^node|undici/i.test(ua) ? 'Script' : 'Browser';
+  const os = /Windows/.test(ua) ? 'Windows' : /iPhone|iPad/.test(ua) ? 'iOS' : /Android/.test(ua) ? 'Android'
+    : /Mac OS X/.test(ua) ? 'macOS' : /Linux/.test(ua) ? 'Linux' : '';
+  return os ? `${browser} on ${os}` : browser;
+}
+
+function newSession(vaultId, req) {
   const token = newToken(32);
-  db.prepare('INSERT INTO sessions (token_hash, vault_id, expires_at) VALUES (?, ?, ?)').run(sha256hex(token), vaultId, now() + SESSION_TTL_MS);
+  const t = now();
+  db.prepare('INSERT INTO sessions (token_hash, id, vault_id, expires_at, created_at, last_used_at, agent) VALUES (?, ?, ?, ?, ?, ?, ?)')
+    .run(sha256hex(token), newToken(12), vaultId, t + SESSION_TTL_MS, t, t, deviceLabel(req.headers['user-agent']));
   return token;
+}
+// sessions from before the session list existed get an id now
+for (const s of db.prepare('SELECT token_hash FROM sessions WHERE id IS NULL').all()) {
+  db.prepare('UPDATE sessions SET id = ?, agent = COALESCE(agent, ?) WHERE token_hash = ?').run(newToken(12), 'Unknown device', s.token_hash);
 }
 
 const keyBundle = (v) => ({ vaultId: v.id, wrappedVaultKey: v.wrapped_vk, boxPub: v.box_pub, boxPrivWrapped: v.box_priv_wrapped });
@@ -122,9 +176,10 @@ function ownerAuth(req) {
   const m = /^Bearer s\.([A-Za-z0-9_-]{43})$/.exec(req.headers.authorization ?? '');
   need(m, 401, 'Not signed in.');
   const tokenHash = sha256hex(m[1]);
-  const row = db.prepare('SELECT vault_id, expires_at FROM sessions WHERE token_hash = ?').get(tokenHash);
+  const row = db.prepare('SELECT id, vault_id, expires_at, last_used_at FROM sessions WHERE token_hash = ?').get(tokenHash);
   need(row && row.expires_at > now(), 401, 'Your session has ended. Open your vault again.');
-  return { vaultId: row.vault_id, tokenHash };
+  if (!row.last_used_at || now() - row.last_used_at > 60_000) db.prepare('UPDATE sessions SET last_used_at = ? WHERE token_hash = ?').run(now(), tokenHash);
+  return { vaultId: row.vault_id, tokenHash, sessionId: row.id };
 }
 
 function appAuth(req) {
@@ -148,18 +203,18 @@ function adminAuth(req) {
 // ---------- routing
 
 const routes = [];
-function route(method, pattern, auth, handler) {
+function route(method, pattern, auth, handler, opts = {}) {
   const keys = [];
   const re = new RegExp('^' + pattern.replace(/:(\w+)/g, (_, k) => { keys.push(k); return '([A-Za-z0-9_-]+)'; }) + '$');
-  routes.push({ method, re, keys, auth, handler });
+  routes.push({ method, re, keys, auth, handler, maxBody: opts.maxBody ?? MAX_BODY });
 }
 
-async function readJson(req) {
+async function readJson(req, maxBody = MAX_BODY) {
   const chunks = [];
   let size = 0;
   for await (const c of req) {
     size += c.length;
-    if (size > MAX_BODY) throw new HttpError(413, 'Request is too large.');
+    if (size > maxBody) throw new HttpError(413, 'Request is too large.');
     chunks.push(c);
   }
   if (!size) return {};
@@ -178,7 +233,7 @@ async function readJson(req) {
 route('GET', '/api/config', 'none', () => ({
   appName: APP_NAME,
   sealPeriodMs: SEAL_PERIOD_MS,
-  iterations: PBKDF2_ITERATIONS,
+  iterations: KDF_ITERATIONS,
   connectorPath: LOOPBACK ? path.join(ROOT, 'connector', 'index.js') : null,
 }));
 
@@ -190,7 +245,10 @@ route('GET', '/api/stats', 'none', () => ({
 }));
 
 route('GET', '/api/seals', 'none', ({ url }) => ({
-  seals: db.prepare('SELECT * FROM seals ORDER BY seq DESC LIMIT ?').all(intParam(url.searchParams.get('limit'), 1, 500, 50)).map(sealOut),
+  // ?from=<seq> walks forward from a seal you already know (to check the chain); otherwise newest first
+  seals: (url.searchParams.has('from')
+    ? db.prepare('SELECT * FROM seals WHERE seq >= ? ORDER BY seq ASC LIMIT ?').all(intParam(url.searchParams.get('from'), 1, Number.MAX_SAFE_INTEGER, 1), intParam(url.searchParams.get('limit'), 1, 500, 500))
+    : db.prepare('SELECT * FROM seals ORDER BY seq DESC LIMIT ?').all(intParam(url.searchParams.get('limit'), 1, 500, 50))).map(sealOut),
   periodMs: SEAL_PERIOD_MS,
   nextCloseAt: (Math.floor(now() / SEAL_PERIOD_MS) + 1) * SEAL_PERIOD_MS,
 }));
@@ -205,13 +263,15 @@ route('POST', '/api/auth/salt', 'none', ({ body, ip }) => {
   rateLimit(`salt:${ip}`, 60, 60_000);
   const u = username(body.username);
   const v = db.prepare('SELECT salt, kdf_iter FROM vaults WHERE username = ?').get(u);
-  return { salt: v ? v.salt : fakeSalt(u), iterations: v ? v.kdf_iter : PBKDF2_ITERATIONS };
+  return { salt: v ? v.salt : fakeSalt(u), iterations: v ? v.kdf_iter : KDF_ITERATIONS };
 });
 
-route('POST', '/api/auth/register', 'none', ({ body, ip }) => {
+const checkIterations = (n) => need(n === KDF_ITERATIONS, 400, `Invalid iterations (this server uses ${KDF_ITERATIONS}).`);
+
+route('POST', '/api/auth/register', 'none', ({ req, body, ip }) => {
   rateLimit(`register:${ip}`, 10, 3_600_000);
   const u = username(body.username);
-  need(Number.isInteger(body.iterations) && body.iterations >= 100_000 && body.iterations <= 10_000_000, 400, 'Invalid iterations.');
+  checkIterations(body.iterations);
   const v = {
     id: newToken(16),
     username: u,
@@ -228,32 +288,55 @@ route('POST', '/api/auth/register', 'none', ({ body, ip }) => {
   db.prepare(`INSERT INTO vaults (id, username, salt, kdf_iter, auth_hash, rec_auth_hash, wrapped_vk, wrapped_vk_rec, box_pub, box_priv_wrapped, created_at)
               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
     .run(v.id, v.username, v.salt, v.kdf_iter, v.auth_hash, v.rec_auth_hash, v.wrapped_vk, v.wrapped_vk_rec, v.box_pub, v.box_priv_wrapped, now());
-  return { token: newSession(v.id), keys: keyBundle(v) };
+  return { token: newSession(v.id, req), keys: keyBundle(v) };
 });
 
-route('POST', '/api/auth/login', 'none', ({ body, ip }) => {
+route('POST', '/api/auth/login', 'none', ({ req, body, ip }) => {
   const u = username(body.username);
   rateLimit(`login:${ip}`, 20, 60_000);
-  rateLimit(`login-user:${u}`, 10, 60_000);
+  checkGuesses('login', u, ip, 10, 60_000, 200);
   const v = db.prepare('SELECT * FROM vaults WHERE username = ?').get(u);
   const given = sha256hex(field(body.authKey, RE.key, 'authKey'));
-  need(v && safeEqualHex(v.auth_hash, given), 401, 'Wrong name or passphrase.');
-  return { token: newSession(v.id), keys: keyBundle(v) };
+  if (!(v && safeEqualHex(v.auth_hash, given))) {
+    noteGuessFailed('login', u, ip);
+    throw new HttpError(401, 'Wrong name or passphrase.');
+  }
+  return { token: newSession(v.id, req), keys: keyBundle(v) };
 });
 
-route('POST', '/api/auth/recover', 'none', ({ body, ip }) => {
+route('POST', '/api/auth/recover', 'none', ({ req, body, ip }) => {
   const u = username(body.username);
   rateLimit(`recover:${ip}`, 10, 600_000);
-  rateLimit(`recover-user:${u}`, 5, 600_000);
+  checkGuesses('recover', u, ip, 5, 600_000, 50);
   const v = db.prepare('SELECT * FROM vaults WHERE username = ?').get(u);
   const given = sha256hex(field(body.recoveryAuthKey, RE.key, 'recoveryAuthKey'));
-  need(v && safeEqualHex(v.rec_auth_hash, given), 401, 'Wrong name or recovery phrase.');
-  return { token: newSession(v.id), keys: { ...keyBundle(v), wrappedVaultKeyRecovery: v.wrapped_vk_rec } };
+  if (!(v && safeEqualHex(v.rec_auth_hash, given))) {
+    noteGuessFailed('recover', u, ip);
+    throw new HttpError(401, 'Wrong name or recovery phrase.');
+  }
+  return { token: newSession(v.id, req), keys: { ...keyBundle(v), wrappedVaultKeyRecovery: v.wrapped_vk_rec } };
 });
 
 route('POST', '/api/auth/logout', 'owner', ({ auth }) => {
   db.prepare('DELETE FROM sessions WHERE token_hash = ?').run(auth.tokenHash);
 });
+
+// ---------- owner: signed-in devices
+
+route('GET', '/api/sessions', 'owner', ({ auth }) => ({
+  sessions: db.prepare('SELECT id, agent, created_at, last_used_at, expires_at FROM sessions WHERE vault_id = ? AND expires_at > ? ORDER BY last_used_at DESC')
+    .all(auth.vaultId, now())
+    .map((s) => ({ id: s.id, agent: s.agent, createdAt: s.created_at, lastUsedAt: s.last_used_at, expiresAt: s.expires_at, current: s.id === auth.sessionId })),
+}));
+
+route('DELETE', '/api/sessions/:id', 'owner', ({ auth, params }) => {
+  const r = db.prepare('DELETE FROM sessions WHERE id = ? AND vault_id = ?').run(params.id, auth.vaultId);
+  need(r.changes, 404, 'No such session.');
+});
+
+route('POST', '/api/sessions/sign-out-others', 'owner', ({ auth }) => ({
+  signedOut: Number(db.prepare('DELETE FROM sessions WHERE vault_id = ? AND token_hash != ?').run(auth.vaultId, auth.tokenHash).changes),
+}));
 
 // ---------- owner: vault contents
 
@@ -281,6 +364,44 @@ route('PUT', '/api/folders/:id', 'owner', ({ auth, params, body }) => {
     db.prepare('INSERT INTO folders (id, vault_id, meta, wrapped_key, updated_at) VALUES (?, ?, ?, ?, ?)').run(id, auth.vaultId, meta, wrappedKey, now());
   }
 });
+
+// Key rotation: the folder gets a new key, every memory in it is re-encrypted
+// with that key, and only the apps listed in `grants` get the new key. An app
+// that had the old key can no longer open anything written from now on. It all
+// happens in one transaction, and it is refused if the folder changed meanwhile.
+route('POST', '/api/folders/:id/rotate', 'owner', ({ auth, params, body }) => {
+  const id = field(params.id, RE.id, 'folder id');
+  need(db.prepare('SELECT 1 FROM folders WHERE id = ? AND vault_id = ?').get(id, auth.vaultId), 404, 'No such folder.');
+  const meta = field(body.meta, RE.ct, 'meta', 4000);
+  const wrappedKey = field(body.wrappedKey, RE.ct, 'wrappedKey', 200);
+  need(Array.isArray(body.memories) && body.memories.length <= LIMITS.memories, 400, 'Invalid memories.');
+  const mems = body.memories.map((m) => ({
+    id: field(m?.id, RE.id, 'memory id'), head: field(m.head, RE.ct, 'head', 8000), body: field(m.body, RE.ct, 'body', 1_500_000),
+  }));
+  const have = db.prepare('SELECT id FROM memories WHERE folder_id = ?').all(id).map((r) => r.id).sort();
+  const sent = mems.map((m) => m.id).sort();
+  need(have.length === sent.length && have.every((x, i) => x === sent[i]), 409, 'This folder changed while its key was being replaced. Reload and try again.');
+  need(Array.isArray(body.grants) && body.grants.length <= LIMITS.apps, 400, 'Invalid grants.');
+  const seen = new Set();
+  const grants = body.grants.map((g) => {
+    const appId = field(g?.appId, RE.id, 'appId');
+    need(!seen.has(appId), 400, 'An app is listed twice.');
+    seen.add(appId);
+    need(db.prepare('SELECT 1 FROM apps WHERE id = ? AND vault_id = ?').get(appId, auth.vaultId), 400, 'No such app.');
+    return { appId, wrappedKey: field(g.wrappedKey, RE.ct, 'wrappedKey', 200) };
+  });
+  const t = now();
+  tx(db, () => {
+    db.prepare('UPDATE folders SET meta = ?, wrapped_key = ?, updated_at = ? WHERE id = ?').run(meta, wrappedKey, t, id);
+    // updated_at is left alone: the memory's words did not change, only the lock on them
+    const upd = db.prepare('UPDATE memories SET head = ?, body = ? WHERE id = ? AND folder_id = ?');
+    for (const m of mems) upd.run(m.head, m.body, m.id, id);
+    db.prepare('DELETE FROM app_folder_keys WHERE folder_id = ?').run(id);
+    const ins = db.prepare('INSERT INTO app_folder_keys (app_id, folder_id, wrapped_key) VALUES (?, ?, ?)');
+    for (const g of grants) ins.run(g.appId, id, g.wrappedKey);
+  });
+  return { rotated: mems.length, apps: grants.length };
+}, { maxBody: 64 * 1024 * 1024 });
 
 route('DELETE', '/api/folders/:id', 'owner', ({ auth, params }) => {
   const r = db.prepare('DELETE FROM folders WHERE id = ? AND vault_id = ?').run(params.id, auth.vaultId);
@@ -400,7 +521,7 @@ route('GET', '/api/log/:id/proof', 'owner', async ({ auth, params }) => {
 });
 
 route('PUT', '/api/account/passphrase', 'owner', ({ auth, body }) => {
-  need(Number.isInteger(body.iterations) && body.iterations >= 100_000 && body.iterations <= 10_000_000, 400, 'Invalid iterations.');
+  checkIterations(body.iterations);
   const salt = field(body.salt, RE.salt, 'salt');
   const authHash = sha256hex(field(body.authKey, RE.key, 'authKey'));
   const wrapped = field(body.wrappedVaultKey, RE.ct, 'wrappedVaultKey', 200);
@@ -592,7 +713,16 @@ async function serveStatic(req, res, url) {
 
 // ---------- server
 
-const server = http.createServer(async (req, res) => {
+// HTTPS without a proxy: set TLS_CERT and TLS_KEY to PEM files, or TLS_PFX to a
+// .pfx/.p12 file (what Windows exports), with TLS_PFX_PASSPHRASE if it has one.
+const TLS = process.env.TLS_PFX
+  ? { pfx: readFileSync(process.env.TLS_PFX), passphrase: process.env.TLS_PFX_PASSPHRASE ?? '' }
+  : process.env.TLS_CERT || process.env.TLS_KEY
+    ? { cert: readFileSync(process.env.TLS_CERT ?? ''), key: readFileSync(process.env.TLS_KEY ?? '') }
+    : null;
+if (TLS) SECURITY_HEADERS['strict-transport-security'] = 'max-age=31536000';
+
+const server = (TLS ? (handler) => https.createServer(TLS, handler) : (handler) => http.createServer(handler))(async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
   try {
     if (url.pathname.startsWith('/api/')) {
@@ -600,11 +730,11 @@ const server = http.createServer(async (req, res) => {
         if (r.method !== req.method) continue;
         const m = r.re.exec(url.pathname);
         if (!m) continue;
-        const ctx = { req, url, ip: req.socket.remoteAddress ?? '?', params: Object.fromEntries(r.keys.map((k, i) => [k, m[i + 1]])) };
+        const ctx = { req, url, ip: clientIp(req), params: Object.fromEntries(r.keys.map((k, i) => [k, m[i + 1]])) };
         if (r.auth === 'owner') ctx.auth = ownerAuth(req);
         if (r.auth === 'app') ctx.app = appAuth(req);
         if (r.auth === 'admin') ctx.admin = adminAuth(req);
-        ctx.body = req.method === 'GET' ? {} : await readJson(req);
+        ctx.body = req.method === 'GET' ? {} : await readJson(req, r.maxBody);
         return send(res, 200, (await r.handler(ctx)) ?? { ok: true });
       }
       throw new HttpError(404, 'Not found.');
@@ -618,8 +748,36 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-startSealer(db, SEAL_PERIOD_MS);
+// ---------- backups
+// A consistent copy of the database (ciphertext, hashes and the log, the same
+// things the server already holds) every BACKUP_INTERVAL_MS, newest BACKUP_KEEP kept.
+// Copy DATA_DIR/backups to another machine or drive yourself: a backup on the same
+// disk does not survive that disk.
+const BACKUP_INTERVAL_MS = Number(process.env.BACKUP_INTERVAL_MS ?? 6 * 3_600_000);
+const BACKUP_KEEP = Number(process.env.BACKUP_KEEP ?? 14);
+const backupDir = path.join(DATA_DIR, 'backups');
+async function backup() {
+  try {
+    await mkdir(backupDir, { recursive: true });
+    const stamp = new Date().toISOString().replace(/[-:]/g, '').replace('T', '-').slice(0, 15);
+    const file = path.join(backupDir, `vault-${stamp}.db`);
+    if (existsSync(file)) return;
+    db.prepare('VACUUM INTO ?').run(file);
+    const all = (await readdir(backupDir)).filter((f) => /^vault-\d{8}-\d{6}\.db$/.test(f)).sort();
+    for (const old of all.slice(0, Math.max(0, all.length - BACKUP_KEEP))) await rm(path.join(backupDir, old), { force: true });
+  } catch (e) {
+    console.error('[backup]', e.message);
+  }
+}
+if (BACKUP_INTERVAL_MS > 0) {
+  const latest = existsSync(backupDir) ? (await readdir(backupDir)).filter((f) => f.startsWith('vault-')).sort().at(-1) : null;
+  const age = latest ? now() - (await stat(path.join(backupDir, latest))).mtimeMs : Infinity;
+  if (age >= BACKUP_INTERVAL_MS) backup();
+  setInterval(backup, Math.max(60_000, BACKUP_INTERVAL_MS)).unref();
+}
+
+startSealer(db, SEAL_PERIOD_MS, { publishUrl: process.env.SEAL_PUBLISH_URL ?? '' });
 server.listen(PORT, HOST, () => {
-  console.log(`${APP_NAME} running at http://${HOST.includes(':') ? `[${HOST}]` : HOST}:${server.address().port}`);
+  console.log(`${APP_NAME} running at ${TLS ? 'https' : 'http'}://${HOST.includes(':') ? `[${HOST}]` : HOST}:${server.address().port}`);
   console.log(`Admin panel: /admin/ (key in ${process.env.ADMIN_KEY ? 'ADMIN_KEY' : adminKeyFile})`);
 });

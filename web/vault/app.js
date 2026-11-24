@@ -1,7 +1,7 @@
 // The vault app. Every key lives in this page's memory only; the server gets
 // ciphertext. Reloading the page locks the vault.
 import * as C from '/shared/crypto.js';
-import { leafHash, verifyProof } from '/shared/merkle.js';
+import { leafHash, verifyProof, verifySealChain, GENESIS } from '/shared/merkle.js';
 import { APP_NAME } from '/shared/brand.js';
 import { authArt } from '/vault/auth-art.js';
 
@@ -12,7 +12,7 @@ const blank = () => ({
   token: null, vaultId: null, username: null, vk: null, boxPub: null, boxPriv: null,
   folders: new Map(), memories: new Map(), apps: new Map(), inbox: [], log: null, seals: new Map(),
   view: 'memories', folder: 'all', query: '', editing: null,
-  authMode: 'open', pendingPhrase: null, newAppKey: null, editingApp: null, verified: new Map(),
+  authMode: 'open', pendingPhrase: null, newAppKey: null, editingApp: null, verified: new Map(), chain: null,
 });
 const S = blank();
 let config = { appName: APP_NAME, iterations: C.PBKDF2_ITERATIONS };
@@ -245,6 +245,45 @@ async function createApp(name, folderIds, canSuggest) {
   return C.formatAppKey(appId, secret);
 }
 
+// Give a folder a brand-new key: every memory in it is re-encrypted here, and only
+// the apps that still have access (by S.apps, after any change) get the new key.
+// An app whose access was taken away keeps only the old key, which opens nothing
+// written from now on.
+async function rotateFolder(folderId) {
+  const f = S.folders.get(folderId);
+  if (!f?.key) throw new Error('This folder cannot be opened, so its key cannot be replaced.');
+  const mems = [...S.memories.values()].filter((m) => m.folderId === folderId);
+  if (mems.some((m) => m.broken)) throw new Error(`"${f.name}" has a memory that cannot be opened, so its key cannot be replaced.`);
+  const key = C.randomBytes(32);
+  const keep = [...S.apps.values()].filter((a) => !a.broken && a.folderIds.includes(folderId));
+  const r = await api('POST', `/api/folders/${folderId}/rotate`, {
+    meta: await C.encryptJSON(key, { name: f.name }, `folder:${folderId}:meta`),
+    wrappedKey: await C.wrapKey(S.vk, key, `folder:${folderId}:key`),
+    memories: await Promise.all(mems.map(async (m) => ({
+      id: m.id,
+      head: await C.encryptJSON(key, { title: m.title, tags: m.tags, snippet: m.body.slice(0, 240), source: m.source }, `memory:${m.id}:head`),
+      body: await C.encryptJSON(key, { title: m.title, body: m.body, tags: m.tags, source: m.source }, `memory:${m.id}:body`),
+    }))),
+    grants: await Promise.all(keep.map(async (a) => {
+      const { wrap } = await C.appKeyMaterial(a.secret);
+      return { appId: a.id, wrappedKey: await C.wrapKey(wrap, key, `app:${a.id}:folder:${folderId}`) };
+    })),
+  });
+  f.key = key;
+  return r;
+}
+
+// After an app loses folders, replace those folders' keys. Reports problems
+// without undoing the access change, which already took effect on the server.
+async function rotateAfterRevoke(folderIds, appName) {
+  const failed = [];
+  for (const fid of folderIds) {
+    try { await rotateFolder(fid); } catch (e) { console.error(e); failed.push(S.folders.get(fid)?.name ?? fid); }
+  }
+  if (failed.length) toast(`${appName} lost access, but the key of ${failed.join(', ')} could not be replaced. Open the folder and press “Replace key”.`, 'err');
+  return !failed.length;
+}
+
 // ---------- views
 
 // Every render rebuilds the screen, so entrance motion is keyed: the sidebar
@@ -256,7 +295,13 @@ let motion = { area: true, view: true, editor: true };
 let indRect = null;
 let lastTab = null;
 
+// Set when the person types anything; background refreshes do not re-render
+// over unsaved text.
+let dirty = false;
+$app.addEventListener('input', () => { dirty = true; });
+
 function render() {
+  dirty = false;
   document.title = config.appName;
   const key = !S.vk ? 'auth' : S.pendingPhrase ? 'phrase' : `shell:${S.view}:${S.folder}`;
   motion = { area: key.split(':')[0] !== lastKey.split(':')[0], view: key !== lastKey, editor: S.editing !== lastEditing };
@@ -660,6 +705,7 @@ function viewMemories() {
   return h('div', { class: 'memories' },
     pageHead(folder ? 'F' : '01', folder ? 'folder · own key' : 'your vault', folder ? folder.name : 'All memories', null,
       folder && h('button', { class: 'link', onclick: () => renameFolder(folder) }, 'Rename'),
+      folder && !folder.broken && h('button', { class: 'link', title: 'Re-encrypt this folder with a new key', onclick: (e) => replaceKey(folder, e.currentTarget) }, 'Replace key'),
       folder && h('button', { class: 'link danger', onclick: () => deleteFolder(folder) }, 'Delete folder')),
     S.folder === 'all' && h('div', { class: 'stats' }, stats.map(([label, n, to]) =>
       h(to ? 'button' : 'div', { class: 'stat', onclick: to ? () => go(to) : null },
@@ -677,6 +723,14 @@ async function renameFolder(folder) {
   const name = prompt('Folder name', folder.name)?.trim();
   if (!name || name === folder.name) return;
   await busy(null, '', async () => { await saveFolder(folder.id, name); render(); });
+}
+
+async function replaceKey(folder, btn) {
+  if (!confirm(`Give "${folder.name}" a new key? Every memory in it is re-encrypted on this device. Apps that still have access get the new key.`)) return;
+  await busy(btn, 'Re-encrypting…', async () => {
+    const r = await rotateFolder(folder.id);
+    toast(`New key for "${folder.name}": ${r.rotated} memories re-encrypted, ${r.apps} app${r.apps === 1 ? '' : 's'} given the new key.`);
+  });
 }
 
 async function deleteFolder(folder) {
@@ -855,17 +909,21 @@ function appCard(a) {
     const form = h('form', { class: 'card', onsubmit: (e) => {
       e.preventDefault();
       busy(form.querySelector('[type=submit]'), 'Saving…', async () => {
-        await api('PATCH', `/api/apps/${a.id}`, { canSuggest: form.elements.suggest.checked, folderKeys: await grantsFor(a.id, a.secret, checkedFolders(form)) });
+        const next = checkedFolders(form);
+        const removed = a.folderIds.filter((id) => !next.includes(id));
+        await api('PATCH', `/api/apps/${a.id}`, { canSuggest: form.elements.suggest.checked, folderKeys: await grantsFor(a.id, a.secret, next) });
         S.editingApp = null;
         await loadApps();
-        toast('Access updated.');
+        if (!removed.length || await rotateAfterRevoke(removed, a.name)) {
+          toast(removed.length ? `Access updated. ${removed.length === 1 ? 'That folder has' : `Those ${removed.length} folders have`} a new key now.` : 'Access updated.');
+        }
         render();
       });
     } },
       h('h3', {}, a.name),
       folderChecks(a.folderIds),
       h('label', { class: 'check' }, h('input', { type: 'checkbox', name: 'suggest', checked: a.canSuggest }), 'Allow it to suggest memories'),
-      h('p', { class: 'fine' }, 'Removing a folder stops the server from handing it out. An app that already read it may have kept a copy.'),
+      h('p', { class: 'fine' }, 'Removing a folder also gives that folder a new key, so this app cannot open anything written there from now on. What it already read, it may have kept.'),
       h('div', { class: 'row' },
         h('button', { class: 'btn primary', type: 'submit' }, 'Save access'),
         h('button', { class: 'btn', type: 'button', onclick: () => { S.editingApp = null; render(); } }, 'Cancel')));
@@ -883,11 +941,12 @@ function appCard(a) {
 }
 
 async function revokeApp(a, btn) {
-  if (!confirm(`Revoke ${a.name}? Its key stops working on its next request.`)) return;
+  if (!confirm(`Revoke ${a.name}? Its key stops working on its next request, and the folders it could read get new keys.`)) return;
   await busy(btn, 'Revoking…', async () => {
     await api('DELETE', `/api/apps/${a.id}`);
     S.apps.delete(a.id);
-    toast(`${a.name} revoked.`);
+    await loadApps();
+    if (!a.folderIds.length || await rotateAfterRevoke(a.folderIds, a.name)) toast(`${a.name} revoked.${a.folderIds.length ? ' Its folders have new keys.' : ''}`);
     render();
   });
 }
@@ -899,8 +958,41 @@ async function refreshLog() {
     const [log, seals] = await Promise.all([api('GET', '/api/log?limit=300'), api('GET', '/api/seals?limit=200')]);
     S.log = log;
     for (const s of seals.seals) S.seals.set(s.seq, s);
-    if (S.view === 'log') render();
+    S.chain = await checkChain(seals.seals);
+    if (S.view === 'log' && !dirty) render();
   } catch (e) { toast(e.message, 'err'); }
+}
+
+// The seals form a hash chain. This browser remembers the newest chain hash it
+// has seen; next time, the chain must still lead from that hash to the new head.
+// If the server rewrote or dropped an old seal, the link breaks and it shows here.
+const CHECKPOINT = 'synovax:seal-checkpoint';
+async function checkChain(newestFirst) {
+  const asc = [...newestFirst].sort((a, b) => a.seq - b.seq);
+  if (!asc.length) return null;
+  const head = asc.at(-1);
+  let cp = null;
+  try { cp = JSON.parse(localStorage.getItem(CHECKPOINT) ?? 'null'); } catch {}
+  const bad = (reason) => ({ ok: false, reason });
+  if (asc[0].seq === 1 && asc[0].prev !== GENESIS) return bad('The first seal does not start the chain.');
+  if (!(await verifySealChain(asc, asc[0].prev)).ok) return bad('Two of the published seals do not link up.');
+  let since = null;
+  if (cp && Number.isInteger(cp.seq) && typeof cp.chain === 'string') {
+    if (cp.seq > head.seq) return bad(`This browser saw seal #${cp.seq}, which is no longer published.`);
+    // walk forward from the remembered seal to the newest one
+    const walk = [];
+    for (let from = cp.seq; from <= head.seq;) {
+      const page = (await api('GET', `/api/seals?from=${from}&limit=500`)).seals;
+      if (!page.length) break;
+      walk.push(...page);
+      from = page.at(-1).seq + 1;
+    }
+    if (walk[0]?.seq !== cp.seq || walk[0].chain !== cp.chain) return bad(`Seal #${cp.seq} was changed since this browser last saw it.`);
+    if (!(await verifySealChain(walk.slice(1), cp.chain)).ok) return bad(`The chain no longer leads from seal #${cp.seq} to the newest seal.`);
+    since = cp.seq;
+  }
+  try { localStorage.setItem(CHECKPOINT, JSON.stringify({ seq: head.seq, chain: head.chain })); } catch {}
+  return { ok: true, since, head };
 }
 
 function describe(e) {
@@ -923,7 +1015,11 @@ function viewLog() {
       h('span', { class: 'seal-ic' }, icon('seal')),
       h('div', {},
         h('div', { class: 'seal-l' }, `Latest seal #${latest.seq} · ${fmt(latest.periodStart)} – ${fmt(latest.periodEnd)} · ${latest.count} reads`),
-        h('code', { class: 'hash' }, `0x${latest.root}`))),
+        h('code', { class: 'hash' }, `0x${latest.root}`),
+        S.chain && h('span', { class: `chain-l ${S.chain.ok ? 'ok' : 'bad'}` },
+          S.chain.ok
+            ? `✓ Seal chain intact${S.chain.since ? ` since seal #${S.chain.since}, which this browser saw before` : ''} · head ${S.chain.head.chain.slice(0, 16)}…`
+            : `✗ ${S.chain.reason} The server's history may have been rewritten.`))),
     !S.log ? h('div', { class: 'skeleton' }, h('i'), h('i'), h('i'))
       : !S.log.entries.length ? emptyState('No reads yet.', 'Connect an app and it will show up here.')
         : h('table', { class: 'log' },
@@ -993,11 +1089,39 @@ function viewSettings() {
 
   return h('div', { class: 'page' },
     pageHead('05', 'account', 'Settings', `Signed in as ${S.username}.`),
+    sessionsCard(),
     h('div', { class: 'card' },
       h('h2', {}, 'Export'),
       h('p', { class: 'muted' }, 'Download every folder and memory, decrypted here on your device, as one JSON file.'),
       h('button', { class: 'btn', onclick: exportVault }, icon('download'), h('span', {}, 'Download export'))),
     pw, del);
+}
+
+// Signed-in devices: each open vault is a session; sign out any of them here.
+function sessionsCard() {
+  const list = h('div', { class: 'sessions' }, h('p', { class: 'fine' }, 'Loading…'));
+  const card = h('div', { class: 'card' },
+    h('h2', {}, 'Signed-in devices'),
+    h('p', { class: 'muted' }, 'Every place your vault is open right now. Sign out anything you do not recognise, then change your passphrase.'),
+    list);
+  const fill = async () => {
+    try {
+      const { sessions } = await api('GET', '/api/sessions');
+      const others = sessions.filter((s) => !s.current);
+      list.replaceChildren(
+        ...sessions.map((s) => h('div', { class: 'row session' },
+          h('span', { class: 'grow' }, h('b', {}, s.agent || 'Unknown device'), s.current ? ' · this device' : '',
+            h('br'), h('small', { class: 'fine' }, `signed in ${fmt(s.createdAt)} · active ${ago(s.lastUsedAt)}`)),
+          !s.current && h('button', { class: 'btn small', onclick: (e) => busy(e.currentTarget, '…', async () => { await api('DELETE', `/api/sessions/${s.id}`); toast('Signed out.'); await fill(); }) }, 'Sign out'))),
+        others.length > 1 && h('button', { class: 'btn danger', onclick: (e) => busy(e.currentTarget, 'Signing out…', async () => {
+          const r = await api('POST', '/api/sessions/sign-out-others');
+          toast(`Signed out ${r.signedOut} other device${r.signedOut === 1 ? '' : 's'}.`);
+          await fill();
+        }) }, `Sign out all ${others.length} other devices`));
+    } catch (e) { list.replaceChildren(h('p', { class: 'bad' }, e.message)); }
+  };
+  fill();
+  return card;
 }
 
 function exportVault() {
@@ -1015,6 +1139,20 @@ function exportVault() {
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
+
+// ---------- inbox, checked in the background
+
+async function pollInbox() {
+  if (!S.vk || S.pendingPhrase || document.hidden) return;
+  const before = new Set(S.inbox.map((s) => s.id));
+  try { await loadInbox(); } catch { return; }
+  const fresh = S.inbox.filter((s) => !before.has(s.id)).length;
+  const changed = fresh || S.inbox.length !== before.size;
+  if (changed && !dirty) render();
+  if (fresh) toast(`${fresh} new suggestion${fresh === 1 ? '' : 's'} in your inbox.`);
+}
+setInterval(pollInbox, 30_000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) pollInbox(); });
 
 // ---------- boot
 

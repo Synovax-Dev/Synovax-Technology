@@ -57,6 +57,25 @@ export async function merkleProof(leavesHex, index) {
   return proof;
 }
 
+// Seals form a hash chain: each one commits to the chain hash of the seal before
+// it. Anyone who kept any later chain hash (the vault app keeps one per browser,
+// and SEAL_PUBLISH_URL can post each one somewhere public) would notice an
+// earlier seal being rewritten or dropped.
+export const GENESIS = '0'.repeat(64);
+export async function sealChainHash(s, prevHex) {
+  return toHex(await hash(2, te.encode(JSON.stringify(['seal/v1', s.seq, s.periodStart, s.periodEnd, s.root, s.count, prevHex]))));
+}
+
+/** Checks that `seals` (ascending, consecutive seq) link to each other and to `prevHex`. */
+export async function verifySealChain(seals, prevHex) {
+  let prev = prevHex;
+  for (const s of seals) {
+    if (s.prev !== prev || (await sealChainHash(s, prev)) !== s.chain) return { ok: false, badSeq: s.seq };
+    prev = s.chain;
+  }
+  return { ok: true, head: prev };
+}
+
 export async function verifyProof(leafHex, proof, rootHex) {
   let cur = fromHex(leafHex);
   for (const p of proof) {

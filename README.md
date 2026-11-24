@@ -18,9 +18,16 @@ Terus buka http://127.0.0.1:8787/ (landing page) atau langsung http://127.0.0.1:
 npm test
 ```
 
-Test end-to-end (23 cek): server beneran, "browser" yang dibikin dari modul kripto yang sama, dan connector yang diajak ngobrol lewat MCP. Termasuk cek bahwa file database **nggak nyimpen plaintext sama sekali**.
+Test end-to-end (29 cek): server beneran, "browser" yang dibikin dari modul kripto yang sama, dan connector yang diajak ngobrol lewat MCP. Termasuk cek bahwa file database **nggak nyimpen plaintext sama sekali**.
 
-Env server: `PORT` (8787), `HOST` (127.0.0.1), `DATA_DIR` (`./data`), `SEAL_PERIOD_MS` (3600000 = 1 jam), `ADMIN_KEY` (opsional, min. 32 karakter).
+Env server: `PORT` (8787), `HOST` (127.0.0.1), `DATA_DIR` (`./data`), `SEAL_PERIOD_MS` (3600000 = 1 jam), `ADMIN_KEY` (opsional, min. 32 karakter), `KDF_ITERATIONS` (600000; semua vault baru wajib pakai angka ini, biar endpoint salt nggak bocorin username mana yang terdaftar), `TRUST_PROXY` (0; isi jumlah reverse proxy di depan server, biasanya `1`, supaya rate limit pakai IP asli dari `X-Forwarded-For`. Jangan diisi kalau server diakses langsung, nanti IP-nya bisa dipalsuin).
+
+Env lain:
+- `TLS_CERT` + `TLS_KEY` (file PEM), atau `TLS_PFX` (+ `TLS_PFX_PASSPHRASE`): HTTPS langsung tanpa reverse proxy. Header HSTS otomatis nyala.
+- `BACKUP_INTERVAL_MS` (21600000 = 6 jam, `0` = mati) dan `BACKUP_KEEP` (14): salinan database otomatis di `data/backups/`. Isinya sama kayak database (ciphertext + hash), jadi tetep jaga. Copy folder itu ke disk/mesin lain, karena backup di disk yang sama nggak nolong kalau disk-nya rusak.
+- `SEAL_PUBLISH_URL`: tiap seal baru di-POST ke URL ini (webhook Discord/Slack, log service, dsb), jadi ada salinan chain hash di tempat yang nggak bisa diubah server.
+
+Batas login: yang dihitung cuma percobaan **gagal**, per (username, IP). Orang lain yang nebak-nebak passphrase lu nggak bisa ngunci lu keluar. Ada juga batas 200 gagal/jam per akun buat nahan tebakan dari banyak IP, dan batas ini cuma ngeblok IP yang udah pernah gagal di akun itu.
 
 ## Nyambungin ke Claude Desktop / Cursor
 
@@ -84,6 +91,9 @@ app key            vlt_app.<id>.<secret> ──HKDF──▶ auth (server cuma s
 - **Server nggak bisa liat:** judul, isi, tag, nama folder, nama app, kata yang dicari AI, semua kunci.
 - **Vouch:** vault nge-HMAC public key inbox-nya pake kunci yang cuma dipegang vault + app. Jadi server nggak bisa diem-diem nuker public key buat ngintip usulan.
 - **Seal:** tiap periode, semua leaf log (di-salt) digabung jadi satu Merkle root. Halaman Read log bisa verifikasi entri apa pun ke seal publiknya, langsung di browser.
+- **Rantai seal:** tiap seal ngiket hash seal sebelumnya. Browser nyimpen hash terakhir yang pernah dia liat, dan tiap buka Read log dicek rantainya masih nyambung dari situ. Kalau server nulis ulang atau ngapus seal lama, langsung ketahuan.
+- **Ganti kunci folder:** pas izin folder dicabut dari sebuah app (atau app-nya di-revoke), folder itu otomatis dapet kunci baru dan semua memorinya dienkripsi ulang di browser. Kunci lama yang dipegang app itu nggak bisa buka apa pun yang ditulis setelahnya. Bisa juga manual: buka folder → **Replace key**.
+- **Perangkat yang login:** Settings → Signed-in devices. Bisa logout satu-satu atau semua sekaligus.
 - **Hapus = hapus beneran:** `PRAGMA secure_delete=ON`.
 - CSP ketat (`script-src 'self'`), tanpa script/font pihak ketiga.
 
@@ -91,11 +101,12 @@ app key            vlt_app.<id>.<secret> ──HKDF──▶ auth (server cuma s
 
 - **Belum diaudit.** Desainnya mengikuti pola standar, tapi sebelum nyimpen data sensitif orang lain, minta pihak ketiga audit dulu.
 - Kalau passphrase **dan** 24 kata recovery ilang, vault nggak bisa dibuka siapa pun. Itu disengaja.
-- Nyabut folder dari app ngehentiin server ngasih data baru. Tapi kalau app-nya udah sempet baca, dia bisa nyimpen salinan. Rotasi folder key belum ada.
+- Nyabut folder dari app bikin folder itu ganti kunci, jadi isi baru aman. Tapi apa yang udah sempet dibaca app sebelumnya bisa aja dia simpen. Itu nggak bisa ditarik balik.
 - Pencarian di connector masih pake kata kunci, belum semantic/embedding.
-- Seal disimpen di server sendiri (belum dipublikasi ke tempat publik yang nggak bisa diubah).
-- Inbox nggak auto-refresh, jadi pake tombol Refresh.
-- Buat production: taruh di belakang HTTPS (reverse proxy), set `HOST=0.0.0.0`, dan backup `DATA_DIR`.
+- Rantai seal cuma sekuat saksinya: browser lu (per browser) dan `SEAL_PUBLISH_URL` kalau diisi. Tanpa keduanya, seal tetep cuma ada di server.
+- Inbox ngecek otomatis tiap 30 detik (dan pas tab dibuka lagi). Kalau lu lagi ngetik, layar nggak di-refresh biar tulisan nggak ilang, cuma muncul notifikasi.
+- Buat production: taruh di belakang HTTPS (reverse proxy), set `HOST=0.0.0.0` dan `TRUST_PROXY=1`, dan backup `DATA_DIR`.
+- Endpoint daftar tetap ngasih tahu kalau sebuah nama udah dipake ("That name is taken"). Ini nggak bisa dihindari selama username dipilih sendiri.
 - Landing page tetep di bawah CSP ketat: font di-host sendiri, tanpa CDN, tanpa inline script/style. Kalau nanti nambah aset dari luar, header CSP di `server/index.js` (`SECURITY_HEADERS`) perlu ditambahin domainnya.
 
 ## Belum dibikin (kandidat versi berikutnya)

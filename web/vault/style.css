@@ -497,3 +497,12 @@ table.log tr:last-child td { border-bottom: 0; }
 .au-card--wide:not(.is-first):not(.is-swap) { animation: au-in 600ms var(--au-ease) both; }
 
 @media (prefers-reduced-motion: reduce) { .au.is-enter *, .au.is-enter *::before, .au-card *, .au-words li, .au-form.is-shake { animation: none !important; } .au-chip i { animation: none; } }
+
+/* signed-in devices */
+.sessions { display: grid; gap: 10px; margin-top: 12px; }
+.session { padding: 10px 0; border-top: 1px solid var(--line, rgb(0 0 0 / 0.08)); }
+.session .grow { flex: 1 1 auto; min-width: 0; }
+.sessions > .btn { justify-self: start; margin-top: 4px; }
+
+/* seal chain status under the latest seal */
+.chain-l { display: block; margin-top: 8px; font-size: 12px; }

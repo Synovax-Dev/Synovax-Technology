@@ -111,6 +111,13 @@ CREATE TABLE IF NOT EXISTS admin_audit (
   old   TEXT,
   new   TEXT
 );
+-- rate limits live here, so a restart does not give a guesser a fresh start
+CREATE TABLE IF NOT EXISTS rate_hits (
+  key TEXT NOT NULL,
+  ts  INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS rate_hits_key ON rate_hits(key, ts);
+CREATE INDEX IF NOT EXISTS rate_hits_ts ON rate_hits(ts);
 CREATE INDEX IF NOT EXISTS apps_vault ON apps(vault_id);
 CREATE INDEX IF NOT EXISTS suggestions_vault ON suggestions(vault_id);
 CREATE INDEX IF NOT EXISTS log_vault ON read_log(vault_id, seq);
@@ -122,7 +129,27 @@ export function openDb(file) {
   // secure_delete: deleted rows are overwritten on disk, not just unlinked.
   db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA secure_delete = ON; PRAGMA busy_timeout = 5000;');
   db.exec(SCHEMA);
+  migrate(db);
   return db;
+}
+
+// Columns added after the first release. Older databases get them on start.
+const ADDED_COLUMNS = [
+  ['sessions', 'id', 'TEXT'],            // a public id for the session list (the token hash stays private)
+  ['sessions', 'created_at', 'INTEGER'],
+  ['sessions', 'last_used_at', 'INTEGER'],
+  ['sessions', 'agent', 'TEXT'],         // a short device label, e.g. "Chrome on Windows"
+  ['seals', 'prev', 'TEXT'],             // the chain hash of the seal before this one
+  ['seals', 'chain', 'TEXT'],            // SHA-256 over prev + this seal, so history cannot be rewritten quietly
+];
+
+function migrate(db) {
+  for (const [table, col, type] of ADDED_COLUMNS) {
+    const has = db.prepare(`PRAGMA table_info(${table})`).all().some((c) => c.name === col);
+    if (!has) db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} ${type}`);
+  }
+  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS sessions_id ON sessions(id)');
+  db.exec('CREATE INDEX IF NOT EXISTS sessions_vault ON sessions(vault_id)');
 }
 
 export function tx(db, fn) {

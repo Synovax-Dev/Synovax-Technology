@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
 import * as C from '../shared/crypto.js';
 import { WORDS } from '../shared/wordlist.js';
-import { leafHash, merkleRoot, merkleProof, verifyProof, toHex } from '../shared/merkle.js';
+import { leafHash, merkleRoot, merkleProof, verifyProof, toHex, verifySealChain, GENESIS } from '../shared/merkle.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SEAL_MS = 1500;
@@ -67,7 +67,7 @@ await step('Merkle proofs verify for every leaf, 1 to 9 leaves', async () => {
 
 const dataDir = await mkdtemp(path.join(os.tmpdir(), 'vault-test-'));
 const server = spawn(process.execPath, ['server/index.js'], {
-  cwd: ROOT, env: { ...process.env, PORT: '0', DATA_DIR: dataDir, SEAL_PERIOD_MS: String(SEAL_MS), ADMIN_KEY }, stdio: ['ignore', 'pipe', 'pipe'],
+  cwd: ROOT, env: { ...process.env, PORT: '0', DATA_DIR: dataDir, SEAL_PERIOD_MS: String(SEAL_MS), ADMIN_KEY, KDF_ITERATIONS: '100000', TRUST_PROXY: '1' }, stdio: ['ignore', 'pipe', 'pipe'],
 });
 server.stderr.on('data', (d) => process.stderr.write(`[server] ${d}`));
 const BASE = await new Promise((resolve, reject) => {
@@ -76,17 +76,18 @@ const BASE = await new Promise((resolve, reject) => {
   setTimeout(() => reject(new Error('server did not start')), 10_000);
 });
 
-let connector;
+let connector, connector2;
 const cleanup = async () => {
   connector?.proc.kill();
+  connector2?.proc.kill();
   server.kill();
   await sleep(200);
   await rm(dataDir, { recursive: true, force: true }).catch(() => {});
 };
 
-async function api(method, p, body, token) {
+async function api(method, p, body, token, extraHeaders = {}) {
   const res = await fetch(BASE + p, {
-    method, headers: { 'content-type': 'application/json', ...(token ? { authorization: `Bearer s.${token}` } : {}) },
+    method, headers: { 'content-type': 'application/json', ...(token ? { authorization: `Bearer s.${token}` } : {}), ...extraHeaders },
     body: body ? JSON.stringify(body) : undefined,
   });
   return { status: res.status, data: await res.json().catch(() => ({})) };
@@ -158,6 +159,33 @@ try {
     assert.deepEqual(await C.unwrapKey(right.kek, r.keys.wrappedVaultKey, 'vk/passphrase'), vk);
     const ghost = await ok('POST', '/api/auth/salt', { username: 'nobody-here' });
     assert.equal(ghost.salt, (await ok('POST', '/api/auth/salt', { username: 'nobody-here' })).salt, 'fake salt is stable');
+  });
+
+  await step('the salt answer does not tell which names exist; other round counts are refused', async () => {
+    const real = await ok('POST', '/api/auth/salt', { username });
+    const ghost = await ok('POST', '/api/auth/salt', { username: 'nobody-here' });
+    assert.equal(ghost.iterations, real.iterations);
+    assert.equal((await ok('GET', '/api/config')).iterations, iterations);
+    const other = await C.keysFromPassphrase('x', salt, 100_000);
+    const r = await api('POST', '/api/auth/register', {
+      username: 'odd-rounds', salt, iterations: 600_000, authKey: other.authKey, recoveryAuthKey: other.authKey,
+      wrappedVaultKey: await C.wrapKey(other.kek, vk, 'x'), wrappedVaultKeyRecovery: await C.wrapKey(other.kek, vk, 'x'),
+      boxPub: box.pub, boxPrivWrapped: await C.wrapKey(vk, box.priv, 'x'),
+    });
+    assert.equal(r.status, 400);
+  });
+
+  await step('a stranger guessing wrong cannot lock the owner out', async () => {
+    const s = await ok('POST', '/api/auth/salt', { username });
+    const wrong = await C.keysFromPassphrase('a stranger guessing', s.salt, s.iterations);
+    const stranger = { 'x-forwarded-for': '203.0.113.9' };
+    for (let i = 0; i < 10; i++) assert.equal((await api('POST', '/api/auth/login', { username, authKey: wrong.authKey }, null, stranger)).status, 401);
+    assert.equal((await api('POST', '/api/auth/login', { username, authKey: wrong.authKey }, null, stranger)).status, 429, 'the guesser is slowed down');
+    const right = await C.keysFromPassphrase(pass, s.salt, s.iterations);
+    assert.equal((await api('POST', '/api/auth/login', { username, authKey: right.authKey })).status, 200, 'the owner still gets in');
+    // the IP the server trusts is the one the (single) proxy appended, not what the client wrote before it
+    const spoof = { 'x-forwarded-for': '198.51.100.1, 203.0.113.9' };
+    assert.equal((await api('POST', '/api/auth/login', { username, authKey: wrong.authKey }, null, spoof)).status, 429, 'a faked left-hand IP does not reset the limit');
   });
 
   // folders and memories
@@ -282,6 +310,75 @@ try {
     await ok('PATCH', `/api/apps/${appId}`, { folderKeys: [] }, token);
     const r = await connector.tool('read_memory', { id: workMem });
     assert.ok(r.isError);
+  });
+
+  await step('replacing a folder key: the old key opens nothing new, apps that keep access still read', async () => {
+    // a second app that keeps access to Work, with the old key already cached in its connector
+    const appB = C.newId(), secretB = C.randomBytes(32), mB = await C.appKeyMaterial(secretB);
+    await ok('PUT', `/api/apps/${appB}`, {
+      meta: await C.encryptJSON(vk, { name: 'Cursor', secret: C.b64(secretB) }, `app:${appB}:meta`), authKey: mB.auth,
+      vouch: await C.vouchFor(mB.vouch, appB, box.pub), canSuggest: false,
+      folderKeys: [{ folderId: folders.Work.id, wrappedKey: await C.wrapKey(mB.wrap, folders.Work.key, `app:${appB}:folder:${folders.Work.id}`) }],
+    }, token);
+    connector2 = startConnector(C.formatAppKey(appB, secretB));
+    await connector2.rpc('initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'test', version: '1' } });
+    assert.match((await connector2.tool('read_memory', { id: workMem })).text, /before nine/);
+
+    const oldKey = folders.Work.key;
+    const newKey = C.randomBytes(32);
+    const fid = folders.Work.id;
+    const inWork = (await ok('GET', '/api/vault', null, token)).memories.filter((m) => m.folderId === fid);
+    const memories = await Promise.all(inWork.map(async (m) => {
+      const d = await C.decryptJSON(oldKey, m.body, `memory:${m.id}:body`);
+      return { id: m.id, head: await C.encryptJSON(newKey, { title: d.title, tags: d.tags, snippet: d.body.slice(0, 240) }, `memory:${m.id}:head`), body: await C.encryptJSON(newKey, d, `memory:${m.id}:body`) };
+    }));
+    const rotation = {
+      meta: await C.encryptJSON(newKey, { name: 'Work' }, `folder:${fid}:meta`), wrappedKey: await C.wrapKey(vk, newKey, `folder:${fid}:key`),
+      memories, grants: [{ appId: appB, wrappedKey: await C.wrapKey(mB.wrap, newKey, `app:${appB}:folder:${fid}`) }],
+    };
+    assert.equal((await api('POST', `/api/folders/${fid}/rotate`, { ...rotation, memories: memories.slice(1) }, token)).status, 409, 'a missing memory is refused');
+    assert.equal((await api('POST', `/api/folders/${fid}/rotate`, { ...rotation, grants: [{ appId: C.newId(), wrappedKey: rotation.wrappedKey }] }, token)).status, 400, 'an unknown app is refused');
+    const r = await ok('POST', `/api/folders/${fid}/rotate`, rotation, token);
+    assert.equal(r.rotated, inWork.length);
+    folders.Work.key = newKey;
+
+    const after = (await ok('GET', '/api/vault', null, token)).memories.find((m) => m.id === workMem);
+    await assert.rejects(C.decryptJSON(oldKey, after.body, `memory:${workMem}:body`), 'the old key no longer opens it');
+    assert.match((await C.decryptJSON(newKey, after.body, `memory:${workMem}:body`)).body, /before nine/);
+    assert.match((await connector2.tool('read_memory', { id: workMem })).text, /before nine/, 'the connector picks up the new key');
+    assert.match((await connector2.tool('search_memories', { query: 'nine' })).text, /Morning person/);
+    assert.ok((await connector.tool('read_memory', { id: workMem })).isError, 'the app without access still gets nothing');
+  });
+
+  await step('signed-in devices can be listed and signed out', async () => {
+    const other = (await ok('POST', '/api/auth/login', { username, authKey: k.authKey }, null, { 'user-agent': 'Mozilla/5.0 (Windows NT 10.0) Chrome/130.0 Safari/537.36' })).token;
+    const { sessions } = await ok('GET', '/api/sessions', null, token);
+    assert.equal(sessions.filter((s) => s.current).length, 1);
+    assert.ok(sessions.some((s) => s.agent === 'Chrome on Windows'));
+    assert.ok(sessions.every((s) => !('token_hash' in s) && !('tokenHash' in s)), 'token hashes stay private');
+    const one = sessions.find((s) => s.agent === 'Chrome on Windows');
+    await ok('DELETE', `/api/sessions/${one.id}`, null, token);
+    assert.equal((await api('GET', '/api/vault', null, other)).status, 401, 'that device is signed out');
+    const third = (await ok('POST', '/api/auth/login', { username, authKey: k.authKey })).token;
+    const r = await ok('POST', '/api/sessions/sign-out-others', null, token);
+    assert.ok(r.signedOut >= 1);
+    assert.equal((await api('GET', '/api/vault', null, third)).status, 401);
+    assert.equal((await api('GET', '/api/vault', null, token)).status, 200, 'this device stays signed in');
+  });
+
+  await step('the seals form an unbroken hash chain', async () => {
+    const { seals } = await ok('GET', '/api/seals?from=1');
+    assert.ok(seals.length >= 1);
+    assert.equal(seals[0].seq, 1);
+    assert.equal(seals[0].prev, GENESIS);
+    assert.ok((await verifySealChain(seals, GENESIS)).ok);
+    const tampered = seals.map((s, i) => (i === 0 ? { ...s, root: 'f'.repeat(64) } : s));
+    assert.ok(!(await verifySealChain(tampered, GENESIS)).ok, 'a changed seal breaks the chain');
+  });
+
+  await step('a backup of the database is written on start', async () => {
+    const files = await readdir(path.join(dataDir, 'backups'));
+    assert.ok(files.some((f) => /^vault-\d{8}-\d{6}\.db$/.test(f)), files.join(','));
   });
 
   await step('revoking the app stops its key on the next request', async () => {

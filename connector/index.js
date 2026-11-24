@@ -65,17 +65,20 @@ function folderByName(name) {
   return [...info.folders.values()].find((f) => f.name.toLowerCase() === n || f.id === name);
 }
 
-async function heads(folderId) {
+async function heads(folderId, retried = false) {
   const { memories } = await call(`/api/app/memories${folderId ? `?folderId=${encodeURIComponent(folderId)}` : ''}`);
   const out = [];
+  let stale = false;
   for (const m of memories) {
     const f = info.folders.get(m.folderId);
-    if (!f) continue;
+    if (!f) { stale = true; continue; }
     try {
       const h = await C.decryptJSON(f.key, m.head, `memory:${m.id}:head`);
       out.push({ id: m.id, folder: f.name, title: h.title, tags: h.tags ?? [], snippet: h.snippet ?? '', updatedAt: m.updatedAt });
-    } catch { /* skip what this app cannot open */ }
+    } catch { stale = true; }
   }
+  // A folder key may have been rotated since the cached info: fetch the keys again once.
+  if (stale && !retried) { await ready(true); return heads(folderId, true); }
   return out;
 }
 
@@ -151,9 +154,14 @@ const TOOLS = [
     run: async ({ id }) => {
       await ready();
       const m = await call(`/api/app/memories/${encodeURIComponent(String(id).replace(/[[\]]/g, ''))}`);
-      const f = info.folders.get(m.folderId) ?? (await ready(true)).folders.get(m.folderId);
-      if (!f) throw new Error('This app cannot open that folder.');
-      const d = await C.decryptJSON(f.key, m.body, `memory:${m.id}:body`);
+      const open = (f) => C.decryptJSON(f.key, m.body, `memory:${m.id}:body`);
+      let f = info.folders.get(m.folderId);
+      let d = f ? await open(f).catch(() => null) : null;
+      if (!d) { // unknown folder or a rotated key: fetch the keys again once
+        f = (await ready(true)).folders.get(m.folderId);
+        if (!f) throw new Error('This app cannot open that folder.');
+        d = await open(f);
+      }
       return `# ${d.title}\nFolder: ${f.name} · updated ${day(m.updatedAt)}${d.tags?.length ? ` · tags: ${d.tags.join(', ')}` : ''}\n\n${d.body}`;
     },
   },
