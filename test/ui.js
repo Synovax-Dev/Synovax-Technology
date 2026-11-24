@@ -187,6 +187,23 @@ try {
     await js('window.scrollTo(0, document.body.scrollHeight)'); await sleep(800);
     await shot('landing'); await js('window.scrollTo(0, 0)'); await shot('landing', true);
     await noSideScroll('the landing page');
+    // the masthead (logo, nav, GitHub, wallet, open vault) never overlaps, from phone to wide screens
+    for (const [width, height, mobile] of [[390, 844, true], [1024, 768, false], [1280, 800, false], [1366, 768, false], [1440, 900, false], [1920, 1080, false]]) {
+      await page('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile });
+      await sleep(400);
+      const clash = await js(`
+        const boxes = ['.mast .logo', '.mast-nav li', '.mast-gh', '.mast-wallet', '.mast-cta', '.burger']
+          .flatMap((s) => $$(s)).map((e) => [e.className || e.textContent.trim(), e.getBoundingClientRect()]).filter(([, r]) => r.width > 0);
+        if (!$('.mast-gh') || $('.mast-gh').getBoundingClientRect().width === 0) return 'github icon not shown';
+        for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) {
+          const [a, r] = boxes[i], [b, q] = boxes[j];
+          if (r.left < q.right + 8 && q.left < r.right + 8 && r.top < q.bottom && q.top < r.bottom) return a + ' / ' + b;
+        }
+        return '';`);
+      assert.equal(clash, '', `masthead at ${width}px: ${clash}`);
+    }
+    await page('Emulation.clearDeviceMetricsOverride'); await sleep(200);
+    assert.equal(await js('return $(".mast-gh").href'), 'https://github.com/Synovax-Dev/Synovax-Technology', 'navbar GitHub link');
     noProblems();
   });
 

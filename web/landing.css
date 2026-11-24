@@ -909,7 +909,14 @@ html.no-motion .st-t, html.no-motion .st-copy, html.no-motion .st-plate { opacit
 .th-table tr.is-you .th-bar i, .th-table tr.is-burn .th-bar i { background: var(--accent); }
 .th-all { align-self: flex-start; }
 
-.mast-end { display: flex; align-items: center; gap: 1.6rem; }
+.mast-end { display: flex; align-items: center; gap: 1.6rem; margin-left: auto; margin-right: 1rem; }
+@media (min-width: 1280px) { .mast-end { margin-right: 0; gap: 1.25rem; } }
+/* narrow desktops: the nav sits after the logo instead of dead center, so it clears the right-hand group */
+@media (min-width: 1280px) and (max-width: 1535px) { .mast-nav { left: 11rem; transform: none; } .mast-nav ul { gap: 2rem; } }
+.mast-gh { display: grid; place-items: center; width: 2rem; height: 2rem; margin: -0.25rem; transition: color 150ms var(--ease-entrance); }
+.mast-gh svg { width: 1.25rem; height: 1.25rem; }
+.mast-gh:hover { color: var(--accent); }
+.mast-gh:focus-visible { outline: 1px solid var(--accent); outline-offset: 2px; }
 .mast-wallet { display: none; font-size: var(--type-label); font-weight: 700; text-transform: uppercase; line-height: 0.9; white-space: nowrap; padding: 0.45rem 0.65rem; border: 1px solid currentColor; transition: color 150ms var(--ease-entrance), background 150ms; }
 .mast-wallet:hover { color: var(--accent); }
 .mast-wallet.is-on { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; text-transform: none; }
