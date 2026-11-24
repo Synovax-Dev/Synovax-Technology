@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>Open source · SYNOVAX</title>
+  <meta name="description" content="Every line of SYNOVAX is public under the MIT license: the encryption, the server, the vault, the connector. Read it, run it yourself.">
+  <link rel="canonical" href="https://synovax.tech/open-source/">
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="SYNOVAX">
+  <meta property="og:title" content="Open source · SYNOVAX">
+  <meta property="og:description" content="Every line of SYNOVAX is public under the MIT license: the encryption, the server, the vault, the connector. Read it, run it yourself.">
+  <meta property="og:image" content="https://synovax.tech/og.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="preload" href="/fonts/oswald-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/fonts/space-grotesk-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/docs/docs.css">
+  <link rel="stylesheet" href="/pages/pages.css">
+  <script type="module" src="/pages/pages.js"></script>
+</head>
+<!-- Built by scripts/build-pages.mjs from site/pages/open-source.html. Edit that file, then run npm run pages. -->
+<body data-page="open-source">
+  <svg width="0" height="0" class="sprite" aria-hidden="true">
+    <symbol id="i-mark" viewBox="0 0 24 24"><path d="M21.64 1L4.2 7.77L10.6 12.33C9.72 11.6 9.72 10.34 10.75 9.98L17.59 6.89ZM2.36 23L19.8 16.23L13.4 11.67C14.28 12.4 14.28 13.66 13.25 14.02L6.41 17.11Z" fill="currentColor"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 13.7071 10.7071"><path d="M0 5.35355H13M8 10.3536L13 5.35355L8 0.353553" fill="none" stroke="currentColor"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 16 16"><path d="M1.5 4h13M1.5 8h13M1.5 12h13" stroke="currentColor" stroke-width="1.4"/></symbol>
+    <symbol id="i-info" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.8" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 7v4.6M8 4.4v1.4" stroke="currentColor" stroke-width="1.4"/></symbol>
+    <symbol id="i-warn" viewBox="0 0 16 16"><path d="M8 1.6L15 14H1Z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M8 6v4M8 11.4v1.4" stroke="currentColor" stroke-width="1.4"/></symbol>
+    <symbol id="i-check" viewBox="0 0 16 16"><path d="M2.5 8.5l3.5 3.5 7.5-8" fill="none" stroke="currentColor" stroke-width="1.6"/></symbol>
+    <symbol id="i-x" viewBox="0 0 16 16"><path d="M3 3l10 10M13 3L3 13" fill="none" stroke="currentColor" stroke-width="1.6"/></symbol>
+    <symbol id="i-github" viewBox="0 0 16 16"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.06-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></symbol>
+  </svg>
+
+  <a class="skip" href="#content">Skip to content</a>
+
+  <header class="d-top p-top">
+    <a class="d-logo" href="/" aria-label="SYNOVAX home">
+      <svg aria-hidden="true"><use href="#i-mark"/></svg><span>synovax</span><em>developers</em>
+    </a>
+    <nav class="d-topnav p-nav" aria-label="Site">
+      <a href="/how-it-works/">How it works</a>
+      <a href="/security/">Security</a>
+      <a href="/threat-model/">Threat model</a>
+      <a href="/immune/">Immune system</a>
+      <a href="/status/">Status</a>
+      <a href="/docs/">Docs</a>
+    </nav>
+    <a class="p-gh" href="https://github.com/Synovax-Dev/Synovax-Technology" target="_blank" rel="noopener noreferrer" aria-label="SYNOVAX on GitHub" title="SYNOVAX on GitHub"><svg aria-hidden="true"><use href="#i-github"/></svg></a>
+    <a class="d-cta" href="/vault/">open vault <svg aria-hidden="true"><use href="#i-arrow"/></svg></a>
+    <button class="d-burger p-burger" type="button" aria-expanded="false" aria-controls="p-menu" data-menu><svg aria-hidden="true"><use href="#i-menu"/></svg><span>menu</span></button>
+  </header>
+  <nav class="p-menu" id="p-menu" aria-label="All pages" hidden>
+    <div><p>Product</p><a href="/vault/">Vault</a><a href="/docs/">Docs</a><a href="/#token">$SYNOVAX</a><a href="/">Home</a></div>
+    <div><p>Trust</p><a href="/how-it-works/">How it works</a><a href="/security/">Security</a><a href="/threat-model/">Threat model</a><a href="/immune/">Immune system</a><a href="/privacy/">Privacy</a><a href="/status/">Status</a></div>
+    <div><p>Developers</p><a href="/connector/">Connector</a><a href="/reference/">API reference</a><a href="/standard/">Open standard</a><a href="/verify/">Verify</a><a href="/open-source/" aria-current="page">Open source</a><a href="https://github.com/Synovax-Dev/Synovax-Technology" target="_blank" rel="noopener noreferrer">GitHub ↗</a></div>
+  </nav>
+
+  <section class="d-hero p-hero" aria-labelledby="p-h1">
+    <div class="d-hero-in p-hero-in">
+      <div>
+        <p class="d-eyebrow">Open source</p>
+        <h1 class="d-h1" id="p-h1"><span>Read the code,</span><span>run it yourself</span></h1>
+        <p class="p-lead">A vault you cannot inspect asks for blind trust. Every line of SYNOVAX is public under the MIT license: the encryption, the server, the vault, the connector and the tests. It is free to use.</p>
+      </div>
+    </div>
+    <span class="d-corner d-corner--tl" aria-hidden="true"></span>
+    <span class="d-corner d-corner--br" aria-hidden="true"></span>
+  </section>
+
+  <div class="p-layout">
+    <main id="content" class="p-main">
+      <section class="d-ch" id="repo">
+        <h2>The repository</h2>
+        <p class="big"><a href="https://github.com/Synovax-Dev/Synovax-Technology" target="_blank" rel="noopener noreferrer">Synovax-Dev/Synovax-Technology</a>: one repository, plain JavaScript, no build step. The server needs nothing from npm at all.</p>
+        <div class="d-grid2">
+          <div class="d-fact"><b>shared/</b><p>The cryptography (AES-256-GCM envelopes, key derivation, sealed boxes, app keys), the Merkle seals, the hidden-instruction checks, and the test vectors. The same files run in the browser, in the connector and on the server.</p></div>
+          <div class="d-fact"><b>server/</b><p>The HTTP API on Node's built-in SQLite, the hourly sealer, the public immune test, backups, the admin password and the holder count for $SYNOVAX. It only ever handles ciphertext for what you write.</p></div>
+          <div class="d-fact"><b>web/vault/</b><p>The vault app: sign in, memories, inbox, apps, read log, settings. Plain JavaScript modules, encrypting in your browser.</p></div>
+          <div class="d-fact"><b>connector/</b><p>The MCP server people run on their own machine, with search by words and, optionally, by meaning with a local model.</p></div>
+          <div class="d-fact"><b>web/ (the rest)</b><p>The home page, the docs, the admin panel and these pages. The sources of these pages are in <code>site/pages/</code>, built by <code>scripts/build-pages.mjs</code>.</p></div>
+          <div class="d-fact"><b>test/</b><p>End-to-end checks against a real server and connector, a headless browser test of every flow, and tests for the wallet, the immune system, the test vectors and search by meaning.</p></div>
+        </div>
+      </section>
+
+      <section class="d-ch" id="run">
+        <h2>Your own SYNOVAX</h2>
+        <p>Needs Node.js 22.13 or newer, for the built-in SQLite. It serves on <code>http://127.0.0.1:8787</code> and keeps its data in <code>./data</code>. Nothing else is required: no account, no external database, no third-party service.</p>
+        <div class="code"><div class="code-bar"><span>Terminal</span><button type="button" data-copy>copy</button></div><pre><code>git clone https://github.com/Synovax-Dev/Synovax-Technology.git
+      cd Synovax-Technology
+      npm start</code></pre></div>
+        <ul>
+          <li>Your vault then lives on your own machine, and your connector points at your own address. The vault shows the connector's path for you.</li>
+          <li>On first start the server prints a random admin password once; change it in the admin panel, or set <code>ADMIN_PASSWORD</code>.</li>
+          <li>For a public address, put it behind HTTPS (a reverse proxy) with <code>HOST=0.0.0.0</code> and <code>TRUST_PROXY=1</code>, and back up the data folder.</li>
+        </ul>
+      </section>
+
+      <section class="d-ch" id="tests">
+        <h2>Tests</h2>
+        <div class="code"><div class="code-bar"><span>Terminal</span><button type="button" data-copy>copy</button></div><pre><code>npm test               # end to end: server, crypto and connector over MCP
+      npm run test:ui        # every flow in headless Chrome or Edge, desktop and phone
+      npm run test:immune    # every attack in every disguise, and no false alarms
+      npm run test:vectors   # the open standard's test vectors
+      npm run test:wallet    # connect wallet and the holder count
+      npm run test:semantic  # search by meaning (downloads the model)</code></pre></div>
+      </section>
+
+      <section class="d-ch" id="settings">
+        <h2>Settings</h2>
+        <div class="tbl"><table>
+          <thead><tr><th>Variable</th><th>Default</th><th>Meaning</th></tr></thead>
+          <tbody>
+            <tr><td><code>PORT</code>, <code>HOST</code></td><td>8787, 127.0.0.1</td><td>Where the server listens.</td></tr>
+            <tr><td><code>DATA_DIR</code></td><td>./data</td><td>The database, secrets and backups.</td></tr>
+            <tr><td><code>SEAL_PERIOD_MS</code></td><td>3600000</td><td>How often the read log is sealed.</td></tr>
+            <tr><td><code>SEAL_PUBLISH_URL</code></td><td>off</td><td>Post every new seal to this webhook, so a copy of the chain lives elsewhere.</td></tr>
+            <tr><td><code>IMMUNE_TEST</code></td><td>on</td><td>The public hourly test of the hidden-instruction checks. <code>off</code> turns it off.</td></tr>
+            <tr><td><code>TRUST_PROXY</code></td><td>0</td><td>How many reverse proxies are in front, so rate limits see real addresses.</td></tr>
+            <tr><td><code>TLS_CERT</code>, <code>TLS_KEY</code></td><td>off</td><td>Serve HTTPS directly.</td></tr>
+            <tr><td><code>BACKUP_INTERVAL_MS</code>, <code>BACKUP_KEEP</code></td><td>6 hours, 14</td><td>Automatic database copies.</td></tr>
+            <tr><td><code>STATS_MIN_VAULTS</code></td><td>100</td><td>Totals appear on the home and status pages from this many vaults.</td></tr>
+          </tbody>
+        </table></div>
+        <p>Every setting, including those for the $SYNOVAX section, is in the <a href="https://github.com/Synovax-Dev/Synovax-Technology#readme" target="_blank" rel="noopener noreferrer">README</a>.</p>
+      </section>
+
+      <section class="d-ch" id="license">
+        <h2>License</h2>
+        <p class="big">MIT. Use it, change it, host it, build on it, for any purpose, free of charge.</p>
+        <p>The license asks only that the copyright notice stays with the code, and it comes without warranty.</p>
+      </section>
+
+      <section class="d-ch" id="taking-part">
+        <h2>Taking part</h2>
+        <p>Open an issue or a pull request on the repository. Security problems go through the repository's private vulnerability reporting instead of a public issue, so they can be fixed before they are known.</p>
+      </section>
+
+      <nav class="p-next" aria-label="Read next">
+        <p>Read next</p>
+        <div><a href="/standard/"><span>Developers</span><b>Open standard</b><em>The formats, keys, log and seals, with test vectors</em><svg aria-hidden="true"><use href="#i-arrow"/></svg></a><a href="/connector/"><span>Developers</span><b>Connector</b><em>The MCP server between your vault and your AI apps</em><svg aria-hidden="true"><use href="#i-arrow"/></svg></a><a href="/security/"><span>Trust</span><b>Security</b><em>Keys, encryption and where the limits are</em><svg aria-hidden="true"><use href="#i-arrow"/></svg></a></div>
+      </nav>
+    </main>
+    <aside class="d-toc p-toc" aria-label="On this page">
+      <p>On this page</p>
+      <ol>
+          <li><a href="#repo">The repository</a></li>
+          <li><a href="#run">Your own SYNOVAX</a></li>
+          <li><a href="#tests">Tests</a></li>
+          <li><a href="#settings">Settings</a></li>
+          <li><a href="#license">License</a></li>
+          <li><a href="#taking-part">Taking part</a></li>
+      </ol>
+    </aside>
+  </div>
+
+  <footer class="p-foot">
+    <div class="p-foot-top">
+      <a class="d-logo" href="/" aria-label="SYNOVAX home"><svg aria-hidden="true"><use href="#i-mark"/></svg><span>synovax</span></a>
+      <p>Your AI memory, encrypted on your device.</p>
+    </div>
+    <div class="p-foot-cols">
+      <div><p>Product</p><a href="/vault/">Vault</a><a href="/docs/">Docs</a><a href="/#token">$SYNOVAX</a><a href="/">Home</a></div>
+      <div><p>Trust</p><a href="/how-it-works/">How it works</a><a href="/security/">Security</a><a href="/threat-model/">Threat model</a><a href="/immune/">Immune system</a><a href="/privacy/">Privacy</a><a href="/status/">Status</a></div>
+      <div><p>Developers</p><a href="/connector/">Connector</a><a href="/reference/">API reference</a><a href="/standard/">Open standard</a><a href="/verify/">Verify</a><a href="/open-source/" aria-current="page">Open source</a><a href="https://github.com/Synovax-Dev/Synovax-Technology" target="_blank" rel="noopener noreferrer">GitHub ↗</a></div>
+    </div>
+    <p class="p-foot-copy">© 2026 SYNOVAX. Free and open source (MIT). Not yet independently audited. Not affiliated with Robinhood.</p>
+  </footer>
+</body>
+</html>

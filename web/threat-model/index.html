@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>Threat model · SYNOVAX</title>
+  <meta name="description" content="What SYNOVAX protects against, and what it does not, in the same plain words, so you can decide what to put in your vault.">
+  <link rel="canonical" href="https://synovax.tech/threat-model/">
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="SYNOVAX">
+  <meta property="og:title" content="Threat model · SYNOVAX">
+  <meta property="og:description" content="What SYNOVAX protects against, and what it does not, in the same plain words, so you can decide what to put in your vault.">
+  <meta property="og:image" content="https://synovax.tech/og.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="preload" href="/fonts/oswald-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/fonts/space-grotesk-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/docs/docs.css">
+  <link rel="stylesheet" href="/pages/pages.css">
+  <script type="module" src="/pages/pages.js"></script>
+</head>
+<!-- Built by scripts/build-pages.mjs from site/pages/threat-model.html. Edit that file, then run npm run pages. -->
+<body data-page="threat-model">
+  <svg width="0" height="0" class="sprite" aria-hidden="true">
+    <symbol id="i-mark" viewBox="0 0 24 24"><path d="M21.64 1L4.2 7.77L10.6 12.33C9.72 11.6 9.72 10.34 10.75 9.98L17.59 6.89ZM2.36 23L19.8 16.23L13.4 11.67C14.28 12.4 14.28 13.66 13.25 14.02L6.41 17.11Z" fill="currentColor"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 13.7071 10.7071"><path d="M0 5.35355H13M8 10.3536L13 5.35355L8 0.353553" fill="none" stroke="currentColor"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 16 16"><path d="M1.5 4h13M1.5 8h13M1.5 12h13" stroke="currentColor" stroke-width="1.4"/></symbol>
+    <symbol id="i-info" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.8" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 7v4.6M8 4.4v1.4" stroke="currentColor" stroke-width="1.4"/></symbol>
+    <symbol id="i-warn" viewBox="0 0 16 16"><path d="M8 1.6L15 14H1Z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M8 6v4M8 11.4v1.4" stroke="currentColor" stroke-width="1.4"/></symbol>
+    <symbol id="i-check" viewBox="0 0 16 16"><path d="M2.5 8.5l3.5 3.5 7.5-8" fill="none" stroke="currentColor" stroke-width="1.6"/></symbol>
+    <symbol id="i-x" viewBox="0 0 16 16"><path d="M3 3l10 10M13 3L3 13" fill="none" stroke="currentColor" stroke-width="1.6"/></symbol>
+    <symbol id="i-github" viewBox="0 0 16 16"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.06-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></symbol>
+  </svg>
+
+  <a class="skip" href="#content">Skip to content</a>
+
+  <header class="d-top p-top">
+    <a class="d-logo" href="/" aria-label="SYNOVAX home">
+      <svg aria-hidden="true"><use href="#i-mark"/></svg><span>synovax</span><em>trust</em>
+    </a>
+    <nav class="d-topnav p-nav" aria-label="Site">
+      <a href="/how-it-works/">How it works</a>
+      <a href="/security/">Security</a>
+      <a href="/threat-model/" aria-current="page">Threat model</a>
+      <a href="/immune/">Immune system</a>
+      <a href="/status/">Status</a>
+      <a href="/docs/">Docs</a>
+    </nav>
+    <a class="p-gh" href="https://github.com/Synovax-Dev/Synovax-Technology" target="_blank" rel="noopener noreferrer" aria-label="SYNOVAX on GitHub" title="SYNOVAX on GitHub"><svg aria-hidden="true"><use href="#i-github"/></svg></a>
+    <a class="d-cta" href="/vault/">open vault <svg aria-hidden="true"><use href="#i-arrow"/></svg></a>
+    <button class="d-burger p-burger" type="button" aria-expanded="false" aria-controls="p-menu" data-menu><svg aria-hidden="true"><use href="#i-menu"/></svg><span>menu</span></button>
+  </header>
+  <nav class="p-menu" id="p-menu" aria-label="All pages" hidden>
+    <div><p>Product</p><a href="/vault/">Vault</a><a href="/docs/">Docs</a><a href="/#token">$SYNOVAX</a><a href="/">Home</a></div>
+    <div><p>Trust</p><a href="/how-it-works/">How it works</a><a href="/security/">Security</a><a href="/threat-model/" aria-current="page">Threat model</a><a href="/immune/">Immune system</a><a href="/privacy/">Privacy</a><a href="/status/">Status</a></div>
+    <div><p>Developers</p><a href="/connector/">Connector</a><a href="/reference/">API reference</a><a href="/standard/">Open standard</a><a href="/verify/">Verify</a><a href="/open-source/">Open source</a><a href="https://github.com/Synovax-Dev/Synovax-Technology" target="_blank" rel="noopener noreferrer">GitHub ↗</a></div>
+  </nav>
+
+  <section class="d-hero p-hero" aria-labelledby="p-h1">
+    <div class="d-hero-in p-hero-in">
+      <div>
+        <p class="d-eyebrow">Threat model</p>
+        <h1 class="d-h1" id="p-h1"><span>What it stops,</span><span>what it cannot</span></h1>
+        <p class="p-lead">A security claim is only useful with its limits next to it. This page lists both, so you can decide what to put in your vault. Every "covered" line is something the code does today, with a test behind it.</p>
+      </div>
+    </div>
+    <span class="d-corner d-corner--tl" aria-hidden="true"></span>
+    <span class="d-corner d-corner--br" aria-hidden="true"></span>
+  </section>
+
+  <div class="p-layout">
+    <main id="content" class="p-main">
+      <section class="d-ch" id="who">
+        <h2>Who can see what</h2>
+        <div class="tbl"><table>
+          <thead><tr><th>Who</th><th>Can see</th><th>Cannot see</th></tr></thead>
+          <tbody>
+            <tr><td><b>You</b></td><td>Everything in your vault, your read log with its salts, every app's folders.</td><td>Other people's vaults.</td></tr>
+            <tr><td><b>The server, and whoever runs it</b></td><td>Ciphertext, ids, sizes, times, your vault name, which app may read which folder, the read log, session labels, your two-step secret (encrypted with its own key).</td><td>Titles, text, tags, folder names, app names, search words, suggestions, your passphrase, the 24 words, any key.</td></tr>
+            <tr><td><b>A connected app</b></td><td>The folders you granted it, decrypted on your computer by the connector, with hidden instructions removed.</td><td>Any other folder, your other apps, your keys, and anything at all once revoked.</td></tr>
+            <tr><td><b>Someone with a copy of the database or a backup</b></td><td>The same as the server.</td><td>The same as the server. They can try passphrases offline (see below).</td></tr>
+            <tr><td><b>Someone on the network</b></td><td>That you talk to the server, sizes and timing.</td><td>Anything inside: it is encrypted on your device, then sent over HTTPS.</td></tr>
+            <tr><td><b>Anyone on the internet</b></td><td>The public seals (one root per hour, with how many reads it covers), the immune record, the status page, and the totals once a server holds 100 vaults.</td><td>Who read what, which vault a read belongs to, or anything inside a vault.</td></tr>
+            <tr><td><b>Whoever holds the admin password</b></td><td>The public token details on the home page, and who changed them from which address.</td><td>Any vault. The admin panel has no route into vaults.</td></tr>
+          </tbody>
+        </table></div>
+      </section>
+
+      <section class="d-ch" id="covered">
+        <h2>Protected against</h2>
+        <ul class="p-claims">
+          <li><b>Someone copies the server's database</b><span class="p-tag p-tag--yes"><svg aria-hidden="true"><use href="#i-check"/></svg>Covered</span><p>They get ciphertext and hashes. Titles, text, tags, folder names and app names are encrypted on your device with keys the server never has. The database holds hashes of sign-in keys and tokens, not the keys.</p></li>
+          <li><b>SYNOVAX itself wants to read your memories</b><span class="p-tag p-tag--yes"><svg aria-hidden="true"><use href="#i-check"/></svg>Covered</span><p>It cannot with what it stores: the vault key is made in your browser and only ever stored wrapped by keys from your passphrase or your 24 words. (It serves the page's code, though: see "A changed web page" below.)</p></li>
+          <li><b>Someone listens on the network</b><span class="p-tag p-tag--yes"><svg aria-hidden="true"><use href="#i-check"/></svg>Covered</span><p>Everything that leaves your device is already encrypted, inside an HTTPS connection. A listener sees sizes and timing at most.</p></li>
+          <li><b>A connected app reaches for folders it was not given</b><span class="p-tag p-tag--yes"><svg aria-hidden="true"><use href="#i-check"/></svg>Covered</span><p>Folder keys are wrapped for an app only when you grant the folder, so it holds no key for any other, and the server refuses the request as well.</p></li>
+          <li><b>A connected app tries to write, change or delete</b><span class="p-tag p-tag--yes"><svg aria-hidden="true"><use href="#i-check"/></svg>Covered</span><p>No request lets an app change or delete a memory. It may only suggest one, if you turned that on; the suggestion waits in your inbox until you approve it, at most 30 an hour per app and 500 waiting.</p></li>
+          <li><b>The server hands an app a public key of its own, to read suggestions</b><span class="p-tag p-tag--yes"><svg aria-hidden="true"><use href="#i-check"/></svg>Covered</span><p>The connector checks the vault's public key against an HMAC your vault made with the app's own secret, which the server never has. A swapped key fails the check and nothing is sealed.</p></li>
+          <li><b>An app you took a folder from keeps reading it</b><span class="p-tag p-tag--yes"><svg aria-hidden="true"><use href="#i-check"/></svg>Covered</span><p>Taking a folder away, or revoking the app, gives the folder a new key in your browser and encrypts every memory in it again. The old key opens nothing stored now. What it read before, it keeps.</p></li>
+          <li><b>A leaked or stolen app key</b><span class="p-tag p-tag--yes"><svg aria-hidden="true"><use href="#i-check"/></svg>Covered</span><p>Revoke it in your vault. The server deletes its token hash and wrapped folder keys, and the key fails on its very next request. Other apps keep working: every app has its own key.</p></li>
+          <li><b>An encrypted record is moved or swapped</b><span class="p-tag p-tag--yes"><svg aria-hidden="true"><use href="#i-check"/></svg>Covered</span><p>Every ciphertext is bound to its record with authenticated data. A memory moved under another id, or a key moved to another folder, does not decrypt.</p></li>
+          <li><b>The read log is edited afterwards</b><span class="p-tag p-tag--yes"><svg aria-hidden="true"><use href="#i-check"/></svg>Covered</span><p>Each hour of reads is sealed into one Merkle root. A changed entry no longer matches its seal, and you can check any sealed entry against it in your browser.</p></li>
+          <li><b>Old seals are rewritten or dropped</b><span class="p-tag p-tag--yes"><svg aria-hidden="true"><use href="#i-check"/></svg>Covered</span><p>Seals form a hash chain. Your vault remembers the newest seal it saw in each browser and checks that the chain still leads from it; a webhook copy (<code>SEAL_PUBLISH_URL</code>) keeps the chain somewhere the server cannot edit.</p></li>
+          <li><b>An email, chat or import carries instructions written for your AI</b><span class="p-tag p-tag--yes"><svg aria-hidden="true"><use href="#i-check"/></svg>Covered</span><p>Before any model sees a memory, the connector drops invisible characters, replaces instruction overrides, fake system messages, requests to send data or money away, tool calls, jailbreak phrases and hidden or encoded text with a marker, and quotes the rest as data. Imports leave such memories out unless you take them. Every catch is in your read log. The rules catch common shapes, not every attack: the public test on the <a href="/immune/">immune</a> page shows how they do.</p></li>
+          <li><b>Guessing passphrases or the 24 words through the server</b><span class="p-tag p-tag--yes"><svg aria-hidden="true"><use href="#i-check"/></svg>Covered</span><p>Failed attempts are limited per name and address (10 a minute for a passphrase, 5 per 10 minutes for the words), with a cap per vault an hour. The limits are kept in the database, so a restart does not reset them.</p></li>
+          <li><b>Finding out which vault names exist, at sign-in</b><span class="p-tag p-tag--yes"><svg aria-hidden="true"><use href="#i-check"/></svg>Covered</span><p>The salt question gets a made-up but stable answer for names that do not exist, and every vault uses the same number of rounds. (Creating a vault still says when a name is taken: see below.)</p></li>
+          <li><b>Another site sends requests in your name</b><span class="p-tag p-tag--yes"><svg aria-hidden="true"><use href="#i-check"/></svg>Covered</span><p>Sign-in rides in a header the page sets, not in a cookie, so a request from another site carries nothing.</p></li>
+          <li><b>Scripts injected into the page, or the page framed</b><span class="p-tag p-tag--yes"><svg aria-hidden="true"><use href="#i-check"/></svg>Covered</span><p>A strict content security policy allows only SYNOVAX's own scripts, no inline scripts, and no framing. Text from the server is placed with textContent, never as HTML.</p></li>
+          <li><b>A lost phone with your authenticator</b><span class="p-tag p-tag--yes"><svg aria-hidden="true"><use href="#i-check"/></svg>Covered</span><p>The 24 words open the vault and turn two-step sign-in off. Signed-in devices lets you end any session; changing the passphrase ends all the others.</p></li>
+          <li><b>A two-step code seen over your shoulder</b><span class="p-tag p-tag--yes"><svg aria-hidden="true"><use href="#i-check"/></svg>Covered</span><p>Each code works once: the server accepts only a time step newer than the last one used.</p></li>
+        </ul>
+      </section>
+
+      <section class="d-ch" id="not-covered">
+        <h2>Not protected against</h2>
+        <p>Said as plainly. Some are limits of any web app, some are on the list for later.</p>
+        <ul class="p-claims">
+          <li><b>A weak passphrase and a stolen database</b><span class="p-tag p-tag--no"><svg aria-hidden="true"><use href="#i-x"/></svg>Not covered</span><p>With a copy of the database, someone can try passphrases offline, at the cost of 600,000 PBKDF2 rounds per guess. A long passphrase makes that hopeless; a short one does not.</p></li>
+          <li><b>Malware on the device where you open the vault</b><span class="p-tag p-tag--no"><svg aria-hidden="true"><use href="#i-x"/></svg>Not covered</span><p>Whatever can read your screen or your browser's memory can read what you can read. Encryption protects the vault on the server and on the network, not on a compromised device.</p></li>
+          <li><b>A changed web page</b><span class="p-tag p-tag--no"><svg aria-hidden="true"><use href="#i-x"/></svg>Not covered</span><p>The encryption code is delivered by the site, as with any web app. Someone who controlled the site could serve different code. The code is open source so it can be compared, and you can run your own copy.</p></li>
+          <li><b>What an AI app does with what it has read</b><span class="p-tag p-tag--no"><svg aria-hidden="true"><use href="#i-x"/></svg>Not covered</span><p>Once an app reads a memory, that text is in the app's hands and its own policies apply. The read log tells you exactly what it got.</p></li>
+          <li><b>Hidden instructions the rules do not know</b><span class="p-tag p-tag--no"><svg aria-hidden="true"><use href="#i-x"/></svg>Not covered</span><p>The checks match known shapes. A new wording can get past them; it then reaches the model still quoted as data, and how a model treats quoted data is up to that model.</p></li>
+          <li><b>Losing every way in</b><span class="p-tag p-tag--no"><svg aria-hidden="true"><use href="#i-x"/></svg>Not covered</span><p>Without the passphrase and the 24 words, nobody can open the vault. There is no reset.</p></li>
+          <li><b>Metadata</b><span class="p-tag p-tag--no"><svg aria-hidden="true"><use href="#i-x"/></svg>Not covered</span><p>The server sees your vault name, counts, sizes and times, which app may read which folder, and the read log. It needs these to run.</p></li>
+          <li><b>A server that hides a read from the log</b><span class="p-tag p-tag--no"><svg aria-hidden="true"><use href="#i-x"/></svg>Not covered</span><p>Seals prove that logged entries were not changed or removed later. They cannot prove that a dishonest server wrote every request down in the first place.</p></li>
+          <li><b>Seals rewritten before anyone kept a copy</b><span class="p-tag p-tag--no"><svg aria-hidden="true"><use href="#i-x"/></svg>Not covered</span><p>Without a webhook copy and before any browser saw them, a server could rewrite its whole history. Seals are not published on a blockchain.</p></li>
+          <li><b>Deleted data in backups</b><span class="p-tag p-tag--no"><svg aria-hidden="true"><use href="#i-x"/></svg>Not covered</span><p>The server's automatic database copies keep deleted ciphertext until they rotate out, about three and a half days with the default settings.</p></li>
+          <li><b>The two-step secret on the server</b><span class="p-tag p-tag--no"><svg aria-hidden="true"><use href="#i-x"/></svg>Not covered</span><p>The server must read it to check codes, so it is encrypted with a key from the server's own secret file, not yours. Someone with the database and that file could make codes; they would still need your passphrase, which the server does not have.</p></li>
+          <li><b>Learning that a vault name is taken</b><span class="p-tag p-tag--no"><svg aria-hidden="true"><use href="#i-x"/></svg>Not covered</span><p>Creating a vault says "That name is taken" for a name in use. It cannot be avoided while people pick their own names.</p></li>
+          <li><b>Bugs</b><span class="p-tag p-tag--no"><svg aria-hidden="true"><use href="#i-x"/></svg>Not covered</span><p>This is early software. It is open source and tested on every change, and it has not had an independent audit yet.</p></li>
+        </ul>
+      </section>
+
+      <section class="d-ch" id="you">
+        <h2>What you can do yourself</h2>
+        <ul class="d-list">
+          <li>Use a long passphrase, and keep the 24 words on paper, somewhere safe.</li>
+          <li>Turn on two-step sign-in in Settings.</li>
+          <li>Give each app only the folders it needs, and look at the read log now and then.</li>
+          <li>Revoke an app the moment you stop using it, or if its key may have been seen.</li>
+          <li>Found a security problem? Report it privately, as described on the <a href="/security/#report">security</a> page.</li>
+        </ul>
+      </section>
+
+      <nav class="p-next" aria-label="Read next">
+        <p>Read next</p>
+        <div><a href="/security/"><span>Trust</span><b>Security</b><em>Keys, encryption and where the limits are</em><svg aria-hidden="true"><use href="#i-arrow"/></svg></a><a href="/immune/"><span>Trust</span><b>Immune system</b><em>Hidden instructions in memories, tested every hour</em><svg aria-hidden="true"><use href="#i-arrow"/></svg></a><a href="/privacy/"><span>Trust</span><b>Privacy</b><em>Exactly what is stored, and why</em><svg aria-hidden="true"><use href="#i-arrow"/></svg></a></div>
+      </nav>
+    </main>
+    <aside class="d-toc p-toc" aria-label="On this page">
+      <p>On this page</p>
+      <ol>
+          <li><a href="#who">Who can see what</a></li>
+          <li><a href="#covered">Protected against</a></li>
+          <li><a href="#not-covered">Not protected against</a></li>
+          <li><a href="#you">What you can do yourself</a></li>
+      </ol>
+    </aside>
+  </div>
+
+  <footer class="p-foot">
+    <div class="p-foot-top">
+      <a class="d-logo" href="/" aria-label="SYNOVAX home"><svg aria-hidden="true"><use href="#i-mark"/></svg><span>synovax</span></a>
+      <p>Your AI memory, encrypted on your device.</p>
+    </div>
+    <div class="p-foot-cols">
+      <div><p>Product</p><a href="/vault/">Vault</a><a href="/docs/">Docs</a><a href="/#token">$SYNOVAX</a><a href="/">Home</a></div>
+      <div><p>Trust</p><a href="/how-it-works/">How it works</a><a href="/security/">Security</a><a href="/threat-model/" aria-current="page">Threat model</a><a href="/immune/">Immune system</a><a href="/privacy/">Privacy</a><a href="/status/">Status</a></div>
+      <div><p>Developers</p><a href="/connector/">Connector</a><a href="/reference/">API reference</a><a href="/standard/">Open standard</a><a href="/verify/">Verify</a><a href="/open-source/">Open source</a><a href="https://github.com/Synovax-Dev/Synovax-Technology" target="_blank" rel="noopener noreferrer">GitHub ↗</a></div>
+    </div>
+    <p class="p-foot-copy">© 2026 SYNOVAX. Free and open source (MIT). Not yet independently audited. Not affiliated with Robinhood.</p>
+  </footer>
+</body>
+</html>

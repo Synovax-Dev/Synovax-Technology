@@ -1,0 +1,93 @@
+<!--
+title: Privacy
+description: Exactly what SYNOVAX stores, in which form and why, how long it is kept, and what you can do about it.
+section: trust
+eyebrow: Privacy notice
+h1: What is stored,|and why
+lead: SYNOVAX is built so that it cannot read what you keep in your vault. This notice lists exactly what it does store, why, and what you can do about it. Last updated November 25, 2026.
+next: security, threat-model, status
+-->
+<section class="d-ch" id="short">
+  <h2>The short version</h2>
+  <ul class="d-list">
+    <li>Everything you write, import or name in your vault is encrypted on your device before it is sent. The server stores ciphertext.</li>
+    <li>The server does keep some metadata in readable form, listed in full below, because it cannot work without it.</li>
+    <li>No analytics, no advertising, no tracking, no third-party scripts, and no cookies.</li>
+    <li>You can export everything and delete everything at any time, from your vault.</li>
+    <li>SYNOVAX does not sell your data and does not use it to train AI models.</li>
+  </ul>
+</section>
+
+<section class="d-ch" id="stored">
+  <h2>What is stored</h2>
+  <div class="tbl"><table>
+    <thead><tr><th>What</th><th>Details</th><th>Form</th></tr></thead>
+    <tbody>
+      <tr><td>Vault</td><td>A random vault id, the name you chose, when it was made, the salt and round count for your passphrase.</td><td>Readable</td></tr>
+      <tr><td>Sign-in checks</td><td>SHA-256 hashes of the sign-in keys made on your device from your passphrase and from the 24 words. They cannot be turned back into either.</td><td>Hashed</td></tr>
+      <tr><td>Vault key copies</td><td>Your vault key, locked with your passphrase and, separately, with the 24 words.</td><td>Encrypted</td></tr>
+      <tr><td>Inbox key pair</td><td>Your vault's public key, so apps can seal suggestions to it, and its private key locked with your vault key.</td><td>Public key readable, private key encrypted</td></tr>
+      <tr><td>Two-step sign-in</td><td>If you turn it on: the authenticator secret, and the last time step accepted so a code works once.</td><td>Encrypted with a key from the server's own secret file (the server must read it to check codes)</td></tr>
+      <tr><td>Sessions</td><td>A hash of each session token, a public id, when it was made, last used and expires (7 days), and a label like "Chrome on Windows" taken from the browser. The full browser string is not kept.</td><td>Hashed, with readable times and label</td></tr>
+      <tr><td>Folders</td><td>Folder ids, encrypted names, encrypted folder keys, when each last changed.</td><td>Encrypted, with readable ids and times</td></tr>
+      <tr><td>Memories</td><td>Memory ids, which folder each is in, the encrypted head (title, tags, first 240 characters, where it came from) and body, when each was made and changed. Sizes follow from the ciphertext.</td><td>Encrypted, with readable ids and times</td></tr>
+      <tr><td>Connected apps</td><td>App ids, the encrypted name and app secret, a hash of each app token, which folders each app may read (with the folder key wrapped for that app), whether it may suggest, the tag over your inbox key, when it was made and last used.</td><td>Encrypted and hashed, with readable ids, flags and times</td></tr>
+      <tr><td>Suggestions</td><td>Each suggestion waiting in your inbox: an id, which app sent it, when, and a sealed box only your vault can open. Removed once you decide.</td><td>Encrypted, with readable ids and times</td></tr>
+      <tr><td>Read log</td><td>For every request by a connected app: which app, what kind (listed folders, searched, read, suggested, had hidden instructions removed), which folder or memory id, when, a random salt, and the leaf hash it is sealed as.</td><td>Readable to the server</td></tr>
+      <tr><td>Seals</td><td>One Merkle root per hour, the salted leaves it is made of, how many, and the chain hash. They contain no readable personal data.</td><td>Hashes</td></tr>
+      <tr><td>Rate limits</td><td>For up to one hour: entries keyed by network address (and, for sign-in, the vault name), to slow down guessing and abuse.</td><td>Readable, deleted after an hour</td></tr>
+      <tr><td>Immune record</td><td>The hourly public test rounds. They hold test text only, never anything from a vault.</td><td>Readable, kept 90 days</td></tr>
+      <tr><td>Token details</td><td>For the $SYNOVAX section: the public token details, and for each change by the admin, the time, the network address and the old and new value.</td><td>Readable</td></tr>
+    </tbody>
+  </table></div>
+  <p><b>Never stored or seen by the server:</b> your passphrase, the 24 words, your vault key, folder keys and app keys, the titles, text and tags of memories and suggestions, folder and app names, what you or an app searched for, and the search index the connector builds on your computer.</p>
+</section>
+
+<section class="d-ch" id="browser">
+  <h2>Cookies and your browser</h2>
+  <p>SYNOVAX sets no cookies. The vault keeps your session token in the open tab's memory only; closing or reloading the tab locks the vault. In your browser's own storage, the vault keeps the newest seal it has seen (a number and a hash), to check that the seal history was not rewritten. If you connect a wallet on the home page, it remembers which wallet extension you picked, so it can reconnect; disconnecting forgets it. The admin panel keeps its session for the open tab only.</p>
+</section>
+
+<section class="d-ch" id="apps">
+  <h2>Connected AI apps</h2>
+  <p>When you connect an app, the SYNOVAX connector on your computer decrypts the folders you granted and hands their text to that app. From that moment, the app and its provider process that text under their own privacy policies. SYNOVAX records the read in your log but has no control over what the app does next.</p>
+  <p>If you turn on search by meaning in the connector, a model runs on your computer. It is downloaded once from Hugging Face; your memories are never sent to it or anywhere else.</p>
+</section>
+
+<section class="d-ch" id="wallet">
+  <h2>The $SYNOVAX section</h2>
+  <p>Connecting a wallet on the home page is read only: the page asks your wallet extension for your address and reads your token balance from Robinhood Chain through the wallet. Nothing about it is sent to the SYNOVAX server. The top holders list is counted by the server from public chain data.</p>
+</section>
+
+<section class="d-ch" id="why">
+  <h2>Why it is kept</h2>
+  <p>The data above is processed to provide what you asked for: storing your vault, signing you in, letting the apps you choose read it, and showing you who read what. The short-lived rate limit entries protect the service and its users from abuse. Nothing is used for anything else.</p>
+</section>
+
+<section class="d-ch" id="how-long">
+  <h2>How long it is kept</h2>
+  <ul>
+    <li>Your vault, folders, memories, apps and read log: until you delete them, or your account.</li>
+    <li>Sessions: 7 days, or until you sign out. Suggestions: until you approve or reject them.</li>
+    <li>Rate limit entries: one hour.</li>
+    <li>Database backups: by default a copy every 6 hours, the newest 14 kept, so deleted data can remain in them for about three and a half days.</li>
+    <li>Seals: permanently, as a public record. They are built from salted hashes, and your salts are deleted with your account, after which nothing in a seal can be linked to you.</li>
+  </ul>
+</section>
+
+<section class="d-ch" id="rights">
+  <h2>What you can do</h2>
+  <ul>
+    <li><b>See and take everything:</b> Settings, Export downloads every memory, decrypted, as one JSON file.</li>
+    <li><b>Correct:</b> edit any memory, folder or app in your vault.</li>
+    <li><b>Delete:</b> memories, folders, apps or your whole account, in your vault. Deletion removes the data from the database and overwrites it on disk.</li>
+    <li><b>Stop a use:</b> revoke any app, sign out any session.</li>
+  </ul>
+  <p>Depending on where you live, you may also have the right to complain to a data protection authority.</p>
+</section>
+
+<section class="d-ch" id="where">
+  <h2>Where the data is, and contact</h2>
+  <p>The data is held by the server that runs SYNOVAX and by its hosting provider. The web server in front of it keeps standard access logs (network address, time, address requested) as part of normal operation. Anyone can run their own SYNOVAX server from the open source code; then that server's operator holds the data instead.</p>
+  <p>Questions or requests can be sent through the <a href="https://github.com/Synovax-Dev/Synovax-Technology/issues" target="_blank" rel="noopener noreferrer">repository</a> or the SYNOVAX account on X; please do not post personal details publicly. If this notice changes, the date at the top changes with it.</p>
+</section>

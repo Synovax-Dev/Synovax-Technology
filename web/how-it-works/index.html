@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>How it works · SYNOVAX</title>
+  <meta name="description" content="How SYNOVAX keeps what your AI apps should know about you: encrypted on your device, read only where you allow it, every read sealed.">
+  <link rel="canonical" href="https://synovax.tech/how-it-works/">
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="SYNOVAX">
+  <meta property="og:title" content="How it works · SYNOVAX">
+  <meta property="og:description" content="How SYNOVAX keeps what your AI apps should know about you: encrypted on your device, read only where you allow it, every read sealed.">
+  <meta property="og:image" content="https://synovax.tech/og.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="preload" href="/fonts/oswald-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/fonts/space-grotesk-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/docs/docs.css">
+  <link rel="stylesheet" href="/pages/pages.css">
+  <script type="module" src="/pages/pages.js"></script>
+</head>
+<!-- Built by scripts/build-pages.mjs from site/pages/how-it-works.html. Edit that file, then run npm run pages. -->
+<body data-page="how-it-works">
+  <svg width="0" height="0" class="sprite" aria-hidden="true">
+    <symbol id="i-mark" viewBox="0 0 24 24"><path d="M21.64 1L4.2 7.77L10.6 12.33C9.72 11.6 9.72 10.34 10.75 9.98L17.59 6.89ZM2.36 23L19.8 16.23L13.4 11.67C14.28 12.4 14.28 13.66 13.25 14.02L6.41 17.11Z" fill="currentColor"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 13.7071 10.7071"><path d="M0 5.35355H13M8 10.3536L13 5.35355L8 0.353553" fill="none" stroke="currentColor"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 16 16"><path d="M1.5 4h13M1.5 8h13M1.5 12h13" stroke="currentColor" stroke-width="1.4"/></symbol>
+    <symbol id="i-info" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.8" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 7v4.6M8 4.4v1.4" stroke="currentColor" stroke-width="1.4"/></symbol>
+    <symbol id="i-warn" viewBox="0 0 16 16"><path d="M8 1.6L15 14H1Z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M8 6v4M8 11.4v1.4" stroke="currentColor" stroke-width="1.4"/></symbol>
+    <symbol id="i-check" viewBox="0 0 16 16"><path d="M2.5 8.5l3.5 3.5 7.5-8" fill="none" stroke="currentColor" stroke-width="1.6"/></symbol>
+    <symbol id="i-x" viewBox="0 0 16 16"><path d="M3 3l10 10M13 3L3 13" fill="none" stroke="currentColor" stroke-width="1.6"/></symbol>
+    <symbol id="i-github" viewBox="0 0 16 16"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.06-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></symbol>
+  </svg>
+
+  <a class="skip" href="#content">Skip to content</a>
+
+  <header class="d-top p-top">
+    <a class="d-logo" href="/" aria-label="SYNOVAX home">
+      <svg aria-hidden="true"><use href="#i-mark"/></svg><span>synovax</span><em>trust</em>
+    </a>
+    <nav class="d-topnav p-nav" aria-label="Site">
+      <a href="/how-it-works/" aria-current="page">How it works</a>
+      <a href="/security/">Security</a>
+      <a href="/threat-model/">Threat model</a>
+      <a href="/immune/">Immune system</a>
+      <a href="/status/">Status</a>
+      <a href="/docs/">Docs</a>
+    </nav>
+    <a class="p-gh" href="https://github.com/Synovax-Dev/Synovax-Technology" target="_blank" rel="noopener noreferrer" aria-label="SYNOVAX on GitHub" title="SYNOVAX on GitHub"><svg aria-hidden="true"><use href="#i-github"/></svg></a>
+    <a class="d-cta" href="/vault/">open vault <svg aria-hidden="true"><use href="#i-arrow"/></svg></a>
+    <button class="d-burger p-burger" type="button" aria-expanded="false" aria-controls="p-menu" data-menu><svg aria-hidden="true"><use href="#i-menu"/></svg><span>menu</span></button>
+  </header>
+  <nav class="p-menu" id="p-menu" aria-label="All pages" hidden>
+    <div><p>Product</p><a href="/vault/">Vault</a><a href="/docs/">Docs</a><a href="/#token">$SYNOVAX</a><a href="/">Home</a></div>
+    <div><p>Trust</p><a href="/how-it-works/" aria-current="page">How it works</a><a href="/security/">Security</a><a href="/threat-model/">Threat model</a><a href="/immune/">Immune system</a><a href="/privacy/">Privacy</a><a href="/status/">Status</a></div>
+    <div><p>Developers</p><a href="/connector/">Connector</a><a href="/reference/">API reference</a><a href="/standard/">Open standard</a><a href="/verify/">Verify</a><a href="/open-source/">Open source</a><a href="https://github.com/Synovax-Dev/Synovax-Technology" target="_blank" rel="noopener noreferrer">GitHub ↗</a></div>
+  </nav>
+
+  <section class="d-hero p-hero" aria-labelledby="p-h1">
+    <div class="d-hero-in p-hero-in">
+      <div>
+        <p class="d-eyebrow">How it works</p>
+        <h1 class="d-h1" id="p-h1"><span>Your memory,</span><span>your keys</span></h1>
+        <p class="p-lead">SYNOVAX is a vault for what your AI apps should know about you. Here is everything that happens, from creating a vault to deleting it, and what the server can and cannot see along the way.</p>
+      </div>
+    </div>
+    <span class="d-corner d-corner--tl" aria-hidden="true"></span>
+    <span class="d-corner d-corner--br" aria-hidden="true"></span>
+  </section>
+
+  <div class="p-layout">
+    <main id="content" class="p-main">
+      <section class="d-ch" id="create">
+        <h2>1. Create your vault</h2>
+        <p class="big">Open the vault, pick a name and a passphrase. Your browser does the rest, and none of it leaves your device in readable form.</p>
+        <p>Your browser makes a random 256-bit <b>vault key</b>. It is locked twice: once with a key made from your passphrase (PBKDF2 with SHA-256, 600,000 rounds, and a random salt), and once with a key made from a <b>24-word recovery phrase</b> that the vault shows you one time. Write the words down. The server receives only the two locked copies, and a check value for each way in that it keeps as a SHA-256 hash.</p>
+        <p>If you lose both the passphrase and the 24 words, nobody can open the vault, SYNOVAX included. That is the point, and there is no reset.</p>
+        <p>You can add two-step sign-in in Settings: a 6-digit code from an authenticator app, each code good once.</p>
+      </section>
+
+      <section class="d-ch" id="fill">
+        <h2>2. Fill it</h2>
+        <p>A memory has a title, the text, tags and a folder. Write them yourself, or import:</p>
+        <ul>
+          <li>what ChatGPT or Claude remembers about you, pasted one fact per line (ChatGPT: Settings, Personalization, Manage memories; Claude: Settings, Memory);</li>
+          <li>a file exported from a SYNOVAX vault, folders and all.</li>
+        </ul>
+        <p>Everything is encrypted in your browser before it is sent. Imports skip what is already in your vault, and leave out anything that looks like it carries instructions written for an AI, unless you tick the box to take it too (see the <a href="/immune/">immune system</a>).</p>
+      </section>
+
+      <section class="d-ch" id="folders">
+        <h2>3. Sort it into folders</h2>
+        <p>Folders are how you share. Every folder has its own random key, locked with your vault key, so you can let a coding assistant read <i>Work</i> while it never holds a key that opens <i>Health</i>. Search inside the vault runs in your browser, by words, across everything in it.</p>
+      </section>
+
+      <section class="d-ch" id="connect">
+        <h2>4. Connect an AI app</h2>
+        <p>In the vault, go to <b>Apps</b>, name the app and tick the folders it may read. The vault makes an <b>app key</b> for it, shown once. Put that key in the config of the <a href="/connector/">SYNOVAX connector</a>, a small program that runs on your own computer, and add the connector to Claude Desktop, Cursor, Windsurf, VS Code or any other app that speaks MCP (the Model Context Protocol).</p>
+        <p>The app key holds a secret. From it come a token the connector shows the server, and a key that opens the folder keys you granted to that app, which your browser locked for it. The server keeps only a SHA-256 hash of the token, so it cannot use the key itself.</p>
+      </section>
+
+      <section class="d-ch" id="reads">
+        <h2>5. Your AI reads what it needs</h2>
+        <p>The connector gives the AI four tools: <code>list_folders</code>, <code>search_memories</code>, <code>read_memory</code> and, if you allow it, <code>suggest_memory</code>.</p>
+        <ol class="p-flow">
+          <li><b>Your AI app</b><span>Calls a tool, for example search_memories with "what should I avoid eating".</span></li>
+          <li class="is-you"><b>Connector, your computer</b><span>Asks the server for the encrypted titles, tags and first lines of the folders this app may read.</span></li>
+          <li><b>SYNOVAX server</b><span>Checks the token, writes the request to your read log, answers with ciphertext.</span></li>
+          <li class="is-you"><b>Connector, your computer</b><span>Decrypts, searches by words and, if you turned it on, by meaning with a model on your computer. Hands the results to the app.</span></li>
+        </ol>
+        <p>Your search words never reach the server. When the AI wants a memory in full, the connector asks for that one memory, and the server writes the read to your log before it answers.</p>
+        <p>Before anything reaches the model, every memory goes through the hidden-instruction checks: invisible characters are dropped, places that look like instructions for an AI are replaced by a marker, and the rest is handed over quoted as data, never as instructions. Each catch is a line in your read log.</p>
+      </section>
+
+      <section class="d-ch" id="suggest">
+        <h2>6. Suggestions wait for you</h2>
+        <p>If you let an app suggest memories, the connector seals each suggestion on your computer to your vault's public key (ECDH P-256), after checking that your vault vouched for that key with a secret only the app and your vault share. The suggestion waits in your <b>Inbox</b>, where only your open vault can read it, until you approve or reject it. An app may send 30 an hour, and an inbox holds at most 500. No app can change or delete a memory.</p>
+      </section>
+
+      <section class="d-ch" id="record">
+        <h2>7. Every read goes on the record</h2>
+        <p>The <b>read log</b> in your vault shows which app did what, and when: listed its folders, searched, read a memory, suggested one, or had hidden instructions removed from one. At the end of every hour, all reads of that hour (from every vault on the server) are folded into one fingerprint, a Merkle root: the seal for that hour. Each seal also commits to the seal before it, so the history forms a chain.</p>
+        <p>Your vault checks any entry against its seal in your browser, and remembers the newest seal it has seen, so a rewritten history would show the next time you open the read log. The <a href="/verify/">Verify</a> page does the same checks with every step shown. A server can also post every seal to a webhook outside its control.</p>
+      </section>
+
+      <section class="d-ch" id="change">
+        <h2>8. Change your mind at any time</h2>
+        <ul>
+          <li><b>Take a folder away from an app.</b> The folder gets a new key in your browser, every memory in it is encrypted again, and only the apps that keep access get the new key. The old key opens nothing written from then on.</li>
+          <li><b>Revoke an app.</b> Its key stops working on the very next request, its copies of your folder keys are deleted from the server, and its folders get new keys.</li>
+          <li><b>Delete</b> a memory, a folder or your whole account and it is removed from the database, which overwrites deleted rows on disk.</li>
+          <li><b>Export</b> gives you everything, decrypted, as one file. <b>Signed-in devices</b> lists every open session; sign any of them out.</li>
+          <li><b>Change your passphrase</b> and every other session is signed out.</li>
+        </ul>
+        <div class="call call--warn"><svg aria-hidden="true"><use href="#i-warn"/></svg><div><b>One honest limit</b><p>Once an AI app has read a memory, what it does with that text is up to the app and its provider, not SYNOVAX. Revoking stops future reads, not past ones. Give each app only the folders it needs.</p></div></div>
+      </section>
+
+      <section class="d-ch" id="who-sees">
+        <h2>Who can see what</h2>
+        <div class="d-grid2">
+          <div class="d-fact"><b>The server can see</b><ul>
+            <li>Your vault name, and when the vault was made</li>
+            <li>How many folders and memories there are, their sizes, and when they changed</li>
+            <li>Which app may read which folder (by id)</li>
+            <li>The read log: which app touched which memory id, and when</li>
+            <li>Signed-in sessions, with a browser and system label such as "Chrome on Windows"</li>
+            <li>Your two-step sign-in secret, encrypted with a server key, because it checks the codes</li>
+          </ul></div>
+          <div class="d-fact d-fact--solid"><b>Only you, and apps you allow</b><ul>
+            <li>Every title, text and tag</li>
+            <li>Folder names and app names</li>
+            <li>What an app searched for</li>
+            <li>What a suggestion says</li>
+            <li>Your passphrase, the 24 words, your vault key, folder keys and app keys</li>
+          </ul></div>
+        </div>
+        <p>The full list, with where each item is stored, is on the <a href="/privacy/">privacy</a> page; how it all holds together is on the <a href="/security/">security</a> page.</p>
+      </section>
+
+      <nav class="p-next" aria-label="Read next">
+        <p>Read next</p>
+        <div><a href="/security/"><span>Trust</span><b>Security</b><em>Keys, encryption and where the limits are</em><svg aria-hidden="true"><use href="#i-arrow"/></svg></a><a href="/threat-model/"><span>Trust</span><b>Threat model</b><em>What SYNOVAX protects against, and what it does not</em><svg aria-hidden="true"><use href="#i-arrow"/></svg></a><a href="/connector/"><span>Developers</span><b>Connector</b><em>The MCP server between your vault and your AI apps</em><svg aria-hidden="true"><use href="#i-arrow"/></svg></a></div>
+      </nav>
+    </main>
+    <aside class="d-toc p-toc" aria-label="On this page">
+      <p>On this page</p>
+      <ol>
+          <li><a href="#create">1. Create your vault</a></li>
+          <li><a href="#fill">2. Fill it</a></li>
+          <li><a href="#folders">3. Sort it into folders</a></li>
+          <li><a href="#connect">4. Connect an AI app</a></li>
+          <li><a href="#reads">5. Your AI reads what it needs</a></li>
+          <li><a href="#suggest">6. Suggestions wait for you</a></li>
+          <li><a href="#record">7. Every read goes on the record</a></li>
+          <li><a href="#change">8. Change your mind at any time</a></li>
+          <li><a href="#who-sees">Who can see what</a></li>
+      </ol>
+    </aside>
+  </div>
+
+  <footer class="p-foot">
+    <div class="p-foot-top">
+      <a class="d-logo" href="/" aria-label="SYNOVAX home"><svg aria-hidden="true"><use href="#i-mark"/></svg><span>synovax</span></a>
+      <p>Your AI memory, encrypted on your device.</p>
+    </div>
+    <div class="p-foot-cols">
+      <div><p>Product</p><a href="/vault/">Vault</a><a href="/docs/">Docs</a><a href="/#token">$SYNOVAX</a><a href="/">Home</a></div>
+      <div><p>Trust</p><a href="/how-it-works/" aria-current="page">How it works</a><a href="/security/">Security</a><a href="/threat-model/">Threat model</a><a href="/immune/">Immune system</a><a href="/privacy/">Privacy</a><a href="/status/">Status</a></div>
+      <div><p>Developers</p><a href="/connector/">Connector</a><a href="/reference/">API reference</a><a href="/standard/">Open standard</a><a href="/verify/">Verify</a><a href="/open-source/">Open source</a><a href="https://github.com/Synovax-Dev/Synovax-Technology" target="_blank" rel="noopener noreferrer">GitHub ↗</a></div>
+    </div>
+    <p class="p-foot-copy">© 2026 SYNOVAX. Free and open source (MIT). Not yet independently audited. Not affiliated with Robinhood.</p>
+  </footer>
+</body>
+</html>

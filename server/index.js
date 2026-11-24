@@ -12,7 +12,8 @@ import { fileURLToPath } from 'node:url';
 import { openDb, tx } from './db.js';
 import { createRpcIndex, fromBlockscout } from './holders.js';
 import { startSealer, proofFor, sealOut } from './seals.js';
-import { leafHash } from '../shared/merkle.js';
+import { leafHash, GENESIS, merkleProof } from '../shared/merkle.js';
+import { runRound, roundHash, STRAINS, DISGUISES } from './immune-round.js';
 import { PBKDF2_ITERATIONS } from '../shared/crypto.js';
 import { APP_NAME } from '../shared/brand.js';
 
@@ -276,6 +277,109 @@ route('GET', '/api/seals', 'none', ({ url }) => ({
   periodMs: SEAL_PERIOD_MS,
   nextCloseAt: (Math.floor(now() / SEAL_PERIOD_MS) + 1) * SEAL_PERIOD_MS,
 }));
+
+// ---------- status and the public test of the hidden-instruction checks
+
+const STARTED_AT = now();
+const HOUR_MS = 3_600_000;
+const IMMUNE_ON = process.env.IMMUNE_TEST !== 'off';
+const IMMUNE_KEEP_MS = 90 * 24 * HOUR_MS;
+let sealer = null; // set when the sealer starts, below
+let lastBackupAt = null;
+
+function immuneTick() {
+  if (!IMMUNE_ON) return;
+  try {
+    const hourStart = Math.floor(now() / HOUR_MS) * HOUR_MS;
+    if (db.prepare('SELECT 1 FROM immune_rounds WHERE hour_start = ?').get(hourStart)) return;
+    const round = runRound(hourStart);
+    const prev = db.prepare('SELECT hash FROM immune_rounds ORDER BY hour_start DESC LIMIT 1').get()?.hash ?? GENESIS;
+    const results = round.results.map((x) => [x.strain, x.disguise, x.held ? 1 : 0]);
+    db.prepare('INSERT OR IGNORE INTO immune_rounds (hour_start, created_at, total, held, results, prev, hash) VALUES (?, ?, ?, ?, ?, ?, ?)')
+      .run(hourStart, now(), round.total, round.held, JSON.stringify(results), prev, roundHash(round, prev));
+    db.prepare('DELETE FROM immune_rounds WHERE hour_start < ?').run(hourStart - IMMUNE_KEEP_MS);
+  } catch (e) {
+    console.error('[immune]', e.message);
+  }
+}
+immuneTick();
+setInterval(immuneTick, 60_000).unref();
+
+const roundOut = (r, full) => ({
+  hourStart: r.hour_start, ranAt: r.created_at, total: r.total, held: r.held, prev: r.prev, hash: r.hash,
+  ...(full ? { results: JSON.parse(r.results).map(([strain, disguise, held]) => ({ strain, disguise, held: !!held })) } : {}),
+});
+
+route('GET', '/api/immune', 'none', ({ url }) => {
+  const latest = db.prepare('SELECT * FROM immune_rounds ORDER BY hour_start DESC LIMIT 1').get();
+  const recent = db.prepare('SELECT * FROM immune_rounds ORDER BY hour_start DESC LIMIT ?').all(intParam(url.searchParams.get('limit'), 1, 500, 48));
+  return {
+    enabled: IMMUNE_ON,
+    periodMs: HOUR_MS,
+    nextAt: (Math.floor(now() / HOUR_MS) + 1) * HOUR_MS,
+    strains: STRAINS.map(({ id, name, text }) => ({ id, name, text })),
+    disguises: DISGUISES.map(({ id, name }) => ({ id, name })),
+    latest: latest ? roundOut(latest, true) : null,
+    recent: recent.map((r) => roundOut(r, false)),
+  };
+});
+
+route('GET', '/api/immune/:hour', 'none', ({ params }) => {
+  const r = db.prepare('SELECT * FROM immune_rounds WHERE hour_start = ?').get(Number(params.hour));
+  need(r, 404, 'No round for that hour.');
+  return roundOut(r, true);
+});
+
+route('GET', '/api/status', 'none', () => {
+  const t0 = performance.now();
+  let database = 'ok', vaults = 0;
+  try { vaults = count('SELECT COUNT(*) n FROM vaults'); } catch { database = 'failed'; }
+  const dbMs = Math.round((performance.now() - t0) * 10) / 10;
+  const t = now();
+  const periodStart = Math.floor(t / SEAL_PERIOD_MS) * SEAL_PERIOD_MS;
+  const open = count('SELECT COUNT(*) n FROM read_log WHERE seal_seq IS NULL AND ts >= ?', periodStart);
+  // reads of a finished period still unsealed a while after it ended (the job runs every few seconds)
+  const overdue = t - periodStart > 120_000 ? count('SELECT COUNT(*) n FROM read_log WHERE seal_seq IS NULL AND ts < ?', periodStart) : 0;
+  const s = sealer?.state;
+  const job = !s ? 'starting' : s.lastError && (!s.lastTickAt || s.lastError.at > s.lastTickAt) ? 'failed'
+    : !s.lastTickAt || t - s.lastTickAt > Math.max(120_000, s.intervalMs * 4) ? 'late' : overdue ? 'behind' : 'ok';
+  const last = db.prepare('SELECT * FROM seals ORDER BY seq DESC LIMIT 1').get();
+  const round = db.prepare('SELECT hour_start, created_at, total, held FROM immune_rounds ORDER BY hour_start DESC LIMIT 1').get();
+  const shown = vaults >= STATS_MIN_VAULTS;
+  return {
+    ok: database === 'ok' && (job === 'ok' || job === 'starting'),
+    time: new Date(t).toISOString(),
+    startedAt: STARTED_AT,
+    uptimeMs: t - STARTED_AT,
+    database: { state: database, ms: dbMs },
+    seals: {
+      job, periodMs: SEAL_PERIOD_MS, nextCloseAt: periodStart + SEAL_PERIOD_MS, open, overdue,
+      lastRunAt: s?.lastTickAt ?? null, latest: last ? sealOut(last) : null, total: count('SELECT COUNT(*) n FROM seals'),
+      published: !!process.env.SEAL_PUBLISH_URL,
+    },
+    immune: { enabled: IMMUNE_ON, latest: round ? { hourStart: round.hour_start, ranAt: round.created_at, total: round.total, held: round.held } : null },
+    backups: { enabled: BACKUP_INTERVAL_MS > 0, intervalMs: BACKUP_INTERVAL_MS, lastAt: lastBackupAt },
+    // the same rule as the landing page: counts only once this server has a real crowd
+    counts: shown ? {
+      vaults, memories: count('SELECT COUNT(*) n FROM memories'), apps: count('SELECT COUNT(*) n FROM apps'),
+      reads: count('SELECT COUNT(*) n FROM read_log'), seals: count('SELECT COUNT(*) n FROM seals'),
+    } : null,
+    statsMinVaults: STATS_MIN_VAULTS,
+  };
+});
+
+// The proof for one leaf of a seal, for anyone: a leaf is a salted hash and says
+// nothing about the read behind it.
+route('GET', '/api/seals/:seq/proof', 'none', async ({ params, url }) => {
+  const s = db.prepare('SELECT * FROM seals WHERE seq = ?').get(Number(params.seq));
+  need(s, 404, 'No such seal.');
+  const leaf = String(url.searchParams.get('leaf') ?? '').toLowerCase().replace(/^0x/, '');
+  need(/^[0-9a-f]{64}$/.test(leaf), 400, 'Give the leaf as 64 hex characters.');
+  const row = db.prepare('SELECT idx FROM seal_leaves WHERE seal_seq = ? AND leaf = ?').get(s.seq, leaf);
+  need(row, 404, 'That leaf is not part of this seal.');
+  const leaves = db.prepare('SELECT leaf FROM seal_leaves WHERE seal_seq = ? ORDER BY idx').all(s.seq).map((r) => r.leaf);
+  return { seal: sealOut(s), leaf, leafIndex: row.idx, proof: await merkleProof(leaves, row.idx) };
+});
 
 route('GET', '/api/seals/:seq', 'none', ({ params }) => {
   const s = db.prepare('SELECT * FROM seals WHERE seq = ?').get(Number(params.seq));
@@ -646,8 +750,26 @@ route('GET', '/api/app/memories/:id', 'app', async ({ app, params }) => {
   return { id: m.id, folderId: m.folder_id, head: m.head, body: m.body, createdAt: m.created_at, updatedAt: m.updated_at };
 });
 
+// The connector removed text that looked like instructions for an AI from these
+// memories before a model saw them. Only the ids are sent, never the text; each
+// becomes a "caught" line in the owner's read log, sealed like any read.
+route('POST', '/api/app/caught', 'app', async ({ app, body }) => {
+  rateLimit(`caught:${app.id}`, 300, 3_600_000);
+  need(Array.isArray(body.ids) && body.ids.length >= 1 && body.ids.length <= 50, 400, 'Invalid ids.');
+  const ids = [...new Set(body.ids.map((x) => field(x, RE.id, 'memory id')))];
+  const mine = db.prepare('SELECT 1 FROM memories m JOIN app_folder_keys k ON k.folder_id = m.folder_id AND k.app_id = ? WHERE m.id = ?');
+  let logged = 0;
+  for (const id of ids) {
+    if (!mine.get(app.id, id)) continue;
+    await logRead(app.vault_id, app.id, 'caught', id);
+    logged++;
+  }
+  return { logged };
+});
+
 route('POST', '/api/app/suggest', 'app', async ({ app, body }) => {
   need(app.can_suggest, 403, 'This app is not allowed to suggest memories.');
+  rateLimit(`suggest:${app.id}`, 30, 3_600_000);
   const box = field(body.box, RE.box, 'box', 200_000);
   need(count('SELECT COUNT(*) n FROM suggestions WHERE vault_id = ?', app.vault_id) < LIMITS.suggestions, 429, 'The inbox is full.');
   const id = newToken(16);
@@ -829,9 +951,10 @@ function send(res, status, data) {
 async function serveStatic(req, res, url) {
   let p;
   try { p = decodeURIComponent(url.pathname); } catch { throw new HttpError(400, 'Bad path.'); }
-  if (p === '/vault') { res.writeHead(301, { location: '/vault/' }); return res.end(); }
-  if (p === '/admin') { res.writeHead(301, { location: '/admin/' }); return res.end(); }
-  if (p === '/docs') { res.writeHead(301, { location: '/docs/' }); return res.end(); }
+  // a page folder asked for without its slash: /docs -> /docs/
+  if (/^\/[a-z0-9-]+$/.test(p) && existsSync(path.join(ROOT, 'web', p.slice(1), 'index.html'))) {
+    res.writeHead(301, { location: `${p}/` }); return res.end();
+  }
   const isShared = p.startsWith('/shared/');
   const base = path.join(ROOT, isShared ? 'shared' : 'web');
   let file = path.resolve(base, isShared ? p.slice('/shared/'.length) : p.slice(1));
@@ -895,6 +1018,7 @@ async function backup() {
     const file = path.join(backupDir, `vault-${stamp}.db`);
     if (existsSync(file)) return;
     db.prepare('VACUUM INTO ?').run(file);
+    lastBackupAt = now();
     const all = (await readdir(backupDir)).filter((f) => /^vault-\d{8}-\d{6}\.db$/.test(f)).sort();
     for (const old of all.slice(0, Math.max(0, all.length - BACKUP_KEEP))) await rm(path.join(backupDir, old), { force: true });
   } catch (e) {
@@ -904,11 +1028,12 @@ async function backup() {
 if (BACKUP_INTERVAL_MS > 0) {
   const latest = existsSync(backupDir) ? (await readdir(backupDir)).filter((f) => f.startsWith('vault-')).sort().at(-1) : null;
   const age = latest ? now() - (await stat(path.join(backupDir, latest))).mtimeMs : Infinity;
+  if (latest) lastBackupAt = now() - age;
   if (age >= BACKUP_INTERVAL_MS) backup();
   setInterval(backup, Math.max(60_000, BACKUP_INTERVAL_MS)).unref();
 }
 
-startSealer(db, SEAL_PERIOD_MS, { publishUrl: process.env.SEAL_PUBLISH_URL ?? '' });
+sealer = startSealer(db, SEAL_PERIOD_MS, { publishUrl: process.env.SEAL_PUBLISH_URL ?? '' });
 server.listen(PORT, HOST, () => {
   console.log(`${APP_NAME} running at ${TLS ? 'https' : 'http'}://${HOST.includes(':') ? `[${HOST}]` : HOST}:${server.address().port}`);
   console.log('Admin panel: /admin/ (forgot the password? npm run admin:password)');

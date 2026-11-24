@@ -241,7 +241,7 @@ mark { background: var(--ink); color: #fff; padding: 0 0.15em; }
 /* footer */
 .d-foot { display: flex; align-items: center; gap: 2rem; flex-wrap: wrap; padding: 2rem var(--gut); background: #0a0a0a; color: #fff; }
 .d-foot p { margin: 0; font-size: 12px; text-transform: uppercase; color: rgb(255 255 255 / 0.55); }
-.d-foot nav { margin-left: auto; display: flex; gap: 1.5rem; font-size: 12px; text-transform: uppercase; }
+.d-foot nav { margin-left: auto; display: flex; flex-wrap: wrap; gap: 0.6rem 1.5rem; font-size: 12px; text-transform: uppercase; }
 .d-foot nav a { text-decoration: none; color: rgb(255 255 255 / 0.7); }
 .d-foot nav a:hover { color: #fff; }
 

@@ -15,9 +15,11 @@ npm start
 Then open http://127.0.0.1:8787/ (landing page) or go straight to http://127.0.0.1:8787/vault/.
 
 ```sh
-npm test            # end-to-end
-npm run test:ui     # browser
-npm run test:wallet # connect wallet and top holders
+npm test              # end-to-end
+npm run test:ui       # browser
+npm run test:wallet   # connect wallet and top holders
+npm run test:immune   # hidden-instruction checks: every attack held, no false alarms
+npm run test:vectors  # the open standard's test vectors
 ```
 
 **Browser tests (17 flows):** the real pages run in headless Chrome or Edge (no dependencies, driven over the DevTools protocol), from creating a vault to recovering it. A test fails on any JS error, CSP violation, failed request, or page that scrolls sideways at phone width. Set `UI_SHOTS=<folder>` to save desktop and phone screenshots.
@@ -39,6 +41,7 @@ npm run test:wallet # connect wallet and top holders
 | `BACKUP_INTERVAL_MS` | `21600000` (6 hours) | Automatic database copies in `data/backups/`. `0` turns them off. |
 | `BACKUP_KEEP` | `14` | How many backups to keep. |
 | `STATS_MIN_VAULTS` | `100` | The "live on this server" numbers on the landing page appear only once there are this many vaults. Until then the panel shows "early access". `0` always shows them. |
+| `IMMUNE_TEST` | on | The public hourly test of the hidden-instruction checks (`/immune/`, `GET /api/immune`). `off` turns it off. |
 | `SEAL_PUBLISH_URL` | | Every new seal is POSTed here (a Discord or Slack webhook, a log service), so a copy of the hash chain lives somewhere the server cannot change. |
 | `CHAIN_RPC` | `https://rpc.mainnet.chain.robinhood.com` | JSON-RPC used to count $SYNOVAX holders. |
 | `HOLDERS_SOURCE` | `rpc` | `blockscout` reads holders from the Blockscout API (`EXPLORER_API`) instead. Its Cloudflare front may refuse datacenter IPs. |
@@ -68,7 +71,16 @@ Backups hold the same thing as the database (ciphertext and hashes), so keep the
 }
 ```
 
-Tools the AI gets: `list_folders`, `search_memories`, `read_memory`, `suggest_memory` (suggestions land in your Inbox, and you approve them).
+Tools the AI gets: `list_folders`, `search_memories`, `read_memory`, `suggest_memory` (suggestions land in your Inbox, and you approve them; 30 an hour per app).
+
+### Hidden instructions (prompt injection)
+
+Text from mail, chats and imports can carry lines written to steer an AI. `shared/immune.js` is the one place those checks live, used by the vault, the connector and the server:
+
+- **On the way in**, the vault marks memories and suggestions that look like instructions for an AI, and imports leave them out unless you tick the box.
+- **On the way out**, the connector drops invisible characters, replaces each flagged place (with its paragraph) by `[removed by SYNOVAX: ...]`, and quotes every memory between `<<data CODE>>` and `<<end CODE>>` with a code that is new for every answer.
+- **On the record**, the connector reports the memory id (never the text) to `POST /api/app/caught`, and the read log gets a `caught` line, sealed like any read.
+- **In public**, the server runs 14 attacks in 7 disguises through the same code every hour and publishes the round at `/immune/` and `GET /api/immune`, each round chained to the one before. There is no model in this test: it measures the checks.
 
 ### Semantic search (optional)
 
@@ -96,6 +108,8 @@ Run it once, in the vault folder. This is the project's only dependency, and onl
 | `server/` | HTTP API, SQLite (`node:sqlite`), the hourly log sealer, and the holder index (`holders.js`). |
 | `web/vault/` | The vault app (plain JS, no build step). Sign-in page with a ciphertext art panel, sign in / create / recover forms with a passphrase strength meter, Caps Lock warning, and the 24-word recovery screen. Dashboard with a dark sidebar, stats strip, and a sliding editor. Entry animations run only when the view changes and are off under `prefers-reduced-motion`. |
 | `web/index.html`, `web/landing.css`, `web/landing/` | Landing page: animation engine (springs, text reveals, scroll), WebGL hero, a memory graph, a live Merkle seal using real SHA-256 in the browser, the MCP flow, and the $SYNOVAX section with the coin, connect wallet (`wallet.js`) and top holders. The security section (`security.js`) lists only facts that exist in the code. Fonts are self-hosted in `web/fonts/`. |
+| `site/pages/`, `web/pages/` | The information pages: how it works, security, threat model, immune system, privacy, status, connector, API reference, open standard, verify, open source. Sources in `site/pages/`, built into `web/<page>/index.html` by `npm run pages` (the browser test fails if a built page is out of date). Status, immune, seals and verify are live, in `web/pages/*.js`. |
+| `shared/vectors.json` | The open standard's test vectors, made by `npm run vectors` from the code and checked by `npm run test:vectors`. |
 | `web/docs/` | Docs at `/docs/`: from zero to self-hosting, the API, the security model, troubleshooting. Search (press `/`), a table of contents, tabs per MCP app, copy buttons. |
 | `web/admin/` | Admin panel for publishing token info (status, contract address, explorer link, X account, supply, launch date). |
 | `connector/` | The MCP server (stdio) that runs on the user's computer. |

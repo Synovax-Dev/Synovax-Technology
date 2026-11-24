@@ -17,6 +17,10 @@
     "test": "node test/e2e.js",
     "test:ui": "node test/ui.js",
     "test:wallet": "node test/wallet.js",
+    "test:immune": "node test/immune.js",
+    "test:vectors": "node test/vectors.js",
+    "vectors": "node scripts/vectors.mjs",
+    "pages": "node scripts/build-pages.mjs",
     "test:semantic": "node test/semantic.js"
   },
   "license": "MIT",

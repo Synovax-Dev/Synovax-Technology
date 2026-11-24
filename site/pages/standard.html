@@ -1,0 +1,138 @@
+<!--
+title: Open standard
+description: The SYNOVAX formats: how a vault keeps memories, how its keys work, what a connector may do, what the read log records and how it is sealed, with test vectors.
+section: developers
+eyebrow: Open standard · version 1.0.0
+h1: Build your own|vault or checker
+lead: How a SYNOVAX vault keeps memories, how its keys work, what a connector may do, what the read log records, how it is sealed, and how memories are handed to a model. The reference code is three files in <code>shared/</code>; the test vectors are made from that code and checked against it on every test run.
+next: verify, reference, connector
+-->
+<section class="d-ch" id="overview">
+  <h2>Overview</h2>
+  <div class="tbl"><table>
+    <thead><tr><th>Part</th><th>What it covers</th><th>Reference code</th></tr></thead>
+    <tbody>
+      <tr><td><a href="#memories">1. Memories and folders</a></td><td>The records and what is inside each</td><td><code>web/vault/app.js</code></td></tr>
+      <tr><td><a href="#keys">2. Keys</a></td><td>Every key and how it is derived</td><td><code>shared/crypto.js</code></td></tr>
+      <tr><td><a href="#envelopes">3. Envelopes and sealed boxes</a></td><td>The two ciphertext formats and every record name</td><td><code>shared/crypto.js</code></td></tr>
+      <tr><td><a href="#connector">4. The connector</a></td><td>What an app key may call, and the tools</td><td><code>connector/index.js</code></td></tr>
+      <tr><td><a href="#log">5. The read log</a></td><td>An entry, its kinds, its leaf</td><td><code>shared/merkle.js</code></td></tr>
+      <tr><td><a href="#seals">6. Seals and the chain</a></td><td>The Merkle rules, the hourly seal, the chain hash</td><td><code>shared/merkle.js</code></td></tr>
+      <tr><td><a href="#immune">7. Hidden instructions</a></td><td>The checks, the marker, quoting for a model, the hourly test</td><td><code>shared/immune.js</code></td></tr>
+      <tr><td><a href="#vectors">8. Test vectors</a></td><td>Values another implementation must produce</td><td><code>shared/vectors.json</code></td></tr>
+    </tbody>
+  </table></div>
+  <p><b>Conventions.</b> Bytes in text are base64url without padding, unless a field says hex (lowercase). Strings are UTF-8; JSON inside a ciphertext is compact, as <code>JSON.stringify</code> writes it. Times are milliseconds since the Unix epoch. Ids are 16 random bytes in base64url (22 characters). Primitives: AES-256-GCM, HKDF-SHA256, PBKDF2-SHA256, SHA-256, HMAC-SHA256 and ECDH on P-256, all from WebCrypto, so the same code runs in a browser and in Node.</p>
+</section>
+
+<section class="d-ch" id="memories">
+  <h2>1. Memories and folders</h2>
+  <p>A vault holds folders; every memory is in exactly one folder.</p>
+  <dl class="p-kv">
+    <dt>Folder</dt><dd><code>id</code>; <code>meta</code>: <code>{ "name" }</code> encrypted with the folder key, record <code>folder:&lt;id&gt;:meta</code>; <code>wrappedKey</code>: the folder key (32 random bytes) encrypted with the vault key, record <code>folder:&lt;id&gt;:key</code>.</dd>
+    <dt>Memory head</dt><dd><code>{ "title", "tags", "snippet", "source" }</code> encrypted with the folder key, record <code>memory:&lt;id&gt;:head</code>. <code>snippet</code> is the first 240 characters of the text, so a connector can search without reading every body. <code>source</code> says where it came from (<code>import</code>, an app's name), or is absent.</dd>
+    <dt>Memory body</dt><dd><code>{ "title", "body", "tags", "source" }</code> encrypted with the folder key, record <code>memory:&lt;id&gt;:body</code>.</dd>
+    <dt>App</dt><dd><code>meta</code>: <code>{ "name", "secret" }</code> encrypted with the vault key, record <code>app:&lt;id&gt;:meta</code> (the secret is kept so the owner can grant new folders later); for each granted folder, the folder key encrypted with the app's wrap key, record <code>app:&lt;app id&gt;:folder:&lt;folder id&gt;</code>.</dd>
+  </dl>
+  <p>The server stores ids, the ciphertexts above, which folder a memory is in, and times. Limits: 200 folders, 20,000 memories and 50 apps per vault; a head of at most 8,000 characters of ciphertext, a body of at most 1,500,000.</p>
+</section>
+
+<section class="d-ch" id="keys">
+  <h2>2. Keys</h2>
+  <p>HKDF here is HKDF-SHA256 with a salt of 32 zero bytes, the info string given, and 32 bytes of output.</p>
+  <div class="code code--diagram"><div class="code-bar"><span>Key layout</span></div><pre><code>passphrase ──PBKDF2-SHA256, 600,000 rounds, 16-byte salt──▶ master
+master ──HKDF "vault/auth/v1"──▶ authKey   (sent; the server keeps SHA-256)
+master ──HKDF "vault/kek/v1"───▶ kek       (never leaves the device)
+
+24 words ──index in the 256-word list──▶ 24 bytes ──HKDF "vault/recovery/v1"──▶ master
+master ──▶ authKey / kek, as above
+
+vault key   32 random bytes   wrapped by kek, record "vk/passphrase"
+                              wrapped by the recovery kek, record "vk/recovery"
+folder key  32 random bytes   wrapped by the vault key, and by each granted app's wrap key
+inbox keys  ECDH P-256        private key (PKCS#8) wrapped by the vault key, record "box/private"
+
+app secret  32 random bytes ──HKDF "vault/app/auth/v1"──▶ token (base64url; the server keeps SHA-256)
+                            ──HKDF "vault/app/wrap/v1"──▶ wrap key
+                            ──HKDF "vault/app/vouch/v1"─▶ vouch key</code></pre></div>
+  <p>The passphrase is normalized (NFKC) before PBKDF2. The recovery phrase is 24 words, each the index of a byte in the 256-word list in <code>shared/wordlist.js</code>: 192 bits. The passphrase and recovery checks the server keeps are <code>SHA-256(authKey)</code> in hex.</p>
+  <p><b>App keys</b> are written <code>vlt_app.&lt;app id&gt;.&lt;base64url secret&gt;</code>. An app proves itself with <code>Authorization: Bearer a.&lt;app id&gt;.&lt;token&gt;</code>.</p>
+  <p><b>Vouching for the inbox key.</b> The vault computes <code>HMAC-SHA256(vouch key, "&lt;app id&gt;|&lt;inbox public key&gt;")</code> and stores it with the app. A connector must check it before sealing anything to a public key the server handed it.</p>
+</section>
+
+<section class="d-ch" id="envelopes">
+  <h2>3. Envelopes and sealed boxes</h2>
+  <p>An <b>envelope</b> is AES-256-GCM with a fresh 96-bit IV and a 128-bit tag, the additional authenticated data naming the exact record:</p>
+  <div class="code"><div class="code-bar"><span>Envelope</span></div><pre><code>v1.&lt;base64url( IV ‖ ciphertext ‖ tag )&gt;</code></pre></div>
+  <p>An envelope moved to another record fails to open. The record names in use: <code>vk/passphrase</code>, <code>vk/recovery</code>, <code>box/private</code>, <code>folder:&lt;id&gt;:key</code>, <code>folder:&lt;id&gt;:meta</code>, <code>memory:&lt;id&gt;:head</code>, <code>memory:&lt;id&gt;:body</code>, <code>app:&lt;id&gt;:meta</code>, <code>app:&lt;app id&gt;:folder:&lt;folder id&gt;</code>.</p>
+  <p>A <b>sealed box</b> is data for a vault that is not open (a suggestion), sealed to the vault's inbox public key R:</p>
+  <div class="code"><div class="code-bar"><span>Sealed box</span></div><pre><code>ephemeral pair (e, E) on P-256
+shared = ECDH(e, R)                                   32 bytes
+key    = HKDF(shared, "vault/box/v1|" + E + "|" + R)  E and R as base64url SPKI
+sealed = envelope(key, JSON, record "box")
+format   box1.&lt;E&gt;.&lt;envelope&gt;</code></pre></div>
+</section>
+
+<section class="d-ch" id="connector">
+  <h2>4. The connector</h2>
+  <p>A connector holds one app key and runs where the owner chooses. It fetches ciphertext with the app's token, unwraps the folder keys granted to it with the app's wrap key, and decrypts, searches and seals on its own side. The routes are in the <a href="/reference/#app">API reference</a>; the tools are:</p>
+  <div class="tbl"><table>
+    <thead><tr><th>Tool</th><th>What it does</th><th>Logged as</th></tr></thead>
+    <tbody>
+      <tr><td><code>list_folders</code></td><td>The granted folders, by name.</td><td><code>folders</code></td></tr>
+      <tr><td><code>search_memories</code></td><td>Search over decrypted heads, by words and by meaning, on the connector's side.</td><td><code>list</code></td></tr>
+      <tr><td><code>read_memory</code></td><td>One memory in full.</td><td><code>read</code></td></tr>
+      <tr><td><code>suggest_memory</code></td><td>A sealed box to the inbox key, after checking the vouch.</td><td><code>suggest</code></td></tr>
+    </tbody>
+  </table></div>
+  <p>Every memory text a connector hands to a model must first go through part 7. No route lets an app change or delete a memory.</p>
+</section>
+
+<section class="d-ch" id="log">
+  <h2>5. The read log</h2>
+  <p>Every request an app makes is one entry of the owner's read log:</p>
+  <dl class="p-kv">
+    <dt>id</dt><dd>16 random bytes, base64url.</dd>
+    <dt>ts</dt><dd>When, in milliseconds.</dd>
+    <dt>vault_id</dt><dd>The vault.</dd>
+    <dt>app_id</dt><dd>The app.</dd>
+    <dt>action</dt><dd><code>folders</code> (listed folders), <code>list</code> (read the heads of one folder or <code>*</code> for all), <code>read</code> (read one memory), <code>suggest</code> (sent a suggestion), <code>caught</code> (the connector removed hidden instructions from a memory).</dd>
+    <dt>target</dt><dd>The folder id or <code>*</code>, the memory id, the suggestion id, or null.</dd>
+    <dt>salt</dt><dd>16 random bytes, base64url. Without it the leaf cannot be tied to the entry.</dd>
+  </dl>
+  <div class="code"><div class="code-bar"><span>The leaf</span></div><pre><code>data = JSON.stringify([id, ts, vault_id, app_id or null, action, target or null, salt])
+leaf = SHA-256( 0x00 ‖ UTF-8(data) )</code></pre></div>
+  <p>Because the action is in the leaf, an entry cannot later be passed off as another kind without breaking its proof.</p>
+</section>
+
+<section class="d-ch" id="seals">
+  <h2>6. Seals and the chain</h2>
+  <div class="code"><div class="code-bar"><span>Merkle rules</span></div><pre><code>node = SHA-256( 0x01 ‖ left ‖ right )
+An odd node at the end of a level moves up unchanged.
+A proof lists siblings bottom up, each with its side: R (the sibling is on the right) or L.</code></pre></div>
+  <p>Time is cut into periods (one hour by default). When a period ends, every entry of that period, from every vault on the server, becomes a leaf in the order it was written, and the root is the seal of that period. A period with no reads has no seal. Seals are numbered from 1.</p>
+  <div class="code"><div class="code-bar"><span>The chain hash</span></div><pre><code>prev  = chain of the seal before, or 64 zeros for seal 1
+chain = SHA-256( 0x02 ‖ UTF-8(JSON.stringify(["seal/v1", seq, periodStart, periodEnd, root, count, prev])) )</code></pre></div>
+  <p>A server publishes every seal (<code>GET /api/seals</code>), and the proof of any leaf (<code>GET /api/seals/&lt;seq&gt;/proof?leaf=</code>), and keeps the leaves of past seals after an account is deleted, so other vaults' proofs keep working. A checker that kept any later chain hash notices an earlier seal being changed or dropped.</p>
+</section>
+
+<section class="d-ch" id="immune">
+  <h2>7. Hidden instructions</h2>
+  <p>Text from outside can carry instructions written for an AI. Before a connector hands memory text to a model, it must:</p>
+  <ol>
+    <li>Normalize the text (NFKC) and drop invisible characters: zero-width characters, direction controls, the soft hyphen and Unicode tag characters, keeping a zero-width joiner inside an emoji and tag characters that complete a subdivision flag.</li>
+    <li>Read it in lower case with look-alike Cyrillic and Greek letters mapped to Latin ones, and find the kinds <code>override</code>, <code>role</code>, <code>exfil</code>, <code>tool</code>, <code>payment</code>, <code>jailbreak</code>, <code>hidden</code> (styling that hides text) and <code>encoded</code> (base64 of 20 or more characters that decodes to text another rule flags). The patterns are the reference code's and may grow in a minor version.</li>
+    <li>Replace each finding, with the paragraph around it (or the sentence, in a paragraph over 600 characters; or the whole HTML comment it is in), by <code>[removed by SYNOVAX: looked like &lt;kind&gt;]</code>.</li>
+    <li>Quote each memory between <code>&lt;&lt;data CODE&gt;&gt;</code> and <code>&lt;&lt;end CODE&gt;&gt;</code>, CODE being 6 random bytes in hex, new for every answer, after a note saying the text is data and never instructions. Any <code>&lt;&lt;end CODE&gt;&gt;</code> inside the text has its code replaced.</li>
+    <li>Tell the server the id of each memory it removed something from, once per version (<code>POST /api/app/caught</code>), so the owner's log has a <code>caught</code> entry. Never the text.</li>
+  </ol>
+  <p>A server may run the public hourly test: 14 attacks, each in 7 disguises, placed among ordinary memories with choices seeded by <code>SHA-256("immune/v1|" + hourStart)</code>, run through step 1 to 4, and counted as held when the attack's marker no longer reaches the model's input. A round's hash is <code>SHA-256(JSON.stringify(["immune/v1", hourStart, total, held, [[strain, disguise, held], …], prev]))</code> in hex, prev being the hash of the round before (64 zeros for the first).</p>
+</section>
+
+<section class="d-ch" id="vectors">
+  <h2>8. Test vectors and versioning</h2>
+  <p><a href="/shared/vectors.json"><code>shared/vectors.json</code></a> has three parts. <code>input</code> holds the fixed passphrase, salt, words, app secret, log entry, leaves and texts every vector starts from. <code>deterministic</code> holds values that follow from their inputs alone: the passphrase and recovery keys, the app key's token, wrap and vouch keys and its vouch, a leaf and its data, a Merkle root and proof, a seal chain hash, and the guarded and quoted text of part 7; another implementation must produce them byte for byte. <code>sealed</code> holds an envelope and a sealed box made with fresh randomness; another implementation must open each with the key given and get the plaintext listed.</p>
+  <div class="code"><div class="code-bar"><span>Terminal</span><button type="button" data-copy>copy</button></div><pre><code>npm run test:vectors   # the code still produces every vector
+npm run vectors        # write them again (sealed values are kept)</code></pre></div>
+  <p>The version follows semantic versioning. A change that makes data written by an older version unreadable, or changes a deterministic vector, is a new major version. Every format string carries its own version (<code>v1.</code>, <code>box1.</code>, <code>vault/…/v1</code>, <code>seal/v1</code>, <code>immune/v1</code>), so old and new data can be told apart.</p>
+</section>

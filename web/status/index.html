@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>Status · SYNOVAX</title>
+  <meta name="description" content="Is SYNOVAX working right now? This page asks the server directly, from your browser, every 30 seconds.">
+  <link rel="canonical" href="https://synovax.tech/status/">
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="SYNOVAX">
+  <meta property="og:title" content="Status · SYNOVAX">
+  <meta property="og:description" content="Is SYNOVAX working right now? This page asks the server directly, from your browser, every 30 seconds.">
+  <meta property="og:image" content="https://synovax.tech/og.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="preload" href="/fonts/oswald-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/fonts/space-grotesk-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/docs/docs.css">
+  <link rel="stylesheet" href="/pages/pages.css">
+  <script type="module" src="/pages/pages.js"></script>
+</head>
+<!-- Built by scripts/build-pages.mjs from site/pages/status.html. Edit that file, then run npm run pages. -->
+<body data-page="status">
+  <svg width="0" height="0" class="sprite" aria-hidden="true">
+    <symbol id="i-mark" viewBox="0 0 24 24"><path d="M21.64 1L4.2 7.77L10.6 12.33C9.72 11.6 9.72 10.34 10.75 9.98L17.59 6.89ZM2.36 23L19.8 16.23L13.4 11.67C14.28 12.4 14.28 13.66 13.25 14.02L6.41 17.11Z" fill="currentColor"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 13.7071 10.7071"><path d="M0 5.35355H13M8 10.3536L13 5.35355L8 0.353553" fill="none" stroke="currentColor"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 16 16"><path d="M1.5 4h13M1.5 8h13M1.5 12h13" stroke="currentColor" stroke-width="1.4"/></symbol>
+    <symbol id="i-info" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.8" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 7v4.6M8 4.4v1.4" stroke="currentColor" stroke-width="1.4"/></symbol>
+    <symbol id="i-warn" viewBox="0 0 16 16"><path d="M8 1.6L15 14H1Z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M8 6v4M8 11.4v1.4" stroke="currentColor" stroke-width="1.4"/></symbol>
+    <symbol id="i-check" viewBox="0 0 16 16"><path d="M2.5 8.5l3.5 3.5 7.5-8" fill="none" stroke="currentColor" stroke-width="1.6"/></symbol>
+    <symbol id="i-x" viewBox="0 0 16 16"><path d="M3 3l10 10M13 3L3 13" fill="none" stroke="currentColor" stroke-width="1.6"/></symbol>
+    <symbol id="i-github" viewBox="0 0 16 16"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.06-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></symbol>
+  </svg>
+
+  <a class="skip" href="#content">Skip to content</a>
+
+  <header class="d-top p-top">
+    <a class="d-logo" href="/" aria-label="SYNOVAX home">
+      <svg aria-hidden="true"><use href="#i-mark"/></svg><span>synovax</span><em>trust</em>
+    </a>
+    <nav class="d-topnav p-nav" aria-label="Site">
+      <a href="/how-it-works/">How it works</a>
+      <a href="/security/">Security</a>
+      <a href="/threat-model/">Threat model</a>
+      <a href="/immune/">Immune system</a>
+      <a href="/status/" aria-current="page">Status</a>
+      <a href="/docs/">Docs</a>
+    </nav>
+    <a class="p-gh" href="https://github.com/Synovax-Dev/Synovax-Technology" target="_blank" rel="noopener noreferrer" aria-label="SYNOVAX on GitHub" title="SYNOVAX on GitHub"><svg aria-hidden="true"><use href="#i-github"/></svg></a>
+    <a class="d-cta" href="/vault/">open vault <svg aria-hidden="true"><use href="#i-arrow"/></svg></a>
+    <button class="d-burger p-burger" type="button" aria-expanded="false" aria-controls="p-menu" data-menu><svg aria-hidden="true"><use href="#i-menu"/></svg><span>menu</span></button>
+  </header>
+  <nav class="p-menu" id="p-menu" aria-label="All pages" hidden>
+    <div><p>Product</p><a href="/vault/">Vault</a><a href="/docs/">Docs</a><a href="/#token">$SYNOVAX</a><a href="/">Home</a></div>
+    <div><p>Trust</p><a href="/how-it-works/">How it works</a><a href="/security/">Security</a><a href="/threat-model/">Threat model</a><a href="/immune/">Immune system</a><a href="/privacy/">Privacy</a><a href="/status/" aria-current="page">Status</a></div>
+    <div><p>Developers</p><a href="/connector/">Connector</a><a href="/reference/">API reference</a><a href="/standard/">Open standard</a><a href="/verify/">Verify</a><a href="/open-source/">Open source</a><a href="https://github.com/Synovax-Dev/Synovax-Technology" target="_blank" rel="noopener noreferrer">GitHub ↗</a></div>
+  </nav>
+
+  <section class="d-hero p-hero" aria-labelledby="p-h1">
+    <div class="d-hero-in p-hero-in">
+      <div>
+        <p class="d-eyebrow">Status</p>
+        <h1 class="d-h1" id="p-h1"><span>Is it working</span><span>right now</span></h1>
+        <p class="p-lead">This page asks the server directly, from your browser, every 30 seconds. Nothing on it is written by hand.</p>
+      </div>
+    </div>
+    <span class="d-corner d-corner--tl" aria-hidden="true"></span>
+    <span class="d-corner d-corner--br" aria-hidden="true"></span>
+  </section>
+
+  <div class="p-layout">
+    <main id="content" class="p-main">
+      <section class="d-ch" id="now">
+        <h2>Right now</h2>
+        <div class="p-live" aria-live="polite">
+          <div class="p-live-head" data-status-head><i class="p-dot"></i><div><h3>Asking the server…</h3><p>This takes a moment.</p></div></div>
+          <ul class="p-rows" data-status-rows></ul>
+        </div>
+        <div data-status-counts></div>
+      </section>
+
+      <section class="d-ch" id="lines">
+        <h2>What each line means</h2>
+        <dl class="p-kv">
+          <dt>Site and API</dt><dd>The server that stores vaults and answers the vault page and the connector. If it does not answer, this page says so.</dd>
+          <dt>Vault database</dt><dd>Where the encrypted vaults live. The status request reads from it, so an answer means it is reachable.</dd>
+          <dt>Seal job</dt><dd>Folds every finished hour of reads into one seal. <i>Catching up</i> means reads from a finished hour are not sealed yet; <i>late</i> or <i>failed</i> means the job stopped.</dd>
+          <dt>Seal copies</dt><dd>Whether each seal is also posted to a webhook outside this server, so a copy of the chain lives where the server cannot change it.</dd>
+          <dt>Immune test</dt><dd>The public hourly attack on the hidden-instruction checks. Its full record is on the <a href="/immune/">immune</a> page.</dd>
+          <dt>Backups</dt><dd>Automatic copies of the database on the server's disk. They hold the same ciphertext as the database.</dd>
+          <dt>Waiting reads</dt><dd>Reads made in the running hour. They are sealed when the hour is over, never earlier.</dd>
+          <dt>The totals</dt><dd>Totals only, shown once the server holds 100 vaults. Nothing in them names a person, a vault, an app or a memory.</dd>
+        </dl>
+      </section>
+
+      <section class="d-ch" id="yourself">
+        <h2>Ask it yourself</h2>
+        <p>The same public endpoint this page uses. No key is needed. The full answer is described in the <a href="/reference/#status">API reference</a>.</p>
+        <div class="code"><div class="code-bar"><span>Terminal</span><button type="button" data-copy>copy</button></div><pre><code>curl https://synovax.tech/api/status
+      curl https://synovax.tech/api/seals?limit=3</code></pre></div>
+      </section>
+
+      <nav class="p-next" aria-label="Read next">
+        <p>Read next</p>
+        <div><a href="/immune/"><span>Trust</span><b>Immune system</b><em>Hidden instructions in memories, tested every hour</em><svg aria-hidden="true"><use href="#i-arrow"/></svg></a><a href="/verify/"><span>Developers</span><b>Verify</b><em>Check a read, a seal or the seal chain by hand</em><svg aria-hidden="true"><use href="#i-arrow"/></svg></a><a href="/reference/"><span>Developers</span><b>API reference</b><em>Every public, app and vault endpoint</em><svg aria-hidden="true"><use href="#i-arrow"/></svg></a></div>
+      </nav>
+    </main>
+    <aside class="d-toc p-toc" aria-label="On this page">
+      <p>On this page</p>
+      <ol>
+          <li><a href="#now">Right now</a></li>
+          <li><a href="#lines">What each line means</a></li>
+          <li><a href="#yourself">Ask it yourself</a></li>
+      </ol>
+    </aside>
+  </div>
+
+  <footer class="p-foot">
+    <div class="p-foot-top">
+      <a class="d-logo" href="/" aria-label="SYNOVAX home"><svg aria-hidden="true"><use href="#i-mark"/></svg><span>synovax</span></a>
+      <p>Your AI memory, encrypted on your device.</p>
+    </div>
+    <div class="p-foot-cols">
+      <div><p>Product</p><a href="/vault/">Vault</a><a href="/docs/">Docs</a><a href="/#token">$SYNOVAX</a><a href="/">Home</a></div>
+      <div><p>Trust</p><a href="/how-it-works/">How it works</a><a href="/security/">Security</a><a href="/threat-model/">Threat model</a><a href="/immune/">Immune system</a><a href="/privacy/">Privacy</a><a href="/status/" aria-current="page">Status</a></div>
+      <div><p>Developers</p><a href="/connector/">Connector</a><a href="/reference/">API reference</a><a href="/standard/">Open standard</a><a href="/verify/">Verify</a><a href="/open-source/">Open source</a><a href="https://github.com/Synovax-Dev/Synovax-Technology" target="_blank" rel="noopener noreferrer">GitHub ↗</a></div>
+    </div>
+    <p class="p-foot-copy">© 2026 SYNOVAX. Free and open source (MIT). Not yet independently audited. Not affiliated with Robinhood.</p>
+  </footer>
+</body>
+</html>

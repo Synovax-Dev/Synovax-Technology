@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>Verify · SYNOVAX</title>
+  <meta name="description" content="Check a read against its hourly seal, a proof by hand, or the whole seal chain, with every step shown, in your browser or with your own code.">
+  <link rel="canonical" href="https://synovax.tech/verify/">
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="SYNOVAX">
+  <meta property="og:title" content="Verify · SYNOVAX">
+  <meta property="og:description" content="Check a read against its hourly seal, a proof by hand, or the whole seal chain, with every step shown, in your browser or with your own code.">
+  <meta property="og:image" content="https://synovax.tech/og.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="preload" href="/fonts/oswald-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/fonts/space-grotesk-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/docs/docs.css">
+  <link rel="stylesheet" href="/pages/pages.css">
+  <script type="module" src="/pages/pages.js"></script>
+</head>
+<!-- Built by scripts/build-pages.mjs from site/pages/verify.html. Edit that file, then run npm run pages. -->
+<body data-page="verify">
+  <svg width="0" height="0" class="sprite" aria-hidden="true">
+    <symbol id="i-mark" viewBox="0 0 24 24"><path d="M21.64 1L4.2 7.77L10.6 12.33C9.72 11.6 9.72 10.34 10.75 9.98L17.59 6.89ZM2.36 23L19.8 16.23L13.4 11.67C14.28 12.4 14.28 13.66 13.25 14.02L6.41 17.11Z" fill="currentColor"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 13.7071 10.7071"><path d="M0 5.35355H13M8 10.3536L13 5.35355L8 0.353553" fill="none" stroke="currentColor"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 16 16"><path d="M1.5 4h13M1.5 8h13M1.5 12h13" stroke="currentColor" stroke-width="1.4"/></symbol>
+    <symbol id="i-info" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.8" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 7v4.6M8 4.4v1.4" stroke="currentColor" stroke-width="1.4"/></symbol>
+    <symbol id="i-warn" viewBox="0 0 16 16"><path d="M8 1.6L15 14H1Z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M8 6v4M8 11.4v1.4" stroke="currentColor" stroke-width="1.4"/></symbol>
+    <symbol id="i-check" viewBox="0 0 16 16"><path d="M2.5 8.5l3.5 3.5 7.5-8" fill="none" stroke="currentColor" stroke-width="1.6"/></symbol>
+    <symbol id="i-x" viewBox="0 0 16 16"><path d="M3 3l10 10M13 3L3 13" fill="none" stroke="currentColor" stroke-width="1.6"/></symbol>
+    <symbol id="i-github" viewBox="0 0 16 16"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.06-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></symbol>
+  </svg>
+
+  <a class="skip" href="#content">Skip to content</a>
+
+  <header class="d-top p-top">
+    <a class="d-logo" href="/" aria-label="SYNOVAX home">
+      <svg aria-hidden="true"><use href="#i-mark"/></svg><span>synovax</span><em>developers</em>
+    </a>
+    <nav class="d-topnav p-nav" aria-label="Site">
+      <a href="/how-it-works/">How it works</a>
+      <a href="/security/">Security</a>
+      <a href="/threat-model/">Threat model</a>
+      <a href="/immune/">Immune system</a>
+      <a href="/status/">Status</a>
+      <a href="/docs/">Docs</a>
+    </nav>
+    <a class="p-gh" href="https://github.com/Synovax-Dev/Synovax-Technology" target="_blank" rel="noopener noreferrer" aria-label="SYNOVAX on GitHub" title="SYNOVAX on GitHub"><svg aria-hidden="true"><use href="#i-github"/></svg></a>
+    <a class="d-cta" href="/vault/">open vault <svg aria-hidden="true"><use href="#i-arrow"/></svg></a>
+    <button class="d-burger p-burger" type="button" aria-expanded="false" aria-controls="p-menu" data-menu><svg aria-hidden="true"><use href="#i-menu"/></svg><span>menu</span></button>
+  </header>
+  <nav class="p-menu" id="p-menu" aria-label="All pages" hidden>
+    <div><p>Product</p><a href="/vault/">Vault</a><a href="/docs/">Docs</a><a href="/#token">$SYNOVAX</a><a href="/">Home</a></div>
+    <div><p>Trust</p><a href="/how-it-works/">How it works</a><a href="/security/">Security</a><a href="/threat-model/">Threat model</a><a href="/immune/">Immune system</a><a href="/privacy/">Privacy</a><a href="/status/">Status</a></div>
+    <div><p>Developers</p><a href="/connector/">Connector</a><a href="/reference/">API reference</a><a href="/standard/">Open standard</a><a href="/verify/" aria-current="page">Verify</a><a href="/open-source/">Open source</a><a href="https://github.com/Synovax-Dev/Synovax-Technology" target="_blank" rel="noopener noreferrer">GitHub ↗</a></div>
+  </nav>
+
+  <section class="d-hero p-hero" aria-labelledby="p-h1">
+    <div class="d-hero-in p-hero-in">
+      <div>
+        <p class="d-eyebrow">Verify</p>
+        <h1 class="d-h1" id="p-h1"><span>Check it yourself,</span><span>by hand</span></h1>
+        <p class="p-lead">Your vault checks a log entry against its seal with one button. This page is the long way round: the same checks with every step in the open, and code you can run without trusting ours.</p>
+      </div>
+    </div>
+    <span class="d-corner d-corner--tl" aria-hidden="true"></span>
+    <span class="d-corner d-corner--br" aria-hidden="true"></span>
+  </section>
+
+  <div class="p-layout">
+    <main id="content" class="p-main">
+      <section class="d-ch" id="read">
+        <h2>Check one read</h2>
+        <p>Three ways in. Every step of the walk is shown under the result, so you can compare the numbers with your own run of the script further down.</p>
+        <div class="p-tabs" role="tablist" aria-label="What to check">
+          <button type="button" role="tab" id="t-entry" aria-controls="v-entry" aria-selected="true" data-tab>A log entry</button>
+          <button type="button" role="tab" id="t-leaf" aria-controls="v-leaf" aria-selected="false" data-tab>A leaf</button>
+          <button type="button" role="tab" id="t-hand" aria-controls="v-hand" aria-selected="false" data-tab>A proof by hand</button>
+        </div>
+        <div class="p-panel" id="v-entry" role="tabpanel" aria-labelledby="t-entry">
+          <form class="p-form" data-verify-entry>
+            <label>The entry <small>In your vault, open Read log and press Copy entry on a sealed row. The leaf is computed on this page; only the leaf leaves your browser.</small>
+              <textarea name="entry" required spellcheck="false" placeholder='{"format":"synovax-read-v1","id":"…","ts":…,"vault_id":"…","app_id":"…","action":"read","target":"…","salt":"…","seal":12}'></textarea></label>
+            <button class="p-btn" type="submit">Check</button>
+            <div class="p-result" hidden aria-live="polite"></div>
+          </form>
+        </div>
+        <div class="p-panel" id="v-leaf" role="tabpanel" aria-labelledby="t-leaf" hidden>
+          <form class="p-form" data-verify-leaf>
+            <label>Seal number <input name="seal" inputmode="numeric" required placeholder="12"></label>
+            <label>Leaf <small>The salted hash of one read, 64 hex characters. A leaf alone says nothing about what was read.</small>
+              <input name="leaf" required spellcheck="false" placeholder="0x…"></label>
+            <button class="p-btn" type="submit">Check</button>
+            <div class="p-result" hidden aria-live="polite"></div>
+          </form>
+        </div>
+        <div class="p-panel" id="v-hand" role="tabpanel" aria-labelledby="t-hand" hidden>
+          <form class="p-form" data-verify-hand>
+            <label>Root <input name="root" required spellcheck="false" placeholder="the seal's root"></label>
+            <label>Leaf <input name="leaf" required spellcheck="false" placeholder="the leaf"></label>
+            <label>Proof <small>One sibling per line, bottom up: "R &lt;hash&gt;" when the sibling is on the right, "L &lt;hash&gt;" when on the left. An empty proof is fine for a seal with one read.</small>
+              <textarea name="proof" spellcheck="false" placeholder="R 3f…&#10;L 9a…"></textarea></label>
+            <button class="p-btn" type="submit">Check</button>
+            <div class="p-result" hidden aria-live="polite"></div>
+          </form>
+          <p class="p-note">Nothing is sent anywhere: the page only does the arithmetic.</p>
+        </div>
+      </section>
+
+      <section class="d-ch" id="chain">
+        <h2>Check the whole seal chain</h2>
+        <p>Fetches every seal from the first to the newest and checks that each one commits to the one before it. If your vault was opened in this browser before, it also checks that the newest seal your vault saw then is still in the history, unchanged.</p>
+        <div class="p-form">
+          <button class="p-btn" type="button" data-verify-chain>Check the chain</button>
+          <div class="p-result" hidden aria-live="polite" data-verify-chain-out></div>
+        </div>
+      </section>
+
+      <section class="d-ch" id="rules">
+        <h2>What a seal is made of</h2>
+        <p>Two hash rules and one entry format, the same in the browser, on the server and in the script below.</p>
+        <ul>
+          <li>The salt is 16 random bytes per entry. Without it a leaf cannot be linked to a read.</li>
+          <li>Leaves, inner nodes and chain hashes start with different bytes (0x00, 0x01, 0x02), so one can never pass for another.</li>
+          <li>An unpaired node at the end of a level moves up unchanged.</li>
+        </ul>
+        <div class="code"><div class="code-bar"><span>Seal rules</span><button type="button" data-copy>copy</button></div><pre><code>data  = JSON.stringify([id, ts, vault_id, app_id, action, target, salt])
+      leaf  = SHA-256( 0x00 ‖ data )
+      node  = SHA-256( 0x01 ‖ left ‖ right )
+      chain = SHA-256( 0x02 ‖ JSON.stringify(["seal/v1", seq, periodStart, periodEnd, root, count, prev]) )</code></pre></div>
+      </section>
+
+      <section class="d-ch" id="own-code">
+        <h2>With your own code</h2>
+        <p>A complete check in plain Node.js, with no SYNOVAX code in it. Paste the entry from Copy entry into <code>e</code> and run it with <code>node verify.mjs</code>.</p>
+        <div class="code"><div class="code-bar"><span>verify.mjs</span><button type="button" data-copy>copy</button></div><pre><code>import { createHash } from "node:crypto";
+
+      const sha = (...parts) => createHash("sha256").update(Buffer.concat(parts)).digest();
+      const site = "https://synovax.tech";
+
+      // 1. The leaf, from the entry you copied out of your read log.
+      const e = { id: "", ts: 0, vault_id: "", app_id: "", action: "read", target: "", salt: "", seal: 0 };
+      const data = JSON.stringify([e.id, e.ts, e.vault_id, e.app_id ?? null, e.action, e.target ?? null, e.salt]);
+      let node = sha(Buffer.from([0]), Buffer.from(data, "utf8"));
+      const leaf = node.toString("hex");
+
+      // 2. The proof and the published seal, from the public API.
+      const { proof } = await (await fetch(`${site}/api/seals/${e.seal}/proof?leaf=${leaf}`)).json();
+      const seal = await (await fetch(`${site}/api/seals/${e.seal}`)).json();
+
+      // 3. Walk up.
+      for (const { side, hash } of proof) {
+        const sib = Buffer.from(hash, "hex");
+        node = side === "R" ? sha(Buffer.from([1]), node, sib) : sha(Buffer.from([1]), sib, node);
+      }
+      console.log(node.toString("hex") === seal.root ? "verified" : "NOT verified");</code></pre></div>
+      </section>
+
+      <section class="d-ch" id="proves">
+        <h2>What a passed check proves</h2>
+        <div class="d-grid2">
+          <div class="d-fact d-fact--solid"><b>It proves</b><p>Exactly this entry, with this app, this action, this target and this time, was part of the seal when it was made. Change one character and the leaf no longer leads to the root. With the chain, no earlier seal was changed or dropped since you last looked.</p></div>
+          <div class="d-fact"><b>It does not prove</b><p>That nothing else happened. A seal cannot show that a server wrote every request down, and seals are kept by the server: a history rewritten before anyone kept a copy would not show. Both limits are in the <a href="/threat-model/">threat model</a>.</p></div>
+        </div>
+      </section>
+
+      <nav class="p-next" aria-label="Read next">
+        <p>Read next</p>
+        <div><a href="/standard/"><span>Developers</span><b>Open standard</b><em>The formats, keys, log and seals, with test vectors</em><svg aria-hidden="true"><use href="#i-arrow"/></svg></a><a href="/security/"><span>Trust</span><b>Security</b><em>Keys, encryption and where the limits are</em><svg aria-hidden="true"><use href="#i-arrow"/></svg></a><a href="/reference/"><span>Developers</span><b>API reference</b><em>Every public, app and vault endpoint</em><svg aria-hidden="true"><use href="#i-arrow"/></svg></a></div>
+      </nav>
+    </main>
+    <aside class="d-toc p-toc" aria-label="On this page">
+      <p>On this page</p>
+      <ol>
+          <li><a href="#read">Check one read</a></li>
+          <li><a href="#chain">Check the whole seal chain</a></li>
+          <li><a href="#rules">What a seal is made of</a></li>
+          <li><a href="#own-code">With your own code</a></li>
+          <li><a href="#proves">What a passed check proves</a></li>
+      </ol>
+    </aside>
+  </div>
+
+  <footer class="p-foot">
+    <div class="p-foot-top">
+      <a class="d-logo" href="/" aria-label="SYNOVAX home"><svg aria-hidden="true"><use href="#i-mark"/></svg><span>synovax</span></a>
+      <p>Your AI memory, encrypted on your device.</p>
+    </div>
+    <div class="p-foot-cols">
+      <div><p>Product</p><a href="/vault/">Vault</a><a href="/docs/">Docs</a><a href="/#token">$SYNOVAX</a><a href="/">Home</a></div>
+      <div><p>Trust</p><a href="/how-it-works/">How it works</a><a href="/security/">Security</a><a href="/threat-model/">Threat model</a><a href="/immune/">Immune system</a><a href="/privacy/">Privacy</a><a href="/status/">Status</a></div>
+      <div><p>Developers</p><a href="/connector/">Connector</a><a href="/reference/">API reference</a><a href="/standard/">Open standard</a><a href="/verify/" aria-current="page">Verify</a><a href="/open-source/">Open source</a><a href="https://github.com/Synovax-Dev/Synovax-Technology" target="_blank" rel="noopener noreferrer">GitHub ↗</a></div>
+    </div>
+    <p class="p-foot-copy">© 2026 SYNOVAX. Free and open source (MIT). Not yet independently audited. Not affiliated with Robinhood.</p>
+  </footer>
+</body>
+</html>

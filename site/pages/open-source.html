@@ -1,0 +1,74 @@
+<!--
+title: Open source
+description: Every line of SYNOVAX is public under the MIT license: the encryption, the server, the vault, the connector. Read it, run it yourself.
+section: developers
+eyebrow: Open source
+h1: Read the code,|run it yourself
+lead: A vault you cannot inspect asks for blind trust. Every line of SYNOVAX is public under the MIT license: the encryption, the server, the vault, the connector and the tests. It is free to use.
+next: standard, connector, security
+-->
+<section class="d-ch" id="repo">
+  <h2>The repository</h2>
+  <p class="big"><a href="https://github.com/Synovax-Dev/Synovax-Technology" target="_blank" rel="noopener noreferrer">Synovax-Dev/Synovax-Technology</a>: one repository, plain JavaScript, no build step. The server needs nothing from npm at all.</p>
+  <div class="d-grid2">
+    <div class="d-fact"><b>shared/</b><p>The cryptography (AES-256-GCM envelopes, key derivation, sealed boxes, app keys), the Merkle seals, the hidden-instruction checks, and the test vectors. The same files run in the browser, in the connector and on the server.</p></div>
+    <div class="d-fact"><b>server/</b><p>The HTTP API on Node's built-in SQLite, the hourly sealer, the public immune test, backups, the admin password and the holder count for $SYNOVAX. It only ever handles ciphertext for what you write.</p></div>
+    <div class="d-fact"><b>web/vault/</b><p>The vault app: sign in, memories, inbox, apps, read log, settings. Plain JavaScript modules, encrypting in your browser.</p></div>
+    <div class="d-fact"><b>connector/</b><p>The MCP server people run on their own machine, with search by words and, optionally, by meaning with a local model.</p></div>
+    <div class="d-fact"><b>web/ (the rest)</b><p>The home page, the docs, the admin panel and these pages. The sources of these pages are in <code>site/pages/</code>, built by <code>scripts/build-pages.mjs</code>.</p></div>
+    <div class="d-fact"><b>test/</b><p>End-to-end checks against a real server and connector, a headless browser test of every flow, and tests for the wallet, the immune system, the test vectors and search by meaning.</p></div>
+  </div>
+</section>
+
+<section class="d-ch" id="run">
+  <h2>Your own SYNOVAX</h2>
+  <p>Needs Node.js 22.13 or newer, for the built-in SQLite. It serves on <code>http://127.0.0.1:8787</code> and keeps its data in <code>./data</code>. Nothing else is required: no account, no external database, no third-party service.</p>
+  <div class="code"><div class="code-bar"><span>Terminal</span><button type="button" data-copy>copy</button></div><pre><code>git clone https://github.com/Synovax-Dev/Synovax-Technology.git
+cd Synovax-Technology
+npm start</code></pre></div>
+  <ul>
+    <li>Your vault then lives on your own machine, and your connector points at your own address. The vault shows the connector's path for you.</li>
+    <li>On first start the server prints a random admin password once; change it in the admin panel, or set <code>ADMIN_PASSWORD</code>.</li>
+    <li>For a public address, put it behind HTTPS (a reverse proxy) with <code>HOST=0.0.0.0</code> and <code>TRUST_PROXY=1</code>, and back up the data folder.</li>
+  </ul>
+</section>
+
+<section class="d-ch" id="tests">
+  <h2>Tests</h2>
+  <div class="code"><div class="code-bar"><span>Terminal</span><button type="button" data-copy>copy</button></div><pre><code>npm test               # end to end: server, crypto and connector over MCP
+npm run test:ui        # every flow in headless Chrome or Edge, desktop and phone
+npm run test:immune    # every attack in every disguise, and no false alarms
+npm run test:vectors   # the open standard's test vectors
+npm run test:wallet    # connect wallet and the holder count
+npm run test:semantic  # search by meaning (downloads the model)</code></pre></div>
+</section>
+
+<section class="d-ch" id="settings">
+  <h2>Settings</h2>
+  <div class="tbl"><table>
+    <thead><tr><th>Variable</th><th>Default</th><th>Meaning</th></tr></thead>
+    <tbody>
+      <tr><td><code>PORT</code>, <code>HOST</code></td><td>8787, 127.0.0.1</td><td>Where the server listens.</td></tr>
+      <tr><td><code>DATA_DIR</code></td><td>./data</td><td>The database, secrets and backups.</td></tr>
+      <tr><td><code>SEAL_PERIOD_MS</code></td><td>3600000</td><td>How often the read log is sealed.</td></tr>
+      <tr><td><code>SEAL_PUBLISH_URL</code></td><td>off</td><td>Post every new seal to this webhook, so a copy of the chain lives elsewhere.</td></tr>
+      <tr><td><code>IMMUNE_TEST</code></td><td>on</td><td>The public hourly test of the hidden-instruction checks. <code>off</code> turns it off.</td></tr>
+      <tr><td><code>TRUST_PROXY</code></td><td>0</td><td>How many reverse proxies are in front, so rate limits see real addresses.</td></tr>
+      <tr><td><code>TLS_CERT</code>, <code>TLS_KEY</code></td><td>off</td><td>Serve HTTPS directly.</td></tr>
+      <tr><td><code>BACKUP_INTERVAL_MS</code>, <code>BACKUP_KEEP</code></td><td>6 hours, 14</td><td>Automatic database copies.</td></tr>
+      <tr><td><code>STATS_MIN_VAULTS</code></td><td>100</td><td>Totals appear on the home and status pages from this many vaults.</td></tr>
+    </tbody>
+  </table></div>
+  <p>Every setting, including those for the $SYNOVAX section, is in the <a href="https://github.com/Synovax-Dev/Synovax-Technology#readme" target="_blank" rel="noopener noreferrer">README</a>.</p>
+</section>
+
+<section class="d-ch" id="license">
+  <h2>License</h2>
+  <p class="big">MIT. Use it, change it, host it, build on it, for any purpose, free of charge.</p>
+  <p>The license asks only that the copyright notice stays with the code, and it comes without warranty.</p>
+</section>
+
+<section class="d-ch" id="taking-part">
+  <h2>Taking part</h2>
+  <p>Open an issue or a pull request on the repository. Security problems go through the repository's private vulnerability reporting instead of a public issue, so they can be fixed before they are known.</p>
+</section>

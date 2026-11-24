@@ -1,0 +1,164 @@
+<!--
+title: API reference
+description: Every SYNOVAX endpoint: public ones anyone can call, the app endpoints the connector uses, and the vault session API.
+section: developers
+eyebrow: API reference
+h1: A small API,|read only where|it matters
+lead: Public endpoints anyone can call, app endpoints an app key can call, and the session API the vault page uses. Apps can read what they were given and, when allowed, suggest sealed memories; they cannot change one. Everything an app endpoint returns is encrypted.
+next: connector, standard, verify
+-->
+<section class="d-ch" id="basics">
+  <h2>Basics</h2>
+  <p>Every path is relative to the SYNOVAX server your vault lives on, for example <code>https://synovax.tech</code>. Requests and responses are JSON. An error is JSON too, <code>{ "error": "..." }</code>, with an HTTP status that says what kind (below). A request body is at most 4 MB, except a folder key rotation, which may be 64 MB.</p>
+  <div class="code"><div class="code-bar"><span>Terminal</span><button type="button" data-copy>copy</button></div><pre><code>curl https://synovax.tech/api/seals?limit=3</code></pre></div>
+  <dl class="p-kv">
+    <dt>Public</dt><dd>No key, no session.</dd>
+    <dt>App</dt><dd><code>Authorization: Bearer a.&lt;app id&gt;.&lt;token&gt;</code>. The token is HKDF-SHA256 of the app key's secret with the label <code>vault/app/auth/v1</code>, in base64url; the server keeps its SHA-256.</dd>
+    <dt>Vault</dt><dd><code>Authorization: Bearer s.&lt;session token&gt;</code>, from signing in. Never a cookie.</dd>
+    <dt>Admin</dt><dd><code>Authorization: Bearer adm.&lt;admin token&gt;</code>, from the admin password. Only the public token details.</dd>
+  </dl>
+</section>
+
+<section class="d-ch" id="public">
+  <h2>Public endpoints</h2>
+
+  <div class="p-ep" id="status"><div class="p-ep-h"><span class="p-m">GET</span><code>/api/status</code><span class="auth">public</span></div>
+    <p>Health of the server, the database, the seal job, the immune test and backups. Powers the <a href="/status/">status</a> page.</p>
+    <div class="code"><div class="code-bar"><span>Response</span></div><pre><code>{
+  "ok": true,
+  "time": "2026-11-25T10:00:04.512Z",
+  "startedAt": 1764057600000,
+  "uptimeMs": 86400000,
+  "database": { "state": "ok", "ms": 0.3 },
+  "seals": {
+    "job": "ok", "periodMs": 3600000, "nextCloseAt": 1764068400000,
+    "open": 2, "overdue": 0, "lastRunAt": 1764064790000,
+    "latest": { "seq": 41, "periodStart": 1764061200000, "periodEnd": 1764064800000,
+                "root": "…", "count": 7, "prev": "…", "chain": "…" },
+    "total": 41, "published": false
+  },
+  "immune": { "enabled": true, "latest": { "hourStart": 1764064800000, "ranAt": 1764064801000, "total": 98, "held": 98 } },
+  "backups": { "enabled": true, "intervalMs": 21600000, "lastAt": 1764050000000 },
+  "counts": null,
+  "statsMinVaults": 100
+}</code></pre></div>
+    <p><code>job</code> is <code>ok</code>, <code>starting</code>, <code>behind</code> (reads from a finished period not sealed yet), <code>late</code> or <code>failed</code>. <code>open</code> counts reads waiting for the running period; <code>overdue</code> counts unsealed reads of finished periods. <code>counts</code> stays <code>null</code> until the server holds <code>statsMinVaults</code> vaults.</p>
+  </div>
+
+  <div class="p-ep"><div class="p-ep-h"><span class="p-m">GET</span><code>/api/seals</code><span class="auth">public</span></div>
+    <p>The newest seals, newest first. <code>?limit=</code> 1 to 500 (50 by default). With <code>?from=&lt;seq&gt;</code>, seals from that number on, oldest first, to walk the chain.</p>
+    <div class="code"><div class="code-bar"><span>Response</span></div><pre><code>{
+  "seals": [{ "seq": 41, "periodStart": 1764061200000, "periodEnd": 1764064800000,
+              "root": "…", "count": 7, "prev": "…", "chain": "…" }],
+  "periodMs": 3600000,
+  "nextCloseAt": 1764068400000
+}</code></pre></div>
+  </div>
+
+  <div class="p-ep"><div class="p-ep-h"><span class="p-m">GET</span><code>/api/seals/:seq</code><span class="auth">public</span></div>
+    <p>One seal by its number, in the same shape. 404 when there is none.</p>
+  </div>
+
+  <div class="p-ep"><div class="p-ep-h"><span class="p-m">GET</span><code>/api/seals/:seq/proof?leaf=&lt;hex&gt;</code><span class="auth">public</span></div>
+    <p>The Merkle proof for one leaf of a seal. A leaf is a salted hash and says nothing about the read behind it. 404 when the leaf is not part of that seal.</p>
+    <div class="code"><div class="code-bar"><span>Response</span></div><pre><code>{ "seal": { "seq": 41, "root": "…", … }, "leaf": "…", "leafIndex": 3,
+  "proof": [{ "side": "R", "hash": "…" }, { "side": "L", "hash": "…" }] }</code></pre></div>
+  </div>
+
+  <div class="p-ep"><div class="p-ep-h"><span class="p-m">GET</span><code>/api/immune</code><span class="auth">public</span></div>
+    <p>The public test of the hidden-instruction checks: the attacks and disguises, the latest round with every result, and the recent rounds (<code>?limit=</code> 1 to 500, 48 by default). <code>GET /api/immune/:hour</code> gives one round by its start time in milliseconds.</p>
+    <div class="code"><div class="code-bar"><span>Response</span></div><pre><code>{
+  "enabled": true, "periodMs": 3600000, "nextAt": 1764068400000,
+  "strains": [{ "id": "override", "name": "Ignore previous instructions", "text": "…" }],
+  "disguises": [{ "id": "plain", "name": "As written" }],
+  "latest": { "hourStart": 1764064800000, "ranAt": 1764064801000, "total": 98, "held": 98,
+              "prev": "…", "hash": "…", "results": [{ "strain": "override", "disguise": "plain", "held": true }] },
+  "recent": [{ "hourStart": 1764064800000, "ranAt": 1764064801000, "total": 98, "held": 98, "prev": "…", "hash": "…" }]
+}</code></pre></div>
+  </div>
+
+  <div class="p-ep"><div class="p-ep-h"><span class="p-m">GET</span><code>/api/stats</code><span class="auth">public</span></div>
+    <p>Totals: <code>{ "vaults", "memories", "reads", "seals" }</code>. Counts only.</p>
+  </div>
+
+  <div class="p-ep"><div class="p-ep-h"><span class="p-m">GET</span><code>/api/config</code><span class="auth">public</span></div>
+    <p>What the vault page needs before signing in: <code>{ "appName", "sealPeriodMs", "iterations", "statsMinVaults", "connectorPath" }</code>. <code>connectorPath</code> is set only on a server running on your own machine.</p>
+  </div>
+
+  <div class="p-ep"><div class="p-ep-h"><span class="p-m">GET</span><code>/api/token</code> · <code>/api/token/holders</code><span class="auth">public</span></div>
+    <p>The public $SYNOVAX details the admin published, and the top 20 holders counted from Robinhood Chain (<code>{ "available": false, "reason": "no-contract" }</code> before a contract address is published; <code>"stale": true</code> when the last good list is served because the chain could not be reached).</p>
+  </div>
+</section>
+
+<section class="d-ch" id="auth">
+  <h2>Signing in</h2>
+  <p>The browser derives everything from the passphrase or the 24 words; these routes only ever see the derived sign-in key, never what unlocks the vault.</p>
+  <div class="p-ep"><div class="p-ep-h"><span class="p-m p-m--post">POST</span><code>/api/auth/salt</code><span class="auth">public · 60 a minute</span></div>
+    <p><code>{ "username" }</code> → <code>{ "salt", "iterations" }</code>. Names that do not exist get a made-up but stable salt.</p></div>
+  <div class="p-ep"><div class="p-ep-h"><span class="p-m p-m--post">POST</span><code>/api/auth/register</code><span class="auth">public · 10 an hour</span></div>
+    <p><code>{ "username", "salt", "iterations", "authKey", "recoveryAuthKey", "wrappedVaultKey", "wrappedVaultKeyRecovery", "boxPub", "boxPrivWrapped" }</code> → <code>{ "token", "keys" }</code>. 409 when the name is taken.</p></div>
+  <div class="p-ep"><div class="p-ep-h"><span class="p-m p-m--post">POST</span><code>/api/auth/login</code><span class="auth">public</span></div>
+    <p><code>{ "username", "authKey", "totp"? }</code> → <code>{ "token", "keys" }</code>. 401 with <code>"needTotp": true</code> when a two-step code is needed.</p></div>
+  <div class="p-ep"><div class="p-ep-h"><span class="p-m p-m--post">POST</span><code>/api/auth/recover</code><span class="auth">public</span></div>
+    <p><code>{ "username", "recoveryAuthKey" }</code> → <code>{ "token", "twoFactorReset", "keys" }</code>, the keys including the copy locked with the 24 words.</p></div>
+  <div class="p-ep"><div class="p-ep-h"><span class="p-m p-m--post">POST</span><code>/api/auth/logout</code><span class="auth">vault</span></div>
+    <p>Ends this session.</p></div>
+</section>
+
+<section class="d-ch" id="app">
+  <h2>App endpoints</h2>
+  <p>What the connector calls. Each is written to the owner's read log before it answers.</p>
+  <div class="p-ep"><div class="p-ep-h"><span class="p-m">GET</span><code>/api/app/info</code><span class="auth">app</span></div>
+    <p>The folders this app may read, with the folder keys wrapped for it, whether it may suggest, and the vault's inbox key with its tag. Logged as <i>folders</i>.</p>
+    <div class="code"><div class="code-bar"><span>Response</span></div><pre><code>{ "appId": "…", "canSuggest": true, "boxPub": "…", "vouch": "…",
+  "folders": [{ "id": "…", "meta": "v1.…", "wrappedKey": "v1.…" }] }</code></pre></div></div>
+  <div class="p-ep"><div class="p-ep-h"><span class="p-m">GET</span><code>/api/app/memories</code><span class="auth">app</span></div>
+    <p>The encrypted heads (title, tags, first 240 characters) of every memory in the granted folders, or in one with <code>?folderId=</code>. Search happens on the caller's side. Logged as <i>list</i>, with the folder or <code>*</code>.</p>
+    <div class="code"><div class="code-bar"><span>Response</span></div><pre><code>{ "memories": [{ "id": "…", "folderId": "…", "head": "v1.…", "createdAt": 1764000000000, "updatedAt": 1764000000000 }] }</code></pre></div></div>
+  <div class="p-ep"><div class="p-ep-h"><span class="p-m">GET</span><code>/api/app/memories/:id</code><span class="auth">app</span></div>
+    <p>One memory with its encrypted body. 404 for a memory outside the granted folders, without saying whether it exists. Logged as <i>read</i>.</p></div>
+  <div class="p-ep"><div class="p-ep-h"><span class="p-m p-m--post">POST</span><code>/api/app/suggest</code><span class="auth">app · 30 an hour</span></div>
+    <p><code>{ "box": "box1.…" }</code>, a suggestion sealed to the vault's inbox key → <code>{ "id" }</code>. 403 unless the owner allowed suggestions; 429 over the hourly limit or with 500 waiting. Logged as <i>suggest</i>.</p></div>
+  <div class="p-ep"><div class="p-ep-h"><span class="p-m p-m--post">POST</span><code>/api/app/caught</code><span class="auth">app · 300 an hour</span></div>
+    <p><code>{ "ids": [ … ] }</code>, 1 to 50 memory ids from which the connector removed hidden instructions → <code>{ "logged" }</code>. Ids outside the granted folders are ignored. Each is logged as <i>caught</i>.</p></div>
+</section>
+
+<section class="d-ch" id="vault">
+  <h2>The vault session API</h2>
+  <p>The vault page itself uses these. They take only ciphertext for anything you wrote, and a vault session. They are not meant for other programs, but nothing stops you: the whole router is one readable file, <code>server/index.js</code>.</p>
+  <div class="tbl tbl--api"><table>
+    <thead><tr><th>Route</th><th>What it does</th></tr></thead>
+    <tbody>
+      <tr><td>GET /api/vault</td><td>Your key bundle, folders and memories, as ciphertext.</td></tr>
+      <tr><td>PUT /api/folders/:id</td><td>Make or rename a folder (encrypted name, wrapped key). At most 200.</td></tr>
+      <tr><td>POST /api/folders/:id/rotate</td><td>A new folder key: every memory encrypted again, and the apps that keep access get the new key, in one step. 409 if the folder changed meanwhile.</td></tr>
+      <tr><td>DELETE /api/folders/:id</td><td>Delete a folder and its memories.</td></tr>
+      <tr><td>PUT /api/memories/:id</td><td>Save a memory (encrypted head and body). At most 20,000.</td></tr>
+      <tr><td>DELETE /api/memories/:id</td><td>Delete a memory.</td></tr>
+      <tr><td>GET, PUT, PATCH, DELETE /api/apps…</td><td>List, add, change the folders and suggestion switch of, or revoke an app. At most 50.</td></tr>
+      <tr><td>GET /api/inbox, DELETE /api/inbox/:id</td><td>Suggestions waiting, as sealed boxes; remove one after you decide.</td></tr>
+      <tr><td>GET /api/log, GET /api/log/:id/proof</td><td>Your read log with salts, and the proof of one entry.</td></tr>
+      <tr><td>GET /api/sessions, DELETE /api/sessions/:id, POST /api/sessions/sign-out-others</td><td>Signed-in devices.</td></tr>
+      <tr><td>GET /api/account, PUT /api/account/passphrase, DELETE /api/account</td><td>Your key bundle and switches; a new passphrase (signs out other sessions); delete everything (type your vault name to confirm).</td></tr>
+      <tr><td>POST /api/account/2fa/setup, enable, disable</td><td>Two-step sign-in.</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="d-ch" id="errors">
+  <h2>Errors and limits</h2>
+  <div class="tbl"><table>
+    <thead><tr><th>Status</th><th>Meaning</th></tr></thead>
+    <tbody>
+      <tr><td>400</td><td>The request is malformed. The message names the field.</td></tr>
+      <tr><td>401</td><td>No session, an ended session, a wrong sign-in, or an app key that was revoked or never existed.</td></tr>
+      <tr><td>403</td><td>The app may not do this: a folder it was not given, or suggestions while they are off.</td></tr>
+      <tr><td>404</td><td>No such endpoint, or nothing there that you may see.</td></tr>
+      <tr><td>405</td><td>A method other than GET or HEAD for a page.</td></tr>
+      <tr><td>409</td><td>A name already taken, a folder that changed while its key was being replaced, or a newer save of the token details.</td></tr>
+      <tr><td>413</td><td>The request is too large.</td></tr>
+      <tr><td>429</td><td>Too many requests. Wait a little and try again.</td></tr>
+    </tbody>
+  </table></div>
+  <p>Sign-in limits count failed attempts only: 10 a minute per name and address for a passphrase, 5 per 10 minutes for the 24 words, 200 failures an hour per vault (blocking only addresses that failed on it), and 20 sign-in requests a minute per address. Two-step changes: 10 per 10 minutes per vault. Admin sign-in: 5 failures per 15 minutes per address.</p>
+</section>

@@ -1,0 +1,38 @@
+<!--
+title: Status
+description: Is SYNOVAX working right now? This page asks the server directly, from your browser, every 30 seconds.
+section: trust
+eyebrow: Status
+h1: Is it working|right now
+lead: This page asks the server directly, from your browser, every 30 seconds. Nothing on it is written by hand.
+next: immune, verify, reference
+-->
+<section class="d-ch" id="now">
+  <h2>Right now</h2>
+  <div class="p-live" aria-live="polite">
+    <div class="p-live-head" data-status-head><i class="p-dot"></i><div><h3>Asking the server…</h3><p>This takes a moment.</p></div></div>
+    <ul class="p-rows" data-status-rows></ul>
+  </div>
+  <div data-status-counts></div>
+</section>
+
+<section class="d-ch" id="lines">
+  <h2>What each line means</h2>
+  <dl class="p-kv">
+    <dt>Site and API</dt><dd>The server that stores vaults and answers the vault page and the connector. If it does not answer, this page says so.</dd>
+    <dt>Vault database</dt><dd>Where the encrypted vaults live. The status request reads from it, so an answer means it is reachable.</dd>
+    <dt>Seal job</dt><dd>Folds every finished hour of reads into one seal. <i>Catching up</i> means reads from a finished hour are not sealed yet; <i>late</i> or <i>failed</i> means the job stopped.</dd>
+    <dt>Seal copies</dt><dd>Whether each seal is also posted to a webhook outside this server, so a copy of the chain lives where the server cannot change it.</dd>
+    <dt>Immune test</dt><dd>The public hourly attack on the hidden-instruction checks. Its full record is on the <a href="/immune/">immune</a> page.</dd>
+    <dt>Backups</dt><dd>Automatic copies of the database on the server's disk. They hold the same ciphertext as the database.</dd>
+    <dt>Waiting reads</dt><dd>Reads made in the running hour. They are sealed when the hour is over, never earlier.</dd>
+    <dt>The totals</dt><dd>Totals only, shown once the server holds 100 vaults. Nothing in them names a person, a vault, an app or a memory.</dd>
+  </dl>
+</section>
+
+<section class="d-ch" id="yourself">
+  <h2>Ask it yourself</h2>
+  <p>The same public endpoint this page uses. No key is needed. The full answer is described in the <a href="/reference/#status">API reference</a>.</p>
+  <div class="code"><div class="code-bar"><span>Terminal</span><button type="button" data-copy>copy</button></div><pre><code>curl https://synovax.tech/api/status
+curl https://synovax.tech/api/seals?limit=3</code></pre></div>
+</section>

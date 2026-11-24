@@ -37,6 +37,8 @@ async function publish(url, s) {
 // about who read what; each vault can still prove its own entries.
 export function startSealer(db, periodMs, { publishUrl = '' } = {}) {
   let busy = true;
+  // for the status page: when the job last ran to the end, and its last error
+  const state = { lastTickAt: null, lastError: null, intervalMs: Math.max(250, Math.min(periodMs / 4, 30_000)) };
   const tick = async () => {
     if (busy) return;
     busy = true;
@@ -75,16 +77,19 @@ export function startSealer(db, periodMs, { publishUrl = '' } = {}) {
         });
         if (made) await publish(publishUrl, { ...draft, prev, chain });
       }
+      state.lastTickAt = Date.now();
+      state.lastError = null;
     } catch (e) {
       console.error('[seals]', e);
+      state.lastError = { at: Date.now(), message: String(e?.message ?? e).slice(0, 200) };
     } finally {
       busy = false;
     }
   };
   backfillChain(db).catch((e) => console.error('[seals] chain backfill failed', e)).finally(() => { busy = false; tick(); });
-  const timer = setInterval(tick, Math.max(250, Math.min(periodMs / 4, 30_000)));
+  const timer = setInterval(tick, state.intervalMs);
   timer.unref();
-  return timer;
+  return { timer, state };
 }
 
 export async function proofFor(db, vaultId, logId) {

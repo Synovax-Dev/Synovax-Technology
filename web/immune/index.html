@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>Immune system · SYNOVAX</title>
+  <meta name="description" content="How SYNOVAX keeps instructions hidden in mail, chats and imports from steering your AI, and the public test that attacks those checks every hour.">
+  <link rel="canonical" href="https://synovax.tech/immune/">
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="SYNOVAX">
+  <meta property="og:title" content="Immune system · SYNOVAX">
+  <meta property="og:description" content="How SYNOVAX keeps instructions hidden in mail, chats and imports from steering your AI, and the public test that attacks those checks every hour.">
+  <meta property="og:image" content="https://synovax.tech/og.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="preload" href="/fonts/oswald-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/fonts/space-grotesk-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/docs/docs.css">
+  <link rel="stylesheet" href="/pages/pages.css">
+  <script type="module" src="/pages/pages.js"></script>
+</head>
+<!-- Built by scripts/build-pages.mjs from site/pages/immune.html. Edit that file, then run npm run pages. -->
+<body data-page="immune">
+  <svg width="0" height="0" class="sprite" aria-hidden="true">
+    <symbol id="i-mark" viewBox="0 0 24 24"><path d="M21.64 1L4.2 7.77L10.6 12.33C9.72 11.6 9.72 10.34 10.75 9.98L17.59 6.89ZM2.36 23L19.8 16.23L13.4 11.67C14.28 12.4 14.28 13.66 13.25 14.02L6.41 17.11Z" fill="currentColor"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 13.7071 10.7071"><path d="M0 5.35355H13M8 10.3536L13 5.35355L8 0.353553" fill="none" stroke="currentColor"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 16 16"><path d="M1.5 4h13M1.5 8h13M1.5 12h13" stroke="currentColor" stroke-width="1.4"/></symbol>
+    <symbol id="i-info" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.8" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 7v4.6M8 4.4v1.4" stroke="currentColor" stroke-width="1.4"/></symbol>
+    <symbol id="i-warn" viewBox="0 0 16 16"><path d="M8 1.6L15 14H1Z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M8 6v4M8 11.4v1.4" stroke="currentColor" stroke-width="1.4"/></symbol>
+    <symbol id="i-check" viewBox="0 0 16 16"><path d="M2.5 8.5l3.5 3.5 7.5-8" fill="none" stroke="currentColor" stroke-width="1.6"/></symbol>
+    <symbol id="i-x" viewBox="0 0 16 16"><path d="M3 3l10 10M13 3L3 13" fill="none" stroke="currentColor" stroke-width="1.6"/></symbol>
+    <symbol id="i-github" viewBox="0 0 16 16"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.06-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></symbol>
+  </svg>
+
+  <a class="skip" href="#content">Skip to content</a>
+
+  <header class="d-top p-top">
+    <a class="d-logo" href="/" aria-label="SYNOVAX home">
+      <svg aria-hidden="true"><use href="#i-mark"/></svg><span>synovax</span><em>trust</em>
+    </a>
+    <nav class="d-topnav p-nav" aria-label="Site">
+      <a href="/how-it-works/">How it works</a>
+      <a href="/security/">Security</a>
+      <a href="/threat-model/">Threat model</a>
+      <a href="/immune/" aria-current="page">Immune system</a>
+      <a href="/status/">Status</a>
+      <a href="/docs/">Docs</a>
+    </nav>
+    <a class="p-gh" href="https://github.com/Synovax-Dev/Synovax-Technology" target="_blank" rel="noopener noreferrer" aria-label="SYNOVAX on GitHub" title="SYNOVAX on GitHub"><svg aria-hidden="true"><use href="#i-github"/></svg></a>
+    <a class="d-cta" href="/vault/">open vault <svg aria-hidden="true"><use href="#i-arrow"/></svg></a>
+    <button class="d-burger p-burger" type="button" aria-expanded="false" aria-controls="p-menu" data-menu><svg aria-hidden="true"><use href="#i-menu"/></svg><span>menu</span></button>
+  </header>
+  <nav class="p-menu" id="p-menu" aria-label="All pages" hidden>
+    <div><p>Product</p><a href="/vault/">Vault</a><a href="/docs/">Docs</a><a href="/#token">$SYNOVAX</a><a href="/">Home</a></div>
+    <div><p>Trust</p><a href="/how-it-works/">How it works</a><a href="/security/">Security</a><a href="/threat-model/">Threat model</a><a href="/immune/" aria-current="page">Immune system</a><a href="/privacy/">Privacy</a><a href="/status/">Status</a></div>
+    <div><p>Developers</p><a href="/connector/">Connector</a><a href="/reference/">API reference</a><a href="/standard/">Open standard</a><a href="/verify/">Verify</a><a href="/open-source/">Open source</a><a href="https://github.com/Synovax-Dev/Synovax-Technology" target="_blank" rel="noopener noreferrer">GitHub ↗</a></div>
+  </nav>
+
+  <section class="d-hero p-hero" aria-labelledby="p-h1">
+    <div class="d-hero-in p-hero-in">
+      <div>
+        <p class="d-eyebrow">Immune system</p>
+        <h1 class="d-h1" id="p-h1"><span>Attacked every</span><span>hour, in public</span></h1>
+        <p class="p-lead">Mail, chats and imports can carry text written to steer an AI. Every memory is checked before a model sees it, and every hour this server attacks those checks with a fresh set of disguised attacks and publishes what happened.</p>
+      </div>
+    </div>
+    <span class="d-corner d-corner--tl" aria-hidden="true"></span>
+    <span class="d-corner d-corner--br" aria-hidden="true"></span>
+  </section>
+
+  <div class="p-layout">
+    <main id="content" class="p-main">
+      <section class="d-ch" id="record">
+        <h2>The latest round</h2>
+        <p>Each row is an attack, each column a disguise. A filled square means the attack was held: its instruction no longer reached the model's input. A dashed one means it got through.</p>
+        <div class="p-live" data-immune aria-live="polite"><p class="p-note">Loading the record…</p></div>
+        <p>The same record, as data: <code>GET /api/immune</code> for the latest round and the hours before it, <code>GET /api/immune/&lt;hour&gt;</code> for one round by its start time in milliseconds.</p>
+      </section>
+
+      <section class="d-ch" id="defences">
+        <h2>Three lines of defense</h2>
+        <div class="d-grid3">
+          <div class="d-fact"><b>Checked on the way in</b><p>When a memory is imported, suggested by an app, or opened in the editor, your vault reads it on your device. Imports leave out what looks like instructions for an AI unless you take it; suggestions and memories show a "looks like instructions for an AI" note with the reasons.</p></div>
+          <div class="d-fact"><b>Removed and quoted on the way out</b><p>Before the connector hands any memory to a model, it drops invisible characters, replaces each flagged place with a marker, and quotes the text between delimiters carrying a code that is new for every answer, with a note that it is data, never instructions.</p></div>
+          <div class="d-fact d-fact--solid"><b>On the record</b><p>Every time the connector removes something, a "caught" line goes in your read log, sealed with its hour. The server gets the memory's id, never its text.</p></div>
+        </div>
+      </section>
+
+      <section class="d-ch" id="rules">
+        <h2>What the checks look for</h2>
+        <p>The text is read after removing invisible characters and mapping look-alike Cyrillic and Greek letters to Latin ones, in lower case, so a disguise does not change what is matched. The rules go after what an owner would not write about themselves, and leave preferences alone: "answer in short bullet points" or "act as a strict code reviewer" pass untouched.</p>
+        <div class="tbl"><table>
+          <thead><tr><th>Kind</th><th>What it finds</th></tr></thead>
+          <tbody>
+            <tr><td>Instruction override</td><td>Ignoring or replacing the instructions an AI already has; "new instructions:"; keeping something from the user.</td></tr>
+            <tr><td>Fake system message</td><td>Chat template tokens such as <code>&lt;|im_start|&gt;</code>, system or assistant tags, <code>[SYSTEM]</code>, and a "System:" line that goes on to give orders.</td></tr>
+            <tr><td>Sending data away</td><td>Asking to send memories, keys, passwords or the conversation to a web or email address; image links whose address carries data out.</td></tr>
+            <tr><td>Tool call</td><td>The connector's tool names with a verb that calls them, tool-call markup, and tool calls written as JSON.</td></tr>
+            <tr><td>Payment request</td><td>Asking to send or move money or tokens to a wallet address, or to approve a token allowance.</td></tr>
+            <tr><td>Jailbreak phrase</td><td>Developer mode, "do anything now", "no longer bound by your rules" and the like.</td></tr>
+            <tr><td>Hidden text</td><td>Zero-width characters, direction controls and Unicode tag characters (a joiner inside an emoji is allowed); words that mix Latin with look-alike letters; text styled out of sight.</td></tr>
+            <tr><td>Encoded instructions</td><td>A run of base64 that decodes to text the other rules flag.</td></tr>
+          </tbody>
+        </table></div>
+        <p>A flagged place is removed with the paragraph around it, since half an instruction left behind can still steer; in a very long paragraph, only the sentence goes. A place inside an HTML comment is removed with the whole comment. The rules are in <code>shared/immune.js</code>, the one file the vault, the connector and this test all use.</p>
+      </section>
+
+      <section class="d-ch" id="round">
+        <h2>How a round works, and what it does not prove</h2>
+        <p>At the start of every hour the server takes each attack, dresses it in each disguise (random capitals, invisible characters, look-alike letters, an HTML comment, base64, a quoted email), and places it in a test memory between ordinary ones. Where the invisible characters go, which letters are swapped and which ordinary memories surround it change with the hour, from a seed made from the hour itself, so anyone can run a round again and get the same result.</p>
+        <p>The memory then goes through <code>memoryForModel()</code>, the exact function the connector uses before anything reaches a model. Each attack carries a marker. If the marker (or, for base64, the encoded instruction) is still in the text that would go to the model, the attack got through.</p>
+        <div class="call call--warn"><svg aria-hidden="true"><use href="#i-warn"/></svg><div><b>There is no model in this test</b><p>It measures the checks, not how a model treats quoted data. An attack that gets through here would still reach the model quoted as data, and what a model does with that is up to the model. A round shows how these attacks fared, not that no attack can get through.</p></div></div>
+        <p>Each round's hash covers its hour, its counts and every result, and the hash of the round before it, so a past round cannot be changed without breaking every later one. Rounds are kept for 90 days. To run any hour yourself, from a copy of the code:</p>
+        <div class="code"><div class="code-bar"><span>Terminal</span><button type="button" data-copy>copy</button></div><pre><code>node --input-type=module -e "
+      import { runRound } from './server/immune-round.js';
+      const r = runRound(Date.UTC(2026, 10, 25, 6));
+      console.log(r.held, 'of', r.total, 'held');
+      "</code></pre></div>
+        <p>A server can turn the test off with <code>IMMUNE_TEST=off</code>; this page then says so.</p>
+      </section>
+
+      <nav class="p-next" aria-label="Read next">
+        <p>Read next</p>
+        <div><a href="/threat-model/"><span>Trust</span><b>Threat model</b><em>What SYNOVAX protects against, and what it does not</em><svg aria-hidden="true"><use href="#i-arrow"/></svg></a><a href="/security/"><span>Trust</span><b>Security</b><em>Keys, encryption and where the limits are</em><svg aria-hidden="true"><use href="#i-arrow"/></svg></a><a href="/verify/"><span>Developers</span><b>Verify</b><em>Check a read, a seal or the seal chain by hand</em><svg aria-hidden="true"><use href="#i-arrow"/></svg></a></div>
+      </nav>
+    </main>
+    <aside class="d-toc p-toc" aria-label="On this page">
+      <p>On this page</p>
+      <ol>
+          <li><a href="#record">The latest round</a></li>
+          <li><a href="#defences">Three lines of defense</a></li>
+          <li><a href="#rules">What the checks look for</a></li>
+          <li><a href="#round">How a round works, and what it does not prove</a></li>
+      </ol>
+    </aside>
+  </div>
+
+  <footer class="p-foot">
+    <div class="p-foot-top">
+      <a class="d-logo" href="/" aria-label="SYNOVAX home"><svg aria-hidden="true"><use href="#i-mark"/></svg><span>synovax</span></a>
+      <p>Your AI memory, encrypted on your device.</p>
+    </div>
+    <div class="p-foot-cols">
+      <div><p>Product</p><a href="/vault/">Vault</a><a href="/docs/">Docs</a><a href="/#token">$SYNOVAX</a><a href="/">Home</a></div>
+      <div><p>Trust</p><a href="/how-it-works/">How it works</a><a href="/security/">Security</a><a href="/threat-model/">Threat model</a><a href="/immune/" aria-current="page">Immune system</a><a href="/privacy/">Privacy</a><a href="/status/">Status</a></div>
+      <div><p>Developers</p><a href="/connector/">Connector</a><a href="/reference/">API reference</a><a href="/standard/">Open standard</a><a href="/verify/">Verify</a><a href="/open-source/">Open source</a><a href="https://github.com/Synovax-Dev/Synovax-Technology" target="_blank" rel="noopener noreferrer">GitHub ↗</a></div>
+    </div>
+    <p class="p-foot-copy">© 2026 SYNOVAX. Free and open source (MIT). Not yet independently audited. Not affiliated with Robinhood.</p>
+  </footer>
+</body>
+</html>

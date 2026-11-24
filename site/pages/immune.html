@@ -1,0 +1,57 @@
+<!--
+title: Immune system
+description: How SYNOVAX keeps instructions hidden in mail, chats and imports from steering your AI, and the public test that attacks those checks every hour.
+section: trust
+eyebrow: Immune system
+h1: Attacked every|hour, in public
+lead: Mail, chats and imports can carry text written to steer an AI. Every memory is checked before a model sees it, and every hour this server attacks those checks with a fresh set of disguised attacks and publishes what happened.
+next: threat-model, security, verify
+-->
+<section class="d-ch" id="record">
+  <h2>The latest round</h2>
+  <p>Each row is an attack, each column a disguise. A filled square means the attack was held: its instruction no longer reached the model's input. A dashed one means it got through.</p>
+  <div class="p-live" data-immune aria-live="polite"><p class="p-note">Loading the record…</p></div>
+  <p>The same record, as data: <code>GET /api/immune</code> for the latest round and the hours before it, <code>GET /api/immune/&lt;hour&gt;</code> for one round by its start time in milliseconds.</p>
+</section>
+
+<section class="d-ch" id="defences">
+  <h2>Three lines of defense</h2>
+  <div class="d-grid3">
+    <div class="d-fact"><b>Checked on the way in</b><p>When a memory is imported, suggested by an app, or opened in the editor, your vault reads it on your device. Imports leave out what looks like instructions for an AI unless you take it; suggestions and memories show a "looks like instructions for an AI" note with the reasons.</p></div>
+    <div class="d-fact"><b>Removed and quoted on the way out</b><p>Before the connector hands any memory to a model, it drops invisible characters, replaces each flagged place with a marker, and quotes the text between delimiters carrying a code that is new for every answer, with a note that it is data, never instructions.</p></div>
+    <div class="d-fact d-fact--solid"><b>On the record</b><p>Every time the connector removes something, a "caught" line goes in your read log, sealed with its hour. The server gets the memory's id, never its text.</p></div>
+  </div>
+</section>
+
+<section class="d-ch" id="rules">
+  <h2>What the checks look for</h2>
+  <p>The text is read after removing invisible characters and mapping look-alike Cyrillic and Greek letters to Latin ones, in lower case, so a disguise does not change what is matched. The rules go after what an owner would not write about themselves, and leave preferences alone: "answer in short bullet points" or "act as a strict code reviewer" pass untouched.</p>
+  <div class="tbl"><table>
+    <thead><tr><th>Kind</th><th>What it finds</th></tr></thead>
+    <tbody>
+      <tr><td>Instruction override</td><td>Ignoring or replacing the instructions an AI already has; "new instructions:"; keeping something from the user.</td></tr>
+      <tr><td>Fake system message</td><td>Chat template tokens such as <code>&lt;|im_start|&gt;</code>, system or assistant tags, <code>[SYSTEM]</code>, and a "System:" line that goes on to give orders.</td></tr>
+      <tr><td>Sending data away</td><td>Asking to send memories, keys, passwords or the conversation to a web or email address; image links whose address carries data out.</td></tr>
+      <tr><td>Tool call</td><td>The connector's tool names with a verb that calls them, tool-call markup, and tool calls written as JSON.</td></tr>
+      <tr><td>Payment request</td><td>Asking to send or move money or tokens to a wallet address, or to approve a token allowance.</td></tr>
+      <tr><td>Jailbreak phrase</td><td>Developer mode, "do anything now", "no longer bound by your rules" and the like.</td></tr>
+      <tr><td>Hidden text</td><td>Zero-width characters, direction controls and Unicode tag characters (a joiner inside an emoji is allowed); words that mix Latin with look-alike letters; text styled out of sight.</td></tr>
+      <tr><td>Encoded instructions</td><td>A run of base64 that decodes to text the other rules flag.</td></tr>
+    </tbody>
+  </table></div>
+  <p>A flagged place is removed with the paragraph around it, since half an instruction left behind can still steer; in a very long paragraph, only the sentence goes. A place inside an HTML comment is removed with the whole comment. The rules are in <code>shared/immune.js</code>, the one file the vault, the connector and this test all use.</p>
+</section>
+
+<section class="d-ch" id="round">
+  <h2>How a round works, and what it does not prove</h2>
+  <p>At the start of every hour the server takes each attack, dresses it in each disguise (random capitals, invisible characters, look-alike letters, an HTML comment, base64, a quoted email), and places it in a test memory between ordinary ones. Where the invisible characters go, which letters are swapped and which ordinary memories surround it change with the hour, from a seed made from the hour itself, so anyone can run a round again and get the same result.</p>
+  <p>The memory then goes through <code>memoryForModel()</code>, the exact function the connector uses before anything reaches a model. Each attack carries a marker. If the marker (or, for base64, the encoded instruction) is still in the text that would go to the model, the attack got through.</p>
+  <div class="call call--warn"><svg aria-hidden="true"><use href="#i-warn"/></svg><div><b>There is no model in this test</b><p>It measures the checks, not how a model treats quoted data. An attack that gets through here would still reach the model quoted as data, and what a model does with that is up to the model. A round shows how these attacks fared, not that no attack can get through.</p></div></div>
+  <p>Each round's hash covers its hour, its counts and every result, and the hash of the round before it, so a past round cannot be changed without breaking every later one. Rounds are kept for 90 days. To run any hour yourself, from a copy of the code:</p>
+  <div class="code"><div class="code-bar"><span>Terminal</span><button type="button" data-copy>copy</button></div><pre><code>node --input-type=module -e "
+import { runRound } from './server/immune-round.js';
+const r = runRound(Date.UTC(2026, 10, 25, 6));
+console.log(r.held, 'of', r.total, 'held');
+"</code></pre></div>
+  <p>A server can turn the test off with <code>IMMUNE_TEST=off</code>; this page then says so.</p>
+</section>

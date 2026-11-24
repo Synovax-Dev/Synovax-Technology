@@ -111,6 +111,16 @@ CREATE TABLE IF NOT EXISTS admin_audit (
   old   TEXT,
   new   TEXT
 );
+-- the public hourly test of the hidden-instruction checks; each round commits to the one before
+CREATE TABLE IF NOT EXISTS immune_rounds (
+  hour_start INTEGER PRIMARY KEY,
+  created_at INTEGER NOT NULL,
+  total      INTEGER NOT NULL,
+  held       INTEGER NOT NULL,
+  results    TEXT NOT NULL,
+  prev       TEXT NOT NULL,
+  hash       TEXT NOT NULL
+);
 -- rate limits live here, so a restart does not give a guesser a fresh start
 CREATE TABLE IF NOT EXISTS rate_hits (
   key TEXT NOT NULL,

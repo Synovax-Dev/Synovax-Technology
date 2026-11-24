@@ -1,0 +1,95 @@
+<!--
+title: How it works
+description: How SYNOVAX keeps what your AI apps should know about you: encrypted on your device, read only where you allow it, every read sealed.
+section: trust
+eyebrow: How it works
+h1: Your memory,|your keys
+lead: SYNOVAX is a vault for what your AI apps should know about you. Here is everything that happens, from creating a vault to deleting it, and what the server can and cannot see along the way.
+next: security, threat-model, connector
+-->
+<section class="d-ch" id="create">
+  <h2>1. Create your vault</h2>
+  <p class="big">Open the vault, pick a name and a passphrase. Your browser does the rest, and none of it leaves your device in readable form.</p>
+  <p>Your browser makes a random 256-bit <b>vault key</b>. It is locked twice: once with a key made from your passphrase (PBKDF2 with SHA-256, 600,000 rounds, and a random salt), and once with a key made from a <b>24-word recovery phrase</b> that the vault shows you one time. Write the words down. The server receives only the two locked copies, and a check value for each way in that it keeps as a SHA-256 hash.</p>
+  <p>If you lose both the passphrase and the 24 words, nobody can open the vault, SYNOVAX included. That is the point, and there is no reset.</p>
+  <p>You can add two-step sign-in in Settings: a 6-digit code from an authenticator app, each code good once.</p>
+</section>
+
+<section class="d-ch" id="fill">
+  <h2>2. Fill it</h2>
+  <p>A memory has a title, the text, tags and a folder. Write them yourself, or import:</p>
+  <ul>
+    <li>what ChatGPT or Claude remembers about you, pasted one fact per line (ChatGPT: Settings, Personalization, Manage memories; Claude: Settings, Memory);</li>
+    <li>a file exported from a SYNOVAX vault, folders and all.</li>
+  </ul>
+  <p>Everything is encrypted in your browser before it is sent. Imports skip what is already in your vault, and leave out anything that looks like it carries instructions written for an AI, unless you tick the box to take it too (see the <a href="/immune/">immune system</a>).</p>
+</section>
+
+<section class="d-ch" id="folders">
+  <h2>3. Sort it into folders</h2>
+  <p>Folders are how you share. Every folder has its own random key, locked with your vault key, so you can let a coding assistant read <i>Work</i> while it never holds a key that opens <i>Health</i>. Search inside the vault runs in your browser, by words, across everything in it.</p>
+</section>
+
+<section class="d-ch" id="connect">
+  <h2>4. Connect an AI app</h2>
+  <p>In the vault, go to <b>Apps</b>, name the app and tick the folders it may read. The vault makes an <b>app key</b> for it, shown once. Put that key in the config of the <a href="/connector/">SYNOVAX connector</a>, a small program that runs on your own computer, and add the connector to Claude Desktop, Cursor, Windsurf, VS Code or any other app that speaks MCP (the Model Context Protocol).</p>
+  <p>The app key holds a secret. From it come a token the connector shows the server, and a key that opens the folder keys you granted to that app, which your browser locked for it. The server keeps only a SHA-256 hash of the token, so it cannot use the key itself.</p>
+</section>
+
+<section class="d-ch" id="reads">
+  <h2>5. Your AI reads what it needs</h2>
+  <p>The connector gives the AI four tools: <code>list_folders</code>, <code>search_memories</code>, <code>read_memory</code> and, if you allow it, <code>suggest_memory</code>.</p>
+  <ol class="p-flow">
+    <li><b>Your AI app</b><span>Calls a tool, for example search_memories with "what should I avoid eating".</span></li>
+    <li class="is-you"><b>Connector, your computer</b><span>Asks the server for the encrypted titles, tags and first lines of the folders this app may read.</span></li>
+    <li><b>SYNOVAX server</b><span>Checks the token, writes the request to your read log, answers with ciphertext.</span></li>
+    <li class="is-you"><b>Connector, your computer</b><span>Decrypts, searches by words and, if you turned it on, by meaning with a model on your computer. Hands the results to the app.</span></li>
+  </ol>
+  <p>Your search words never reach the server. When the AI wants a memory in full, the connector asks for that one memory, and the server writes the read to your log before it answers.</p>
+  <p>Before anything reaches the model, every memory goes through the hidden-instruction checks: invisible characters are dropped, places that look like instructions for an AI are replaced by a marker, and the rest is handed over quoted as data, never as instructions. Each catch is a line in your read log.</p>
+</section>
+
+<section class="d-ch" id="suggest">
+  <h2>6. Suggestions wait for you</h2>
+  <p>If you let an app suggest memories, the connector seals each suggestion on your computer to your vault's public key (ECDH P-256), after checking that your vault vouched for that key with a secret only the app and your vault share. The suggestion waits in your <b>Inbox</b>, where only your open vault can read it, until you approve or reject it. An app may send 30 an hour, and an inbox holds at most 500. No app can change or delete a memory.</p>
+</section>
+
+<section class="d-ch" id="record">
+  <h2>7. Every read goes on the record</h2>
+  <p>The <b>read log</b> in your vault shows which app did what, and when: listed its folders, searched, read a memory, suggested one, or had hidden instructions removed from one. At the end of every hour, all reads of that hour (from every vault on the server) are folded into one fingerprint, a Merkle root: the seal for that hour. Each seal also commits to the seal before it, so the history forms a chain.</p>
+  <p>Your vault checks any entry against its seal in your browser, and remembers the newest seal it has seen, so a rewritten history would show the next time you open the read log. The <a href="/verify/">Verify</a> page does the same checks with every step shown. A server can also post every seal to a webhook outside its control.</p>
+</section>
+
+<section class="d-ch" id="change">
+  <h2>8. Change your mind at any time</h2>
+  <ul>
+    <li><b>Take a folder away from an app.</b> The folder gets a new key in your browser, every memory in it is encrypted again, and only the apps that keep access get the new key. The old key opens nothing written from then on.</li>
+    <li><b>Revoke an app.</b> Its key stops working on the very next request, its copies of your folder keys are deleted from the server, and its folders get new keys.</li>
+    <li><b>Delete</b> a memory, a folder or your whole account and it is removed from the database, which overwrites deleted rows on disk.</li>
+    <li><b>Export</b> gives you everything, decrypted, as one file. <b>Signed-in devices</b> lists every open session; sign any of them out.</li>
+    <li><b>Change your passphrase</b> and every other session is signed out.</li>
+  </ul>
+  <div class="call call--warn"><svg aria-hidden="true"><use href="#i-warn"/></svg><div><b>One honest limit</b><p>Once an AI app has read a memory, what it does with that text is up to the app and its provider, not SYNOVAX. Revoking stops future reads, not past ones. Give each app only the folders it needs.</p></div></div>
+</section>
+
+<section class="d-ch" id="who-sees">
+  <h2>Who can see what</h2>
+  <div class="d-grid2">
+    <div class="d-fact"><b>The server can see</b><ul>
+      <li>Your vault name, and when the vault was made</li>
+      <li>How many folders and memories there are, their sizes, and when they changed</li>
+      <li>Which app may read which folder (by id)</li>
+      <li>The read log: which app touched which memory id, and when</li>
+      <li>Signed-in sessions, with a browser and system label such as "Chrome on Windows"</li>
+      <li>Your two-step sign-in secret, encrypted with a server key, because it checks the codes</li>
+    </ul></div>
+    <div class="d-fact d-fact--solid"><b>Only you, and apps you allow</b><ul>
+      <li>Every title, text and tag</li>
+      <li>Folder names and app names</li>
+      <li>What an app searched for</li>
+      <li>What a suggestion says</li>
+      <li>Your passphrase, the 24 words, your vault key, folder keys and app keys</li>
+    </ul></div>
+  </div>
+  <p>The full list, with where each item is stored, is on the <a href="/privacy/">privacy</a> page; how it all holds together is on the <a href="/security/">security</a> page.</p>
+</section>

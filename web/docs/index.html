@@ -37,8 +37,9 @@
     </a>
     <nav class="d-topnav" aria-label="Site">
       <a href="/">home</a>
-      <a href="/#security">security</a>
+      <a href="/security/">security</a>
       <a href="/docs/" aria-current="page">docs</a>
+      <a href="/reference/">api</a>
       <a href="https://github.com/Synovax-Dev/Synovax-Technology" target="_blank" rel="noopener noreferrer">github ↗</a>
     </nav>
     <label class="d-search">
@@ -319,6 +320,7 @@
         <header class="d-ch-h"><span class="lvl">02 · connect your ai</span><span class="mins">2 min</span></header>
         <h2>The inbox</h2>
         <p>When an app learns something about you, it can call <code>suggest_memory</code>. The suggestion is sealed in the connector with your vault's public key, so only your vault can open it.</p>
+        <p>Every memory the connector hands to an app is checked first: invisible characters are dropped, text that looks like instructions for an AI is replaced by a marker, and the rest is quoted as data. Each catch shows in your read log. How it works, and the public hourly test, is on the <a href="/immune/">immune system</a> page.</p>
         <ol class="d-steps">
           <li><b>Open Inbox</b><p>New suggestions show up by themselves within 30 seconds (and as soon as you come back to the tab). <b>Refresh</b> checks right away.</p></li>
           <li><b>Read, edit, decide</b><p>Fix the wording, choose the folder and tags, then press <b>Approve</b> to save it, or <b>Remove</b> to throw it away.</p></li>
@@ -600,8 +602,8 @@ node connector/index.js</code></pre></div>
 
   <footer class="d-foot">
     <a class="d-logo" href="/"><svg aria-hidden="true"><use href="#i-mark"/></svg><span>synovax</span></a>
-    <p>© 2026 SYNOVAX. Encrypted on your device. Not yet independently audited.</p>
-    <nav aria-label="Footer"><a href="/">home</a><a href="/vault/">vault</a><a href="#what-is">top</a></nav>
+    <p>© 2026 SYNOVAX. Free and open source (MIT). Not yet independently audited.</p>
+    <nav aria-label="Footer"><a href="/">home</a><a href="/vault/">vault</a><a href="/how-it-works/">how it works</a><a href="/security/">security</a><a href="/threat-model/">threat model</a><a href="/connector/">connector</a><a href="/reference/">api</a><a href="/standard/">standard</a><a href="/status/">status</a><a href="/privacy/">privacy</a><a href="#what-is">top</a></nav>
   </footer>
 </body>
 </html>

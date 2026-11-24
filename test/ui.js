@@ -2,7 +2,7 @@
 // protocol (no dependencies) and fails on any JS error, CSP violation or failed
 // request. Run: npm run test:ui   (set BROWSER=<path> if it cannot find one;
 // set UI_SHOTS=<dir> to save screenshots, desktop and phone width)
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { mkdtemp, rm, writeFile, mkdir } from 'node:fs/promises';
 import os from 'node:os';
@@ -213,6 +213,46 @@ try {
     assert.ok(await js('return document.querySelectorAll("h2").length > 3'));
     await shot('docs'); await shot('docs', true);
     await noSideScroll('the docs page');
+    noProblems();
+  });
+
+  await step('information pages: built, load without errors, live parts answer, fit a phone', async () => {
+    const built = spawnSync(process.execPath, ['scripts/build-pages.mjs', '--check'], { cwd: ROOT, encoding: 'utf8' });
+    assert.equal(built.status, 0, `pages out of date: ${built.stderr}`);
+    for (const slug of ['how-it-works', 'security', 'threat-model', 'immune', 'privacy', 'status', 'connector', 'reference', 'standard', 'verify', 'open-source']) {
+      await open(`/${slug}/`);
+      await sleep(400);
+      assert.ok(await js('return $("h1").textContent.trim().length > 3 && $$(".d-ch h2").length >= 2'), `${slug}: headline and sections`);
+      if (slug === 'status') {
+        await until('return /working/i.test($("[data-status-head] h3")?.textContent ?? "") && $$("[data-status-rows] li").length === 6', 'the status rows');
+        await shot('page-status');
+      }
+      if (slug === 'immune') {
+        await until('return $$(".p-matrix tbody tr").length === 14 && $$(".p-cell.is-held").length === 98', 'the immune record, all held');
+        await shot('page-immune'); await shot('page-immune', true);
+      }
+      if (slug === 'security') await until('return !$("[data-seals]").textContent.includes("Loading")', 'the latest seals');
+      if (slug === 'verify') {
+        // a proof by hand needs no server: a one-leaf seal's root is the leaf itself
+        const leaf = 'ab'.repeat(32);
+        await js(`click('[data-tab]', 'A proof by hand'); const f = $('[data-verify-hand]'); type(f.elements.root, '${leaf}'); type(f.elements.leaf, '0x${leaf}'); f.requestSubmit(); return true`);
+        await until('return $("[data-verify-hand] .p-result")?.textContent.includes("The proof holds")', 'the hand check');
+        await js(`const f = $('[data-verify-hand]'); type(f.elements.root, '${'cd'.repeat(32)}'); f.requestSubmit(); return true`);
+        await until('return $("[data-verify-hand] .p-result")?.textContent.includes("does not hold")', 'a failed hand check');
+        await js('$("[data-verify-chain]").click(); return true');
+        await until('return /seal chain is unbroken|No seals yet/.test($("[data-verify-chain-out]")?.textContent ?? "")', 'the chain check');
+        await shot('page-verify');
+      }
+      if (slug === 'how-it-works') { await shot('page-how'); await shot('page-how', true); }
+      await noSideScroll(`the ${slug} page`);
+      noProblems();
+    }
+    // the menu opens on a phone and lists every page
+    await page('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
+    await sleep(300);
+    await js('$("[data-menu]").click(); return true');
+    assert.ok(await js('return !$("#p-menu").hidden && $$("#p-menu a").length >= 15'), 'the page menu');
+    await page('Emulation.clearDeviceMetricsOverride');
     noProblems();
   });
 

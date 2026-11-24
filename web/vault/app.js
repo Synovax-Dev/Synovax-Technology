@@ -4,6 +4,32 @@ import * as C from '/shared/crypto.js';
 import { leafHash, verifyProof, verifySealChain, GENESIS } from '/shared/merkle.js';
 import { APP_NAME } from '/shared/brand.js';
 import { authArt } from '/vault/auth-art.js';
+import * as Immune from '/shared/immune.js';
+
+// Text that looks like instructions for an AI (shared/immune.js). Checked here as
+// memories come in, so the owner sees it; the connector removes those places again
+// before any model gets the text.
+const flagCache = new Map();
+function flagsOf(...texts) {
+  const kinds = new Set();
+  for (const t of texts) {
+    const s = String(t ?? '');
+    if (!s) continue;
+    let k = flagCache.get(s);
+    if (!k) {
+      const r = Immune.inspect(s);
+      k = r.flagged ? Immune.describe(r) : [];
+      if (flagCache.size > 5000) flagCache.clear();
+      flagCache.set(s, k);
+    }
+    k.forEach((x) => kinds.add(x));
+  }
+  return [...kinds];
+}
+const memoryFlags = (m) => flagsOf(m.title, m.body, ...(m.tags ?? []));
+const heldNote = (kinds, what) => h('div', { class: 'held', role: 'note' },
+  h('b', {}, 'Looks like instructions for an AI'),
+  h('span', {}, `${what} has ${kinds.join(', ')}. Apps that read it get it with those places removed, and each time that happens it is in your read log.`));
 
 const $app = document.getElementById('app');
 const $toast = document.getElementById('toast');
@@ -702,6 +728,7 @@ function viewMemories() {
           h('span', { class: 'item-snippet' }, m.body.slice(0, 140)),
           h('span', { class: 'item-meta' },
             S.folder === 'all' && h('span', { class: 'chip' }, S.folders.get(m.folderId)?.name ?? '?'),
+            memoryFlags(m).length ? h('span', { class: 'chip flag', title: memoryFlags(m).join(', ') }, 'held for review') : null,
             m.tags.slice(0, 4).map((t) => h('span', { class: 'chip ghost' }, t)),
             h('span', { class: 'item-ago' }, ago(m.updatedAt)))),
         icon('arrow', 'ic item-go'))) : [emptyState(S.query ? 'Nothing matches that search.' : 'No memories here yet.', S.query ? 'Try fewer words, or search all folders.' : 'Add what your AI apps should know about you.')]));
@@ -784,6 +811,7 @@ function editor() {
   } },
     h('p', { class: 'ed-top' }, h('span', {}, icon('lock'), isNew ? 'New memory' : 'Editing'),
       h('span', { class: 'ed-key' }, fname ? `sealed with the ${fname} key` : 'sealed with its folder key')),
+    !isNew && memoryFlags(m).length ? heldNote(memoryFlags(m), 'This memory') : null,
     h('input', { name: 'title', class: 'title-input', placeholder: 'Title', value: m.title, required: true, maxlength: 200 }),
     h('textarea', { name: 'body', rows: 12, placeholder: 'What should your AI apps know?', value: m.body, maxlength: 200000 }),
     h('div', { class: 'grid2' },
@@ -837,6 +865,7 @@ function suggestionCard(s) {
     });
   } },
     h('div', { class: 'meta-line' }, h('span', { class: 'app-badge' }, from.slice(0, 1).toUpperCase()), h('span', {}, h('strong', {}, from), ` suggested this ${ago(s.createdAt)}`)),
+    (() => { const k = flagsOf(d.title, d.body, d.reason, d.folderHint, ...(d.tags ?? [])); return k.length ? heldNote(k, 'This suggestion') : null; })(),
     d.reason && h('p', { class: 'reason' }, d.reason),
     h('input', { name: 'title', class: 'title-input', value: d.title ?? '', required: true, maxlength: 200 }),
     h('textarea', { name: 'body', rows: 5, value: d.body ?? '' }),
@@ -1015,6 +1044,7 @@ function describe(e) {
     list: () => (e.target === '*' ? 'Searched all its folders' : `Searched folder “${S.folders.get(e.target)?.name ?? 'deleted folder'}”`),
     read: () => `Read “${S.memories.get(e.target)?.title ?? 'a deleted memory'}”`,
     suggest: () => 'Suggested a memory to your inbox',
+    caught: () => `Got “${S.memories.get(e.target)?.title ?? 'a deleted memory'}” with text that looked like instructions for an AI removed`,
   }[e.action]?.() ?? e.action;
   return { app, what };
 }
@@ -1045,10 +1075,13 @@ function viewLog() {
 
 function sealCell(e) {
   const v = S.verified.get(e.id);
-  if (v === true) return h('span', { class: 'ok' }, `✓ Verified in seal #${e.sealSeq}`);
-  if (v === false) return h('span', { class: 'bad' }, '✗ Does not match its seal');
   if (e.sealSeq == null) return h('span', { class: 'fine' }, `Pending · seals ${new Date(S.log.nextCloseAt).toLocaleTimeString()}`);
-  return h('button', { class: 'btn small', onclick: (ev) => busy(ev.target, 'Checking…', () => verifyEntry(e)) }, `Verify #${e.sealSeq}`);
+  // the entry with its salt, for checking it by hand on /verify/ or with your own code
+  const copyBtn = h('button', { class: 'btn small ghost', title: 'Copy this entry to check it on the Verify page', onclick: () => copy(JSON.stringify(
+    { format: 'synovax-read-v1', id: e.id, ts: e.ts, vault_id: S.vaultId, app_id: e.appId, action: e.action, target: e.target, salt: e.salt, seal: e.sealSeq })) }, 'Copy entry');
+  if (v === true) return h('span', { class: 'seal-cell' }, h('span', { class: 'ok' }, `✓ Verified in seal #${e.sealSeq}`), copyBtn);
+  if (v === false) return h('span', { class: 'bad' }, '✗ Does not match its seal');
+  return h('span', { class: 'seal-cell' }, h('button', { class: 'btn small', onclick: (ev) => busy(ev.target, 'Checking…', () => verifyEntry(e)) }, `Verify #${e.sealSeq}`), copyBtn);
 }
 
 async function verifyEntry(e) {
@@ -1186,15 +1219,22 @@ function importCard() {
   const file = h('input', { type: 'file', accept: '.json,.txt,.md,text/plain,application/json' });
   const target = folderSelect('folder', [...S.folders.values()].find((f) => f.name === 'About me')?.id);
   const note = h('p', { class: 'fine' });
+  // memories that look like they carry instructions for an AI stay out unless the owner says so
+  const takeFlagged = h('input', { type: 'checkbox', name: 'flagged' });
+  const flaggedRow = h('label', { class: 'check', hidden: true }, takeFlagged, h('span', {}));
   let found = [];
+  const isFlagged = (m) => flagsOf(m.title, m.body, m.folder, ...m.tags).length > 0;
   const preview = () => {
     try {
       found = parseImport(ta.value);
       const have = new Set([...S.memories.values()].map((m) => `${m.title}\n${m.body}`));
       const dupes = found.filter((m) => have.has(`${m.title}\n${m.body}`)).length;
+      const flagged = found.filter(isFlagged);
       note.className = 'fine';
       note.textContent = found.length ? `Found ${found.length} memor${found.length === 1 ? 'y' : 'ies'}${dupes ? `, ${dupes} already in your vault (skipped)` : ''}.` : '';
-    } catch (e) { found = []; note.className = 'bad'; note.textContent = e.message; }
+      flaggedRow.hidden = !flagged.length;
+      flaggedRow.lastChild.textContent = `${flagged.length} of them look like they carry instructions for an AI (${flagged.slice(0, 3).map((m) => `“${m.title.slice(0, 40)}”`).join(', ')}${flagged.length > 3 ? ', …' : ''}). Import those too; apps will get them with those places removed.`;
+    } catch (e) { found = []; note.className = 'bad'; note.textContent = e.message; flaggedRow.hidden = true; }
   };
   ta.addEventListener('input', preview);
   file.addEventListener('change', async () => { if (file.files[0]) { ta.value = await file.files[0].text(); preview(); } });
@@ -1203,9 +1243,10 @@ function importCard() {
     if (!found.length) throw new Error('Paste some memories, or pick a file, first.');
     const have = new Set([...S.memories.values()].map((m) => `${m.title}\n${m.body}`));
     const byName = new Map([...S.folders.values()].map((f) => [f.name.toLowerCase(), f.id]));
-    let n = 0;
+    let n = 0, held = 0;
     for (const m of found) {
       if (have.has(`${m.title}\n${m.body}`)) continue;
+      if (!takeFlagged.checked && isFlagged(m)) { held++; continue; }
       let folderId = target.value;
       if (m.folder) {
         folderId = byName.get(m.folder.toLowerCase()) ?? null;
@@ -1215,8 +1256,8 @@ function importCard() {
       have.add(`${m.title}\n${m.body}`);
       n++;
     }
-    ta.value = ''; found = []; note.textContent = '';
-    toast(`Imported ${n} memor${n === 1 ? 'y' : 'ies'}, encrypted on this device.`);
+    ta.value = ''; found = []; note.textContent = ''; flaggedRow.hidden = true; takeFlagged.checked = false;
+    toast(`Imported ${n} memor${n === 1 ? 'y' : 'ies'}, encrypted on this device.${held ? ` ${held} left out: they look like instructions for an AI.` : ''}`);
     render();
   }) }, 'Import');
   return h('div', { class: 'card' },
@@ -1225,6 +1266,7 @@ function importCard() {
     ta,
     h('div', { class: 'grid2' }, h('label', {}, 'Or a file', file), h('label', {}, 'Save into folder', target)),
     note,
+    flaggedRow,
     h('div', { class: 'row' }, go));
 }
 
