@@ -225,7 +225,7 @@ const TOOLS = [
   },
   {
     name: 'search_memories',
-    description: `Search the user's personal memory vault for facts, preferences and context about them. Call this before answering anything that depends on who the user is, how they like answers, or their projects. Ask in plain words, in any language ("what should I avoid eating", "kapan saya paling produktif"): it matches by meaning as well as by words. Each result says how it matched (strong, possible, words); treat "possible" as a lead to check, not a fact. Returns titles and short snippets; use read_memory for the full text. An empty query lists the most recent memories.`,
+    description: `Search the user's personal memory vault for facts, preferences and context about them. Call this before answering anything that depends on who the user is, how they like answers, or their projects. Ask in plain words, in any language ("what should I avoid eating", "when am I most productive"): it matches by meaning as well as by words. Each result says how it matched (strong, possible, words); treat "possible" as a lead to check, not a fact. Returns titles and short snippets; use read_memory for the full text. An empty query lists the most recent memories.`,
     inputSchema: {
       type: 'object',
       properties: {

@@ -313,7 +313,7 @@ const SESSION = [
   ['cmd', '> list_folders'],
   ['out', 'About me · Work   (2 of 3 folders allowed)'],
   ['cmd', '> search_memories {"query": "diet"}'],
-  ['out', '[Kx3pQ…] Vegetarian since 2019 — About me'],
+  ['out', '[Kx3pQ…] Vegetarian since 2019 · About me'],
   ['cmd', '> read_memory {"id": "Kx3pQ…"}'],
   ['out', 'Vegetarian since 2019. No fish either. Allergic to peanuts.'],
   ['cmd', '> suggest_memory {"title": "Prefers metric units", "folder": "Work"}'],

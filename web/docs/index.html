@@ -158,7 +158,7 @@
       <section class="d-ch" id="install" data-level="01">
         <header class="d-ch-h"><span class="lvl">01 · first steps</span><span class="mins">3 min</span></header>
         <h2>Run it</h2>
-        <p>SYNOVAX has no dependencies to install. You need <b>Node.js 22.13 or newer</b> (it is tested on Node 24).</p>
+        <p>The server has no dependencies to install. You need <b>Node.js 22.13 or newer</b> (it is tested on Node 24 and 26). Search by meaning in the connector is optional and is the one thing that needs <code>npm install</code>.</p>
         <ol class="d-steps">
           <li><b>Check Node</b><p>Open a terminal and check the version. If it is older than 22.13, install the current LTS from nodejs.org.</p>
             <div class="code"><div class="code-bar"><span>terminal</span><button type="button" data-copy>copy</button></div><pre><code>node --version</code></pre></div></li>
@@ -531,7 +531,7 @@ const ok = await verifyProof(leaf, proof, root);
 node connector/index.js</code></pre></div>
         <p>It waits for MCP messages on stdin; that silence means it started. Errors go to stderr.</p>
         <h3 id="connector-semantic">Search by meaning (optional)</h3>
-        <p>Run <code>npm install</code> once in the vault folder and the connector also searches by meaning, in any language: “what medicine should I avoid” finds “I am allergic to penicillin”, and “kapan saya paling produktif” finds “I do my best work before nine”. The model runs on your computer; no memory text leaves it. The only network use is downloading the model once into <code>.cache/models</code>.</p>
+        <p>Run <code>npm install</code> once in the vault folder and the connector also searches by meaning, in any language: “what medicine should I avoid” finds “I am allergic to penicillin”, and “when am I most productive” finds “I do my best work before nine”. The model runs on your computer; no memory text leaves it. The only network use is downloading the model once into <code>.cache/models</code>.</p>
         <div class="tbl"><table>
           <thead><tr><th><code>VAULT_SEMANTIC</code></th><th>Model</th><th>Trade-off</th></tr></thead>
           <tbody>

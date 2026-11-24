@@ -254,3 +254,7 @@ input::placeholder { color: rgb(255 255 255 / 0.25); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* change the admin password */
+.pw { display: grid; gap: 0.875rem; }
+.pw .btn-ghost { justify-self: start; }

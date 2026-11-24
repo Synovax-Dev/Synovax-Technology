@@ -482,6 +482,40 @@ try {
     assert.equal((await adm('GET', '/api/admin/token', null, at)).status, 401, 'signed out');
   });
 
+  await step('admin password: change it in the panel, or reset it on the server', async () => {
+    const adm = async (method, p, body, t) => {
+      const res = await fetch(BASE + p, { method, headers: { 'content-type': 'application/json', ...(t ? { authorization: `Bearer adm.${t}` } : {}) }, body: body ? JSON.stringify(body) : undefined });
+      return { status: res.status, data: await res.json().catch(() => ({})) };
+    };
+    const login = (password) => adm('POST', '/api/admin/login', { password });
+    const files = await readdir(dataDir);
+    assert.ok(files.includes('admin-password') && !files.includes('admin-key'), 'only a hash is stored');
+    assert.match(await readFile(path.join(dataDir, 'admin-password'), 'utf8'), /^scrypt\$/);
+    assert.ok(!(await readFile(path.join(dataDir, 'admin-password'), 'utf8')).includes(ADMIN_KEY));
+
+    const a = (await login(ADMIN_KEY)).data.token;
+    const b = (await login(ADMIN_KEY)).data.token;
+    assert.equal((await adm('POST', '/api/admin/password', { current: 'wrong', next: 'a brand new admin pw' }, a)).status, 400, 'needs the current password');
+    assert.equal((await adm('POST', '/api/admin/password', { current: ADMIN_KEY, next: 'short' }, a)).status, 400, 'too short');
+    assert.equal((await adm('POST', '/api/admin/password', { current: ADMIN_KEY, next: 'a brand new admin pw' })).status, 401, 'needs a session');
+    assert.equal((await adm('POST', '/api/admin/password', { current: ADMIN_KEY, next: 'a brand new admin pw' }, a)).status, 200);
+    assert.equal((await adm('GET', '/api/admin/token', null, b)).status, 401, 'other admin sessions are signed out');
+    assert.equal((await adm('GET', '/api/admin/token', null, a)).status, 200, 'this one stays');
+    assert.equal((await login(ADMIN_KEY)).status, 401, 'the old password stops working');
+    assert.equal((await login('a brand new admin pw')).status, 200);
+    assert.ok((await adm('GET', '/api/admin/token', null, a)).data.history.some((h) => h.field === 'password'), 'the change is in the log');
+
+    // forgot it: reset from the server's command line
+    const out = await new Promise((resolve) => {
+      const p = spawn(process.execPath, ['server/admin-password.js', 'reset from the shell'], { cwd: ROOT, env: { ...process.env, DATA_DIR: dataDir } });
+      let s = ''; p.stdout.on('data', (d) => { s += d; }); p.on('exit', (code) => resolve({ code, s }));
+    });
+    assert.equal(out.code, 0, out.s);
+    assert.equal((await adm('GET', '/api/admin/token', null, a)).status, 401, 'a reset signs everyone out');
+    assert.equal((await login('a brand new admin pw')).status, 401);
+    assert.equal((await login('reset from the shell')).status, 200);
+  });
+
   await step('static pages are served with a strict CSP', async () => {
     const res = await fetch(`${BASE}/vault/`);
     assert.equal(res.status, 200);

@@ -8,7 +8,7 @@ const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const KEY = 'synovax.admin';
 const FIELDS = ['status', 'contract', 'explorerUrl', 'twitter', 'supply', 'launchDate'];
-const LABEL = { status: 'status', contract: 'contract', explorerUrl: 'explorer link', twitter: 'x account', supply: 'supply', launchDate: 'launch date' };
+const LABEL = { status: 'status', contract: 'contract', explorerUrl: 'explorer link', twitter: 'x account', supply: 'supply', launchDate: 'launch date', password: 'password' };
 
 let token = null;
 try { token = sessionStorage.getItem(KEY); } catch {}
@@ -68,11 +68,11 @@ tickClock(); setInterval(tickClock, 1000);
 
 $('[data-signin-form]').addEventListener('submit', async (e) => {
   e.preventDefault();
-  const err = $('[data-signin-error]'), input = e.target.key, btn = e.target.querySelector('.btn');
+  const err = $('[data-signin-error]'), input = e.target.password, btn = e.target.querySelector('.btn');
   err.textContent = '';
   btn.classList.add('is-busy');
   try {
-    const out = await api('POST', '/api/admin/login', { key: input.value });
+    const out = await api('POST', '/api/admin/login', { password: input.value });
     token = out.token;
     try { sessionStorage.setItem(KEY, token); } catch {}
     input.value = '';
@@ -198,9 +198,13 @@ function history(rows) {
     const t = document.createElement('span'); t.className = 'h-at'; t.textContent = fmt(r.at);
     const f = document.createElement('span'); f.className = 'h-f'; f.textContent = LABEL[r.field] ?? r.field;
     const d = document.createElement('span'); d.className = 'h-d';
-    const o = document.createElement('s'); o.textContent = r.old || '(empty)';
-    const n = document.createElement('b'); n.textContent = r.new || '(empty)';
-    d.append(o, ' → ', n);
+    if (r.field === 'password') {
+      const n = document.createElement('b'); n.textContent = 'changed'; d.append(n);
+    } else {
+      const o = document.createElement('s'); o.textContent = r.old || '(empty)';
+      const n = document.createElement('b'); n.textContent = r.new || '(empty)';
+      d.append(o, ' → ', n);
+    }
     li.append(t, f, d);
     return li;
   }));
@@ -288,6 +292,26 @@ form.addEventListener('submit', async (e) => {
     btn.classList.remove('is-busy'); label.textContent = 'publish';
     check();
   }
+});
+
+// ---------- change the admin password
+
+const pwForm = $('[data-password-form]');
+pwForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const err = $('[data-password-error]'), btn = $('[data-password-save]');
+  const { current: cur, next, next2 } = pwForm.elements;
+  err.textContent = '';
+  if (next.value.length < 12) { err.textContent = 'Use at least 12 characters.'; return; }
+  if (next.value !== next2.value) { err.textContent = 'The two new passwords do not match.'; return; }
+  btn.disabled = true;
+  try {
+    await api('POST', '/api/admin/password', { current: cur.value, next: next.value });
+    pwForm.reset();
+    toast('password changed', 'other admin sessions were signed out');
+    await load();
+  } catch (ex) { err.textContent = ex.message; }
+  finally { btn.disabled = false; }
 });
 
 // ---------- start

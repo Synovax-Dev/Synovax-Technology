@@ -47,7 +47,7 @@
   --u: calc(100cqw / 1440);
 }
 
-/* the root scales in bands: below 1280 it holds, 1280–1440 a rem is a 1440 pixel, above that 1920-based */
+/* the root scales in bands: below 1280 it holds, 1280 to 1440 a rem is a 1440 pixel, above that 1920-based */
 html { font-size: 16px; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 @media (min-width: 1280px) { html { font-size: 1.111111vw; } }
 @media (min-width: 1441px) { html { font-size: 0.833333vw; } }
@@ -372,7 +372,7 @@ html.no-motion .st-t, html.no-motion .st-copy, html.no-motion .st-plate { opacit
 .plate-outline { position: absolute; inset: 0; width: 100%; height: 100%; fill: none; stroke: var(--timeline-outline); stroke-width: 1; overflow: visible; pointer-events: none; }
 #plate-outline { vector-effect: non-scaling-stroke; }
 
-/* plate mockups — typographic, all sized off the plate */
+/* plate mockups: typographic, all sized off the plate */
 .mk { position: absolute; inset: 0; top: 9.09%; padding: 6% 6.5% 13%; display: flex; flex-direction: column; gap: 5%; color: var(--foreground-on-dark); container-type: inline-size; }
 .mk-eye { font-size: max(2.1cqw, 9px); text-transform: uppercase; letter-spacing: -0.02em; color: var(--accent); line-height: 0.9; }
 .plate--side .mk-eye { font-size: max(3.6cqw, 9px); }

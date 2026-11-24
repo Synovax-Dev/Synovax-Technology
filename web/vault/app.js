@@ -51,7 +51,7 @@ async function busy(btn, label, fn) {
   finally { if (btn && btn.isConnected) { btn.disabled = false; btn.textContent = old; } }
 }
 
-const fmt = (ts) => (ts ? new Date(ts).toLocaleString() : '—');
+const fmt = (ts) => (ts ? new Date(ts).toLocaleString() : 'unknown');
 function ago(ts) {
   if (!ts) return 'never';
   const s = Math.round((Date.now() - ts) / 1000);
@@ -1027,7 +1027,7 @@ function viewLog() {
     latest && h('div', { class: 'card seal' },
       h('span', { class: 'seal-ic' }, icon('seal')),
       h('div', {},
-        h('div', { class: 'seal-l' }, `Latest seal #${latest.seq} · ${fmt(latest.periodStart)} – ${fmt(latest.periodEnd)} · ${latest.count} reads`),
+        h('div', { class: 'seal-l' }, `Latest seal #${latest.seq} · ${fmt(latest.periodStart)} to ${fmt(latest.periodEnd)} · ${latest.count} reads`),
         h('code', { class: 'hash' }, `0x${latest.root}`),
         S.chain && h('span', { class: `chain-l ${S.chain.ok ? 'ok' : 'bad'}` },
           S.chain.ok
@@ -1168,9 +1168,9 @@ function parseImport(text) {
     })).filter((m) => m.body);
   }
   const lines = t.split(/\r?\n/);
-  const bulleted = lines.filter((l) => /^\s*([-*•–]|\d+[.)])\s+/.test(l)).length;
+  const bulleted = lines.filter((l) => /^\s*([-*•–—]|\d+[.)])\s+/.test(l)).length;
   const items = bulleted >= 2 || lines.filter((l) => l.trim()).length === lines.length
-    ? lines.map((l) => l.replace(/^\s*([-*•–]|\d+[.)])\s+/, '').trim()).filter(Boolean)
+    ? lines.map((l) => l.replace(/^\s*([-*•–—]|\d+[.)])\s+/, '').trim()).filter(Boolean)
     : t.split(/\n\s*\n/).map((p) => p.replace(/\s+/g, ' ').trim()).filter(Boolean);
   return items.map(fromLine);
 }
@@ -1182,7 +1182,7 @@ function fromLine(s) {
 }
 
 function importCard() {
-  const ta = h('textarea', { rows: 6, placeholder: '- Prefers metric units\n- Works as a nurse in Bandung\n- Allergic to penicillin' });
+  const ta = h('textarea', { rows: 6, placeholder: '- Prefers metric units\n- Works night shifts as an ER nurse\n- Allergic to penicillin' });
   const file = h('input', { type: 'file', accept: '.json,.txt,.md,text/plain,application/json' });
   const target = folderSelect('folder', [...S.folders.values()].find((f) => f.name === 'About me')?.id);
   const note = h('p', { class: 'fine' });
@@ -1233,7 +1233,7 @@ function sessionsCard() {
   const list = h('div', { class: 'sessions' }, h('p', { class: 'fine' }, 'Loading…'));
   const card = h('div', { class: 'card' },
     h('h2', {}, 'Signed-in devices'),
-    h('p', { class: 'muted' }, 'Every place your vault is open right now. Sign out anything you do not recognise, then change your passphrase.'),
+    h('p', { class: 'muted' }, 'Every place your vault is open right now. Sign out anything you do not recognize, then change your passphrase.'),
     list);
   const fill = async () => {
     try {

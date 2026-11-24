@@ -49,12 +49,12 @@
         <svg class="corner corner--tr" aria-hidden="true"><use href="#i-corner"/></svg>
         <svg class="corner corner--bl" aria-hidden="true"><use href="#i-corner"/></svg>
         <svg class="corner corner--br" aria-hidden="true"><use href="#i-corner"/></svg>
-        <p class="plate-eye"><svg aria-hidden="true"><use href="#i-lock"/></svg>admin key</p>
+        <p class="plate-eye"><svg aria-hidden="true"><use href="#i-lock"/></svg>admin password</p>
         <label class="field">
-          <span class="sr">admin key</span>
-          <input type="password" name="key" required spellcheck="false" autocomplete="off" placeholder="adm_…">
+          <span class="sr">admin password</span>
+          <input type="password" name="password" required spellcheck="false" autocomplete="current-password" placeholder="password">
         </label>
-        <p class="hint">Find it in <code>data/admin-key</code> on the machine that runs the server.</p>
+        <p class="hint">Forgot it? On the server, run <code>npm run admin:password</code>.</p>
         <p class="error" data-signin-error role="alert"></p>
         <button class="btn" type="submit">
           <svg class="btn-frame" viewBox="0 0 275 50" preserveAspectRatio="none" aria-hidden="true"><path class="btn-body" d="M0 0H275V41.165L266.165 50H0Z"/><path class="btn-flood" d="M0 0H275V41.165L266.165 50H0Z"/></svg>
@@ -74,19 +74,19 @@
       <ul class="tiles">
         <li class="tile" data-tile="status">
           <svg class="corner corner--tl" aria-hidden="true"><use href="#i-corner"/></svg><svg class="corner corner--br" aria-hidden="true"><use href="#i-corner"/></svg>
-          <span class="tile-eye">status</span><span class="tile-v" data-tile-v="status">—</span><span class="tile-s" data-tile-s="status"></span>
+          <span class="tile-eye">status</span><span class="tile-v" data-tile-v="status">·</span><span class="tile-s" data-tile-s="status"></span>
         </li>
         <li class="tile" data-tile="contract">
           <svg class="corner corner--tl" aria-hidden="true"><use href="#i-corner"/></svg><svg class="corner corner--br" aria-hidden="true"><use href="#i-corner"/></svg>
-          <span class="tile-eye">contract</span><span class="tile-v mono" data-tile-v="contract">—</span><span class="tile-s" data-tile-s="contract"></span>
+          <span class="tile-eye">contract</span><span class="tile-v mono" data-tile-v="contract">·</span><span class="tile-s" data-tile-s="contract"></span>
         </li>
         <li class="tile" data-tile="twitter">
           <svg class="corner corner--tl" aria-hidden="true"><use href="#i-corner"/></svg><svg class="corner corner--br" aria-hidden="true"><use href="#i-corner"/></svg>
-          <span class="tile-eye">x account</span><span class="tile-v" data-tile-v="twitter">—</span><span class="tile-s" data-tile-s="twitter"></span>
+          <span class="tile-eye">x account</span><span class="tile-v" data-tile-v="twitter">·</span><span class="tile-s" data-tile-s="twitter"></span>
         </li>
         <li class="tile" data-tile="published">
           <svg class="corner corner--tl" aria-hidden="true"><use href="#i-corner"/></svg><svg class="corner corner--br" aria-hidden="true"><use href="#i-corner"/></svg>
-          <span class="tile-eye">last publish</span><span class="tile-v" data-tile-v="published">—</span><span class="tile-s" data-tile-s="published"></span>
+          <span class="tile-eye">last publish</span><span class="tile-v" data-tile-v="published">·</span><span class="tile-s" data-tile-s="published"></span>
         </li>
       </ul>
     </section>
@@ -182,6 +182,15 @@
           <p class="plate-eye">change log <span data-log-count></span></p>
           <ol class="hist" data-history></ol>
         </section>
+        <form class="plate pw" data-password-form autocomplete="off">
+          <p class="plate-eye">admin password <span>· signs out every other admin session</span></p>
+          <label class="field"><span class="label">current password</span><input type="password" name="current" required autocomplete="current-password"></label>
+          <label class="field"><span class="label">new password</span><input type="password" name="next" required minlength="12" maxlength="200" autocomplete="new-password"></label>
+          <label class="field"><span class="label">repeat new password</span><input type="password" name="next2" required autocomplete="new-password"></label>
+          <p class="hint">At least 12 characters. Forgot the current one? Run <code>npm run admin:password</code> on the server.</p>
+          <p class="error" data-password-error role="alert"></p>
+          <button class="btn-ghost" type="submit" data-password-save>change password</button>
+        </form>
       </aside>
     </div>
   </main>

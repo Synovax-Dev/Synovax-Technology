@@ -6,6 +6,7 @@ import { readFile, mkdir, writeFile, readdir, rm, stat } from 'node:fs/promises'
 import { existsSync, readFileSync } from 'node:fs';
 import { createHash, createHmac, randomBytes, timingSafeEqual, createCipheriv, createDecipheriv } from 'node:crypto';
 import { newTotpSecret, matchStep, otpauthUri } from './totp.js';
+import { ensurePassword, verifyPassword, readPasswordHash, savePasswordHash, hashPassword, checkNewPassword } from './admin-password.js';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { openDb, tx } from './db.js';
@@ -121,20 +122,12 @@ setInterval(() => {
 
 const count = (sql, ...args) => db.prepare(sql).get(...args).n;
 
-// The admin key guards the public token details on the landing page. It is
-// random, lives only in data/admin-key (or ADMIN_KEY), and is never sent back.
+// The admin password guards the public token details on the landing page. Only
+// a scrypt hash is stored (DATA_DIR/admin-password); see server/admin-password.js.
 const ADMIN_TTL_MS = 12 * 3600 * 1000;
-const adminKeyFile = path.join(DATA_DIR, 'admin-key');
-let adminKey = process.env.ADMIN_KEY ?? '';
-if (adminKey && adminKey.length < 32) { console.error('ADMIN_KEY must be at least 32 characters.'); process.exit(1); }
-if (!adminKey) {
-  if (!existsSync(adminKeyFile)) await writeFile(adminKeyFile, `adm_${newToken(32)}\n`, { mode: 0o600 });
-  adminKey = readFileSync(adminKeyFile, 'utf8').trim();
-}
-const ADMIN_KEY_HASH = sha256hex(adminKey);
-// the key may have been rotated since the last run: no admin session outlives a restart
+try { await ensurePassword(DATA_DIR); } catch (e) { console.error(e.message); process.exit(1); }
+// the password may have been reset since the last run: no admin session outlives a restart
 db.prepare('DELETE FROM admin_sessions').run();
-adminKey = '';
 
 async function logRead(vaultId, appId, action, target) {
   const entry = { id: newToken(16), ts: now(), vault_id: vaultId, app_id: appId, action, target: target ?? null, salt: newToken(16) };
@@ -706,13 +699,32 @@ route('GET', '/api/token', 'none', () => {
   return pub;
 });
 
-route('POST', '/api/admin/login', 'none', ({ body, ip }) => {
-  rateLimit(`admin:${ip}`, 5, 15 * 60_000);
-  const key = typeof body.key === 'string' ? body.key.trim() : '';
-  need(key.length > 0 && key.length <= 200 && safeEqualHex(sha256hex(key), ADMIN_KEY_HASH), 401, 'That admin key is not right.');
+route('POST', '/api/admin/login', 'none', async ({ body, ip }) => {
+  // only failed attempts count: 5 per 15 minutes per address
+  need(recentHits(`admin-fail:${ip}`, 15 * 60_000) < 5, 429, TOO_MANY);
+  rateLimit(`admin:${ip}`, 30, 15 * 60_000);
+  const password = typeof body.password === 'string' ? body.password : typeof body.key === 'string' ? body.key.trim() : '';
+  if (!(await verifyPassword(password, await readPasswordHash(DATA_DIR).catch(() => '')))) {
+    noteHit(`admin-fail:${ip}`);
+    throw new HttpError(401, 'That password is not right.');
+  }
   const token = newToken(32), expiresAt = now() + ADMIN_TTL_MS;
   db.prepare('INSERT INTO admin_sessions (token_hash, expires_at) VALUES (?, ?)').run(sha256hex(token), expiresAt);
   return { token, expiresAt };
+});
+
+// Change the admin password from the panel: the current one is required, and
+// every other admin session is signed out.
+route('POST', '/api/admin/password', 'admin', async ({ admin, body, ip }) => {
+  rateLimit(`admin-pw:${ip}`, 5, 15 * 60_000);
+  need(await verifyPassword(String(body.current ?? ''), await readPasswordHash(DATA_DIR)), 400, 'The current password is not right.');
+  const next = String(body.next ?? '');
+  const problem = checkNewPassword(next);
+  need(!problem, 400, problem);
+  need(next !== body.current, 400, 'The new password is the same as the current one.');
+  await savePasswordHash(DATA_DIR, await hashPassword(next));
+  db.prepare('DELETE FROM admin_sessions WHERE token_hash != ?').run(admin.tokenHash);
+  db.prepare('INSERT INTO admin_audit (at, ip, field, old, new) VALUES (?, ?, ?, ?, ?)').run(now(), ip, 'password', '', 'changed');
 });
 
 route('POST', '/api/admin/logout', 'admin', ({ admin }) => {
@@ -852,5 +864,5 @@ if (BACKUP_INTERVAL_MS > 0) {
 startSealer(db, SEAL_PERIOD_MS, { publishUrl: process.env.SEAL_PUBLISH_URL ?? '' });
 server.listen(PORT, HOST, () => {
   console.log(`${APP_NAME} running at ${TLS ? 'https' : 'http'}://${HOST.includes(':') ? `[${HOST}]` : HOST}:${server.address().port}`);
-  console.log(`Admin panel: /admin/ (key in ${process.env.ADMIN_KEY ? 'ADMIN_KEY' : adminKeyFile})`);
+  console.log('Admin panel: /admin/ (forgot the password? npm run admin:password)');
 });

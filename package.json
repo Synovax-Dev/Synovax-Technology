@@ -13,6 +13,7 @@
   "scripts": {
     "start": "node server/index.js",
     "connector": "node connector/index.js",
+    "admin:password": "node server/admin-password.js",
     "test": "node test/e2e.js",
     "test:ui": "node test/ui.js",
     "test:semantic": "node test/semantic.js"
