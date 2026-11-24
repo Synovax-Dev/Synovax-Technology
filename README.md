@@ -1,149 +1,168 @@
-# SYNOVAX — brankas memori AI terenkripsi
+# SYNOVAX: an encrypted memory vault for AI
 
-Satu tempat buat nyimpen apa yang AI lu harus tahu tentang lu. Isinya dienkripsi di device lu sendiri. Tiap aplikasi AI (Claude, Cursor, ChatGPT, dan app lain yang ngerti MCP) cuma bisa baca folder yang lu izinin, dan tiap kali dia baca, kecatat di log yang disegel tiap jam.
+One place to keep what your AI should know about you. Everything is encrypted on your own device. Each AI app (Claude, Cursor, ChatGPT, and any other app that speaks MCP) can only read the folders you allow, and every read is written to a log that is sealed every hour.
 
-> Nama produk diatur di satu tempat: [shared/brand.js](shared/brand.js). Landing page (`web/index.html`) masih perlu diganti manual kalau namanya berubah lagi.
+> The product name lives in one place: [shared/brand.js](shared/brand.js). The landing page (`web/index.html`) still needs a manual edit if the name changes again.
 
-## Jalanin
+## Run it
 
-Butuh Node.js 22.13+ (dites di Node 24 dan 26). Server **nggak butuh `npm install`**. `npm install` cuma buat pencarian makna di connector (opsional, lihat di bawah).
+Requires Node.js 22.13+ (tested on Node 24 and 26). The server **needs no `npm install`**. `npm install` is only for semantic search in the connector (optional, see below).
 
-```powershell
+```sh
 npm start
 ```
 
-Terus buka http://127.0.0.1:8787/ (landing page) atau langsung http://127.0.0.1:8787/vault/.
+Then open http://127.0.0.1:8787/ (landing page) or go straight to http://127.0.0.1:8787/vault/.
 
-```powershell
-npm test
+```sh
+npm test            # end-to-end
+npm run test:ui     # browser
+npm run test:wallet # connect wallet and top holders
 ```
 
-```powershell
-npm run test:ui
-```
+**Browser tests (17 flows):** the real pages run in headless Chrome or Edge (no dependencies, driven over the DevTools protocol), from creating a vault to recovering it. A test fails on any JS error, CSP violation, failed request, or page that scrolls sideways at phone width. Set `UI_SHOTS=<folder>` to save desktop and phone screenshots.
 
-Test browser (17 alur): halaman beneran dijalanin di Chrome/Edge headless (tanpa dependency, pake DevTools protocol), dari bikin vault sampe recover. Gagal kalau ada error JS, pelanggaran CSP, request gagal, atau halaman yang bisa digeser ke samping di layar HP. `UI_SHOTS=<folder>` buat nyimpen screenshot desktop + HP.
+**End-to-end tests (32 checks):** a real server, a "browser" built from the same crypto modules, and the connector driven over MCP. This includes a check that the database file **holds no plaintext at all**.
 
-Test end-to-end (31 cek): server beneran, "browser" yang dibikin dari modul kripto yang sama, dan connector yang diajak ngobrol lewat MCP. Termasuk cek bahwa file database **nggak nyimpen plaintext sama sekali**.
+### Server settings
 
-Env server: `PORT` (8787), `HOST` (127.0.0.1), `DATA_DIR` (`./data`), `SEAL_PERIOD_MS` (3600000 = 1 jam), `ADMIN_KEY` (opsional, min. 32 karakter), `KDF_ITERATIONS` (600000; semua vault baru wajib pakai angka ini, biar endpoint salt nggak bocorin username mana yang terdaftar), `TRUST_PROXY` (0; isi jumlah reverse proxy di depan server, biasanya `1`, supaya rate limit pakai IP asli dari `X-Forwarded-For`. Jangan diisi kalau server diakses langsung, nanti IP-nya bisa dipalsuin).
+| Variable | Default | What it does |
+|---|---|---|
+| `PORT` | `8787` | |
+| `HOST` | `127.0.0.1` | Use `0.0.0.0` behind a reverse proxy. |
+| `DATA_DIR` | `./data` | Database, secrets, backups. |
+| `SEAL_PERIOD_MS` | `3600000` (1 hour) | How often the read log is sealed. |
+| `ADMIN_PASSWORD` | random | Admin password on the very first start only (min. 12 characters). |
+| `KDF_ITERATIONS` | `600000` | Every new vault must use this value, so the salt endpoint does not reveal which usernames exist. |
+| `TRUST_PROXY` | `0` | Number of reverse proxies in front of the server (usually `1`), so rate limits use the real IP from `X-Forwarded-For`. Leave it at `0` if the server is reached directly, or the IP can be spoofed. |
+| `TLS_CERT` + `TLS_KEY`, or `TLS_PFX` (+ `TLS_PFX_PASSPHRASE`) | | Serve HTTPS directly, without a reverse proxy. HSTS turns on automatically. |
+| `BACKUP_INTERVAL_MS` | `21600000` (6 hours) | Automatic database copies in `data/backups/`. `0` turns them off. |
+| `BACKUP_KEEP` | `14` | How many backups to keep. |
+| `STATS_MIN_VAULTS` | `100` | The "live on this server" numbers on the landing page appear only once there are this many vaults. Until then the panel shows "early access". `0` always shows them. |
+| `SEAL_PUBLISH_URL` | | Every new seal is POSTed here (a Discord or Slack webhook, a log service), so a copy of the hash chain lives somewhere the server cannot change. |
+| `CHAIN_RPC` | `https://rpc.mainnet.chain.robinhood.com` | JSON-RPC used to count $SYNOVAX holders. |
+| `HOLDERS_SOURCE` | `rpc` | `blockscout` reads holders from the Blockscout API (`EXPLORER_API`) instead. Its Cloudflare front may refuse datacenter IPs. |
+| `EXPLORER_URL` | `https://robinhoodchain.blockscout.com` | Where holder and address links point. |
+| `EXPLORER_API` | `EXPLORER_URL` | Blockscout API base. |
+| `TOKEN_START_BLOCK` | `0` | Block the token was deployed in, so the first count is faster. |
+| `HOLDERS_TTL_MS` | `60000` | How long the holder list is cached. |
 
-Env lain:
-- `TLS_CERT` + `TLS_KEY` (file PEM), atau `TLS_PFX` (+ `TLS_PFX_PASSPHRASE`): HTTPS langsung tanpa reverse proxy. Header HSTS otomatis nyala.
-- `BACKUP_INTERVAL_MS` (21600000 = 6 jam, `0` = mati) dan `BACKUP_KEEP` (14): salinan database otomatis di `data/backups/`. Isinya sama kayak database (ciphertext + hash), jadi tetep jaga. Copy folder itu ke disk/mesin lain, karena backup di disk yang sama nggak nolong kalau disk-nya rusak.
-- Top 20 holder $SYNOVAX (setelah CA diisi di admin panel) dihitung server langsung dari chain: event Transfer lewat `CHAIN_RPC` (default `https://rpc.mainnet.chain.robinhood.com`), lalu dicek ulang pakai `balanceOf`. Udah dibandingin sama Blockscout di token asli (LINK di Robinhood Chain): top 20, jumlah holder, dan supply sama persis. `HOLDERS_SOURCE=blockscout` buat pakai API Blockscout (`EXPLORER_API`), tapi Cloudflare-nya nolak IP VPS. Link di halaman ke `EXPLORER_URL`. `TOKEN_START_BLOCK` opsional biar hitungan pertama lebih cepat. Di-cache `HOLDERS_TTL_MS` (60000) ms; kalau RPC down, list terakhir tetap ditampilin (ditandai "cached").
-- Connect wallet di landing page itu read only: cuma minta alamat, bisa switch/add Robinhood Chain (chain ID 4663), dan baca saldo pakai `eth_call`. Gak pernah minta sign atau transaksi. Tesnya: `npm run test:wallet`.
-- `STATS_MIN_VAULTS` (100): angka "live on this server" di landing page baru muncul kalau jumlah vault udah segini. Sebelumnya panel itu nampilin "early access · be one of the first". `0` = selalu tampil.
-- `SEAL_PUBLISH_URL`: tiap seal baru di-POST ke URL ini (webhook Discord/Slack, log service, dsb), jadi ada salinan chain hash di tempat yang nggak bisa diubah server.
+Backups hold the same thing as the database (ciphertext and hashes), so keep them safe too. Copy that folder to another disk or machine: a backup on the same disk does not help if the disk dies.
 
-Batas login: yang dihitung cuma percobaan **gagal**, per (username, IP). Orang lain yang nebak-nebak passphrase lu nggak bisa ngunci lu keluar. Ada juga batas 200 gagal/jam per akun buat nahan tebakan dari banyak IP, dan batas ini cuma ngeblok IP yang udah pernah gagal di akun itu.
+**Sign-in limits:** only **failed** attempts count, per (username, IP), so someone guessing your passphrase cannot lock you out. There is also a cap of 200 failures per hour per account against guesses from many IPs, and it only blocks IPs that have already failed on that account.
 
-## Nyambungin ke Claude Desktop / Cursor
+## Connect Claude Desktop or Cursor
 
-1. Di vault → **Apps** → kasih nama app, centang folder yang boleh dibaca → **Create app key**.
-2. Copy config MCP yang muncul (key-nya cuma ditampilin sekali) ke config app-nya. Buat Claude Desktop: Settings → Developer → Edit Config.
+1. In the vault, go to **Apps**, name the app, tick the folders it may read, then **Create app key**.
+2. Copy the MCP config it shows (the key is shown only once) into the app's config. For Claude Desktop: Settings → Developer → Edit Config.
 
 ```json
 {
   "mcpServers": {
     "synovax": {
       "command": "node",
-      "args": ["C:\\path\\ke\\vault\\connector\\index.js"],
+      "args": ["C:\\path\\to\\vault\\connector\\index.js"],
       "env": { "VAULT_APP_KEY": "vlt_app.<id>.<secret>", "VAULT_URL": "http://127.0.0.1:8787" }
     }
   }
 }
 ```
 
-Tools yang didapet AI: `list_folders`, `search_memories`, `read_memory`, `suggest_memory` (usulan masuk Inbox, lu yang approve).
+Tools the AI gets: `list_folders`, `search_memories`, `read_memory`, `suggest_memory` (suggestions land in your Inbox, and you approve them).
 
-### Pencarian makna (semantic search, opsional)
+### Semantic search (optional)
 
-```powershell
+```sh
 npm install
 ```
 
-Sekali aja, di folder vault. Ini satu-satunya dependency project, dan cuma dipake connector. Server tetep jalan tanpa itu. Setelah itu AI bisa nanya pake kalimat biasa, bahasa apa aja: "obat apa yang harus dihindari" nemu memori "I am allergic to penicillin".
+Run it once, in the vault folder. This is the project's only dependency, and only the connector uses it. The server runs fine without it. After that the AI can ask in plain sentences, in many languages: "what medicine should I avoid" finds the memory "I am allergic to penicillin".
 
-- **Modelnya jalan di komputer lu.** Isi memori nggak dikirim ke mana-mana. Internet cuma dipake sekali buat download model (dari Hugging Face) ke `.cache/models`.
-- **Pilih model** pake env `VAULT_SEMANTIC` di config MCP:
-  - `bge-m3` (default): paling akurat (14/14 di set uji), ~560 MB disk, ~1 GB RAM, indexing ~0,12 detik per memori.
-  - `e5-small`: ~130 MB, jauh lebih cepet, tapi kurang akurat (10/14 sebelum digabung kata kunci; sering meleset di pertanyaan ambigu).
-  - `off`: kata kunci aja.
-- **Index-nya disimpen terenkripsi** di `.cache/index/`, pake kunci dari app key. Jadi restart nggak perlu index ulang, dan file index nggak lebih gampang dibaca dari vault-nya sendiri.
-- Tiap hasil dikasih label `strong`, `possible`, atau `words`. Nggak ada model yang bisa mastiin 100% "nggak ada yang relevan", jadi AI dikasih tau seberapa yakin hasilnya.
-- Pencarian di aplikasi vault (browser) tetep kata kunci. Pencarian makna cuma di connector, tempat AI nyari.
-- Test: `npm run test:semantic` (download modelnya kalau belum ada). `VAULT_SEMANTIC=e5-small npm run test:semantic` buat model kecil.
+- **The model runs on your computer.** Memory contents are never sent anywhere. The internet is used once, to download the model (from Hugging Face) into `.cache/models`.
+- **Pick a model** with `VAULT_SEMANTIC` in the MCP config:
+  - `bge-m3` (default): most accurate (14/14 on the test set), about 560 MB of disk, about 1 GB of RAM, indexing about 0.12 s per memory.
+  - `e5-small`: about 130 MB and much faster, but less accurate (10/14 before keyword blending; often misses on vague questions).
+  - `off`: keywords only.
+- **The index is stored encrypted** in `.cache/index/`, with a key derived from the app key. Restarts need no reindex, and the index file is no easier to read than the vault itself.
+- Every result is labeled `strong`, `possible`, or `words`. No model can be 100% sure that "nothing is relevant", so the AI is told how confident each result is.
+- Search in the vault app (browser) stays keyword based. Semantic search is only in the connector, where the AI searches.
+- Test: `npm run test:semantic` (downloads the model if needed). `VAULT_SEMANTIC=e5-small npm run test:semantic` for the small model.
 
-## Struktur
+## Layout
 
-| Folder | Isi |
+| Folder | Contents |
 |---|---|
-| `shared/` | Kripto (WebCrypto) + Merkle tree. **Kode yang sama** dipake browser dan connector |
-| `server/` | HTTP API + SQLite (`node:sqlite`) + penyegel log per jam |
-| `web/vault/` | Aplikasi vault (JS murni, tanpa build step). Halaman login: `auth-art.js` (panel ciphertext + lensa "your key"), form sign in / create / recover dengan meter kekuatan passphrase, cek Caps Lock, dan layar 24 kata pemulihan. Dashboard: sidebar gelap dengan penanda nav yang geser, judul Oswald, strip statistik, editor yang slide masuk. Animasi masuk cuma jalan saat view berganti (`motion` di `render()`), dan mati kalau `prefers-reduced-motion` |
-| `web/index.html`, `web/landing.css`, `web/landing/` | Landing page: engine animasi (spring, reveal teks, scroll), scene WebGL hero, section lain, plus showpiece animasi (`effects.js`: partikel, marquee, enkripsi live; `showcase.js`: graph memori (folder sebagai lingkaran, kabel dari app ke memori yang cocok, folder terkunci di-hatch), segel Merkle pakai SHA-256 asli di browser, alur MCP; `coin.js`: koin $SYNOVAX di section token). Section keamanan (`security.js`) isinya fakta yang beneran ada di kode, bukan klaim audit/DDoS. Font di-host sendiri di `web/fonts/` |
-| `web/docs/` | Halaman docs di `/docs/`: tutorial dari nol sampai self-host, API, model keamanan, troubleshooting. Ada search (tekan `/`), daftar isi, tab per app MCP, tombol copy |
-| `web/admin/` | Admin panel buat posting info token (status, CA, link explorer, akun X, supply, tanggal launch) |
-| `connector/` | MCP server (stdio) yang jalan di komputer user |
-| `test/` | Test end-to-end |
+| `shared/` | Crypto (WebCrypto) and a Merkle tree. **The same code** runs in the browser and the connector. |
+| `server/` | HTTP API, SQLite (`node:sqlite`), the hourly log sealer, and the holder index (`holders.js`). |
+| `web/vault/` | The vault app (plain JS, no build step). Sign-in page with a ciphertext art panel, sign in / create / recover forms with a passphrase strength meter, Caps Lock warning, and the 24-word recovery screen. Dashboard with a dark sidebar, stats strip, and a sliding editor. Entry animations run only when the view changes and are off under `prefers-reduced-motion`. |
+| `web/index.html`, `web/landing.css`, `web/landing/` | Landing page: animation engine (springs, text reveals, scroll), WebGL hero, a memory graph, a live Merkle seal using real SHA-256 in the browser, the MCP flow, and the $SYNOVAX section with the coin, connect wallet (`wallet.js`) and top holders. The security section (`security.js`) lists only facts that exist in the code. Fonts are self-hosted in `web/fonts/`. |
+| `web/docs/` | Docs at `/docs/`: from zero to self-hosting, the API, the security model, troubleshooting. Search (press `/`), a table of contents, tabs per MCP app, copy buttons. |
+| `web/admin/` | Admin panel for publishing token info (status, contract address, explorer link, X account, supply, launch date). |
+| `connector/` | The MCP server (stdio) that runs on the user's computer. |
+| `test/` | End-to-end, browser, wallet and semantic tests. |
 
 ## Admin panel ($SYNOVAX)
 
-Buka http://127.0.0.1:8787/admin/ terus masukin admin key.
+Open http://127.0.0.1:8787/admin/ and sign in with the admin password.
 
-- **Key-nya:** pas server pertama jalan, dibikinin acak dan disimpen di `data/admin-key`. Liat pake `Get-Content data\admin-key`. Mau pake key sendiri? Set env `ADMIN_KEY` (min. 32 karakter). Server cuma nyimpen hash-nya di memori.
-- **Ganti key:** hapus `data/admin-key` lalu restart server (atau ganti `ADMIN_KEY`). Tiap restart, semua sesi admin lama otomatis ke-logout.
-- Yang diisi di panel langsung muncul di section `#token` landing + link X di footer, setelah lu pencet **Publish**.
-- **CA baru wajib dikonfirmasi** dengan ngetik 6 karakter terakhirnya. Status `live` cuma bisa kalau CA udah diisi.
-- Tiap perubahan dicatet (waktu, IP, field, nilai lama → baru) dan keliatan di panel. Kalau dua orang ngedit barengan, yang telat ditolak (409) biar nggak saling timpa.
-- Login dibatesin 5x per 15 menit per IP. Sesi admin berlaku 12 jam, cuma disimpen di tab itu (`sessionStorage`).
-- Kalau di-deploy: **wajib HTTPS**, dan jangan share admin key lewat chat/DM.
+- **First start:** the password comes from `ADMIN_PASSWORD`. If it is not set, a random one is printed once in the server log. Only a scrypt hash is stored, in `data/admin-password`.
+- **Change it** in the panel (the current password is required, and every other admin session is signed out).
+- **Forgot it?** On the server, run `npm run admin:password` (prints a new random one) or `npm run admin:password -- "<new password>"`. This also signs out every admin session.
+- What you fill in appears in the landing page's `#token` section and the X link in the footer once you press **Publish**.
+- **A new contract address must be confirmed** by typing its last 6 characters. Status `live` needs a contract address.
+- Once a contract address is set, the top 20 holders appear on the landing page automatically. They are counted from the token's Transfer events and confirmed with `balanceOf`. Checked against Blockscout on a real token (LINK on Robinhood Chain): the top 20, the holder count and the supply matched exactly. If the RPC is down, the last list stays up, marked "cached".
+- Every change is logged (time, IP, field, old and new value) and shown in the panel. If two people edit at once, the later save is rejected (409) so nobody overwrites the other.
+- Only failed sign-ins count toward the limit: 5 per 15 minutes per IP. An admin session lasts 12 hours and is kept only in that tab (`sessionStorage`). Restarting the server signs out every admin session.
+- When deployed: **HTTPS is required**, and never share the admin password over chat or DMs.
 
-## Cara kerja enkripsinya
+### Connect wallet
+
+Connect wallet on the landing page is read only. It asks for the address, can switch to or add Robinhood Chain (chain ID 4663), and reads the balance with `eth_call`. It never asks for a signature, an approval or a transaction. It supports EIP-6963 wallet discovery, with `window.ethereum` as a fallback.
+
+## How the encryption works
 
 ```
-passphrase ──PBKDF2 600k──▶ master ──HKDF──▶ authKey  (dikirim ke server, disimpen sebagai hash)
-                                     └─────▶ kek      (nggak pernah keluar dari device)
-24 kata recovery ──HKDF──▶ master ──▶ authKey / kek   (jalur cadangan)
+passphrase ──PBKDF2 600k──▶ master ──HKDF──▶ authKey  (sent to the server, stored as a hash)
+                                     └─────▶ kek      (never leaves the device)
+24 recovery words ──HKDF──▶ master ──▶ authKey / kek  (backup path)
 
-vault key (acak)   dikunci pake kek dan kek-recovery
-folder key (acak)  dikunci pake vault key + pake wrap-key tiap app yang dikasih izin
-memori             AES-256-GCM pake folder key, AAD ngiket ciphertext ke id-nya
-inbox              keypair ECDH P-256; app nge-seal usulan ke public key vault
-app key            vlt_app.<id>.<secret> ──HKDF──▶ auth (server cuma simpen hash) / wrap / vouch
+vault key (random)   wrapped with kek and the recovery kek
+folder key (random)  wrapped with the vault key and with the wrap key of each allowed app
+memory               AES-256-GCM with the folder key; the AAD binds the ciphertext to its id
+inbox                ECDH P-256 key pair; apps seal suggestions to the vault's public key
+app key              vlt_app.<id>.<secret> ──HKDF──▶ auth (server keeps only a hash) / wrap / vouch
 ```
 
-- **Server cuma liat:** username, jumlah dan ukuran data, waktu, app mana baca memori id berapa kapan.
-- **Server nggak bisa liat:** judul, isi, tag, nama folder, nama app, kata yang dicari AI, semua kunci.
-- **Vouch:** vault nge-HMAC public key inbox-nya pake kunci yang cuma dipegang vault + app. Jadi server nggak bisa diem-diem nuker public key buat ngintip usulan.
-- **Seal:** tiap periode, semua leaf log (di-salt) digabung jadi satu Merkle root. Halaman Read log bisa verifikasi entri apa pun ke seal publiknya, langsung di browser.
-- **Rantai seal:** tiap seal ngiket hash seal sebelumnya. Browser nyimpen hash terakhir yang pernah dia liat, dan tiap buka Read log dicek rantainya masih nyambung dari situ. Kalau server nulis ulang atau ngapus seal lama, langsung ketahuan.
-- **Ganti kunci folder:** pas izin folder dicabut dari sebuah app (atau app-nya di-revoke), folder itu otomatis dapet kunci baru dan semua memorinya dienkripsi ulang di browser. Kunci lama yang dipegang app itu nggak bisa buka apa pun yang ditulis setelahnya. Bisa juga manual: buka folder → **Replace key**.
-- **Perangkat yang login:** Settings → Signed-in devices. Bisa logout satu-satu atau semua sekaligus.
-- **Two-step sign-in (2FA):** Settings → Turn on. Kode 6 digit dari app authenticator, tiap kode cuma bisa dipake sekali. Rahasianya disimpen terenkripsi pake kunci dari `server-secret`. Recover pake 24 kata ikut matiin 2FA (buat kasus HP-nya yang ilang).
-- **Import:** Settings → Import. Paste daftar memori dari ChatGPT/Claude (satu fakta per baris) atau file export vault ini. Duplikat dilewatin, semua dienkripsi di browser.
-- **Pencarian connector:** kata kunci yang toleran (aksen, bentuk jamak/imbuhan Inggris + Indonesia, satu salah ketik, sinonim umum, kata langka dibobot lebih), plus **pencarian makna** kalau diaktifin (lihat di bawah).
-- **HP:** `/vault/` bisa di-install ke home screen (manifest + ikon), dan semua halaman dites nggak geser ke samping di lebar 390px.
-- **Hapus = hapus beneran:** `PRAGMA secure_delete=ON`.
-- CSP ketat (`script-src 'self'`), tanpa script/font pihak ketiga.
+- **The server sees only:** the username, how much data there is and its size, timestamps, and which app read which memory id when.
+- **The server cannot see:** titles, contents, tags, folder names, app names, what the AI searched for, or any key.
+- **Vouch:** the vault HMACs its inbox public key with a key only the vault and the app hold, so the server cannot quietly swap the public key to read suggestions.
+- **Seal:** every period, all log leaves (salted) are combined into one Merkle root. The Read log page can verify any entry against its public seal, right in the browser.
+- **Seal chain:** each seal commits to the hash of the previous one. The browser remembers the last hash it saw and checks on every visit to the Read log that the chain still connects from there. If the server rewrites or deletes an old seal, it shows.
+- **Folder key rotation:** when a folder is removed from an app (or the app is revoked), that folder gets a new key and all its memories are re-encrypted in the browser. The old key the app held cannot open anything written afterwards. You can also do it by hand: open the folder, then **Replace key**.
+- **Signed-in devices:** Settings → Signed-in devices. Sign out one at a time or all at once.
+- **Two-step sign-in (2FA):** Settings → Turn on. 6-digit codes from an authenticator app, each code usable once. The secret is stored encrypted with a key from `server-secret`. Recovering with the 24 words also turns 2FA off (for when the phone is lost).
+- **Import:** Settings → Import. Paste a memory list from ChatGPT or Claude (one fact per line) or a vault export file. Duplicates are skipped, and everything is encrypted in the browser.
+- **Connector search:** forgiving keywords (accents folded, light stemming, one typo allowed, common synonyms, rare words weighted higher), plus **semantic search** when enabled (see above).
+- **Phones:** `/vault/` can be installed to the home screen (manifest and icons), and every page is tested not to scroll sideways at 390px.
+- **Delete means delete:** `PRAGMA secure_delete=ON`.
+- Strict CSP (`script-src 'self'`), no third-party scripts or fonts.
 
-## Batasan yang perlu lu tahu
+## Known limits
 
-- **Belum diaudit.** Desainnya mengikuti pola standar, tapi sebelum nyimpen data sensitif orang lain, minta pihak ketiga audit dulu.
-- Kalau passphrase **dan** 24 kata recovery ilang, vault nggak bisa dibuka siapa pun. Itu disengaja.
-- Nyabut folder dari app bikin folder itu ganti kunci, jadi isi baru aman. Tapi apa yang udah sempet dibaca app sebelumnya bisa aja dia simpen. Itu nggak bisa ditarik balik.
-- Pencarian makna nggak sempurna: di pertanyaan ambigu ("what do I drink in the morning") model bisa naruh memori yang mirip ("Morning person") di atas yang bener; yang bener tetep ada di 3 besar. Pertanyaan yang nggak ada hubungannya kadang masih dapet hasil berlabel `possible`.
-- Rantai seal cuma sekuat saksinya: browser lu (per browser) dan `SEAL_PUBLISH_URL` kalau diisi. Tanpa keduanya, seal tetep cuma ada di server.
-- Inbox ngecek otomatis tiap 30 detik (dan pas tab dibuka lagi). Kalau lu lagi ngetik, layar nggak di-refresh biar tulisan nggak ilang, cuma muncul notifikasi.
-- Buat production: taruh di belakang HTTPS (reverse proxy), set `HOST=0.0.0.0` dan `TRUST_PROXY=1`, dan backup `DATA_DIR`.
-- Endpoint daftar tetap ngasih tahu kalau sebuah nama udah dipake ("That name is taken"). Ini nggak bisa dihindari selama username dipilih sendiri.
-- Landing page tetep di bawah CSP ketat: font di-host sendiri, tanpa CDN, tanpa inline script/style. Kalau nanti nambah aset dari luar, header CSP di `server/index.js` (`SECURITY_HEADERS`) perlu ditambahin domainnya.
+- **Not audited yet.** The design follows standard patterns, but before storing other people's sensitive data, have a third party audit it.
+- If both the passphrase **and** the 24 recovery words are lost, nobody can open the vault. That is by design.
+- Removing a folder from an app rotates its key, so new content is safe. Anything the app already read, it may have kept. That cannot be undone.
+- Semantic search is not perfect: on vague questions ("what do I drink in the morning") the model can rank a similar memory ("Morning person") above the right one; the right one still makes the top 3. Unrelated questions sometimes still get results labeled `possible`.
+- The seal chain is only as strong as its witnesses: your browser (per browser) and `SEAL_PUBLISH_URL` if set. Without either, the seals live only on the server.
+- The Inbox checks automatically every 30 seconds (and when the tab is opened again). If you are typing, the screen is not refreshed so nothing you typed is lost; a notice appears instead.
+- For production: put it behind HTTPS (a reverse proxy), set `HOST=0.0.0.0` and `TRUST_PROXY=1`, and back up `DATA_DIR`.
+- The sign-up endpoint still says when a name is taken ("That name is taken"). This cannot be avoided while users pick their own usernames.
+- The landing page stays under a strict CSP: self-hosted fonts, no CDN, no inline scripts or styles. If you add outside assets later, add their domains to the CSP header in `server/index.js` (`SECURITY_HEADERS`).
 
-## Belum dibikin (kandidat versi berikutnya)
+## Not built yet (next version candidates)
 
-Login passkey (WebAuthn PRF), pencarian makna di aplikasi vault (browser), "AI self", browser extension, berbagi folder antar-vault, app HP native.
+Passkey sign-in (WebAuthn PRF), semantic search in the vault app (browser), "AI self", a browser extension, sharing folders between vaults, native phone apps.
 
-## Lisensi
+## License
 
-[MIT](LICENSE). Bebas dipakai, diubah, dan didistribusiin, termasuk buat komersial, asal catatan copyright dan lisensinya tetep disertakan.
+[MIT](LICENSE). Free to use, change and distribute, including commercially, as long as the copyright and license notice are kept.
