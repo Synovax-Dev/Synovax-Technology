@@ -1,0 +1,19 @@
+{
+  "name": "synovax",
+  "version": "0.1.0",
+  "private": true,
+  "description": "An encrypted memory vault for every AI you use. Encrypted on your device, read only where you allow it, every read sealed.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "bin": {
+    "synovax-connector": "connector/index.js"
+  },
+  "scripts": {
+    "start": "node server/index.js",
+    "connector": "node connector/index.js",
+    "test": "node test/e2e.js"
+  },
+  "license": "MIT"
+}

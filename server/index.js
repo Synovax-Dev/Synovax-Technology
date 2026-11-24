@@ -1,0 +1,625 @@
+// The vault server. It stores ciphertext and keeps the read log; it never sees
+// a passphrase, a vault key, a folder key, an app's secret or a word of a memory.
+import http from 'node:http';
+import { readFile, mkdir, writeFile } from 'node:fs/promises';
+import { existsSync, readFileSync } from 'node:fs';
+import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { openDb, tx } from './db.js';
+import { startSealer, proofFor, sealOut } from './seals.js';
+import { leafHash } from '../shared/merkle.js';
+import { PBKDF2_ITERATIONS } from '../shared/crypto.js';
+import { APP_NAME } from '../shared/brand.js';
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const PORT = Number(process.env.PORT ?? 8787);
+const HOST = process.env.HOST ?? '127.0.0.1';
+const DATA_DIR = path.resolve(process.env.DATA_DIR ?? path.join(ROOT, 'data'));
+const SEAL_PERIOD_MS = Number(process.env.SEAL_PERIOD_MS ?? 3_600_000);
+const SESSION_TTL_MS = 7 * 24 * 3600 * 1000;
+const MAX_BODY = 4 * 1024 * 1024;
+const LOOPBACK = ['127.0.0.1', 'localhost', '::1'].includes(HOST);
+const LIMITS = { folders: 200, memories: 20_000, apps: 50, suggestions: 500 };
+
+await mkdir(DATA_DIR, { recursive: true });
+const secretFile = path.join(DATA_DIR, 'server-secret');
+if (!existsSync(secretFile)) await writeFile(secretFile, randomBytes(32).toString('hex'), { mode: 0o600 });
+const SERVER_SECRET = readFileSync(secretFile, 'utf8').trim();
+const db = openDb(path.join(DATA_DIR, 'vault.db'));
+
+// ---------- helpers
+
+class HttpError extends Error {
+  constructor(status, message) { super(message); this.status = status; }
+}
+const need = (ok, status, message) => { if (!ok) throw new HttpError(status, message); };
+const now = () => Date.now();
+const sha256hex = (s) => createHash('sha256').update(s).digest('hex');
+const newToken = (n) => randomBytes(n).toString('base64url');
+
+function safeEqualHex(a, b) {
+  const x = Buffer.from(String(a), 'hex');
+  const y = Buffer.from(String(b), 'hex');
+  return x.length === y.length && x.length > 0 && timingSafeEqual(x, y);
+}
+
+const RE = {
+  id: /^[A-Za-z0-9_-]{22}$/,
+  key: /^[A-Za-z0-9_-]{43}$/,
+  salt: /^[A-Za-z0-9_-]{22}$/,
+  b64: /^[A-Za-z0-9_-]+$/,
+  ct: /^v1\.[A-Za-z0-9_-]{38,}$/,
+  box: /^box1\.[A-Za-z0-9_-]+\.v1\.[A-Za-z0-9_-]+$/,
+  user: /^[a-z0-9][a-z0-9_.-]{2,31}$/,
+};
+
+function field(v, re, name, max = 1_000_000) {
+  need(typeof v === 'string' && v.length <= max && re.test(v), 400, `Invalid ${name}.`);
+  return v;
+}
+const username = (v) => field(typeof v === 'string' ? v.trim().toLowerCase() : v, RE.user, 'name (3 to 32 letters, digits, dot, dash or underscore)');
+
+function intParam(v, min, max, dflt) {
+  const n = Number.parseInt(v ?? '', 10);
+  return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : dflt;
+}
+
+const hits = new Map();
+function rateLimit(key, max, windowMs) {
+  const t = now();
+  const recent = (hits.get(key) ?? []).filter((x) => t - x < windowMs);
+  need(recent.length < max, 429, 'Too many attempts. Wait a moment and try again.');
+  recent.push(t);
+  hits.set(key, recent);
+}
+setInterval(() => {
+  const t = now();
+  for (const [k, v] of hits) if (!v.some((x) => t - x < 3_600_000)) hits.delete(k);
+  db.prepare('DELETE FROM sessions WHERE expires_at < ?').run(t);
+  db.prepare('DELETE FROM admin_sessions WHERE expires_at < ?').run(t);
+}, 600_000).unref();
+
+const count = (sql, ...args) => db.prepare(sql).get(...args).n;
+
+// The admin key guards the public token details on the landing page. It is
+// random, lives only in data/admin-key (or ADMIN_KEY), and is never sent back.
+const ADMIN_TTL_MS = 12 * 3600 * 1000;
+const adminKeyFile = path.join(DATA_DIR, 'admin-key');
+let adminKey = process.env.ADMIN_KEY ?? '';
+if (adminKey && adminKey.length < 32) { console.error('ADMIN_KEY must be at least 32 characters.'); process.exit(1); }
+if (!adminKey) {
+  if (!existsSync(adminKeyFile)) await writeFile(adminKeyFile, `adm_${newToken(32)}\n`, { mode: 0o600 });
+  adminKey = readFileSync(adminKeyFile, 'utf8').trim();
+}
+const ADMIN_KEY_HASH = sha256hex(adminKey);
+// the key may have been rotated since the last run: no admin session outlives a restart
+db.prepare('DELETE FROM admin_sessions').run();
+adminKey = '';
+
+async function logRead(vaultId, appId, action, target) {
+  const entry = { id: newToken(16), ts: now(), vault_id: vaultId, app_id: appId, action, target: target ?? null, salt: newToken(16) };
+  const leaf = await leafHash(entry);
+  db.prepare('INSERT INTO read_log (id, vault_id, app_id, action, target, ts, salt, leaf) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+    .run(entry.id, vaultId, appId, action, entry.target, entry.ts, entry.salt, leaf);
+}
+
+function newSession(vaultId) {
+  const token = newToken(32);
+  db.prepare('INSERT INTO sessions (token_hash, vault_id, expires_at) VALUES (?, ?, ?)').run(sha256hex(token), vaultId, now() + SESSION_TTL_MS);
+  return token;
+}
+
+const keyBundle = (v) => ({ vaultId: v.id, wrappedVaultKey: v.wrapped_vk, boxPub: v.box_pub, boxPrivWrapped: v.box_priv_wrapped });
+
+// A made-up but stable salt for names that do not exist, so the salt endpoint
+// does not tell anyone which names are registered.
+const fakeSalt = (u) => createHmac('sha256', SERVER_SECRET).update(`salt:${u}`).digest().subarray(0, 16).toString('base64url');
+
+// ---------- auth
+
+function ownerAuth(req) {
+  const m = /^Bearer s\.([A-Za-z0-9_-]{43})$/.exec(req.headers.authorization ?? '');
+  need(m, 401, 'Not signed in.');
+  const tokenHash = sha256hex(m[1]);
+  const row = db.prepare('SELECT vault_id, expires_at FROM sessions WHERE token_hash = ?').get(tokenHash);
+  need(row && row.expires_at > now(), 401, 'Your session has ended. Open your vault again.');
+  return { vaultId: row.vault_id, tokenHash };
+}
+
+function appAuth(req) {
+  const m = /^Bearer a\.([A-Za-z0-9_-]{22})\.([A-Za-z0-9_-]{43})$/.exec(req.headers.authorization ?? '');
+  need(m, 401, 'Missing app key.');
+  const app = db.prepare('SELECT * FROM apps WHERE id = ?').get(m[1]);
+  need(app && safeEqualHex(app.auth_hash, sha256hex(m[2])), 401, 'This app key was revoked or is not valid.');
+  db.prepare('UPDATE apps SET last_used_at = ? WHERE id = ?').run(now(), app.id);
+  return app;
+}
+
+function adminAuth(req) {
+  const m = /^Bearer adm\.([A-Za-z0-9_-]{43})$/.exec(req.headers.authorization ?? '');
+  need(m, 401, 'Not signed in to the admin panel.');
+  const tokenHash = sha256hex(m[1]);
+  const row = db.prepare('SELECT expires_at FROM admin_sessions WHERE token_hash = ?').get(tokenHash);
+  need(row && row.expires_at > now(), 401, 'Your admin session has ended. Sign in again.');
+  return { tokenHash };
+}
+
+// ---------- routing
+
+const routes = [];
+function route(method, pattern, auth, handler) {
+  const keys = [];
+  const re = new RegExp('^' + pattern.replace(/:(\w+)/g, (_, k) => { keys.push(k); return '([A-Za-z0-9_-]+)'; }) + '$');
+  routes.push({ method, re, keys, auth, handler });
+}
+
+async function readJson(req) {
+  const chunks = [];
+  let size = 0;
+  for await (const c of req) {
+    size += c.length;
+    if (size > MAX_BODY) throw new HttpError(413, 'Request is too large.');
+    chunks.push(c);
+  }
+  if (!size) return {};
+  try {
+    const v = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+    need(v && typeof v === 'object' && !Array.isArray(v), 400, 'Expected a JSON object.');
+    return v;
+  } catch (e) {
+    if (e instanceof HttpError) throw e;
+    throw new HttpError(400, 'Invalid JSON.');
+  }
+}
+
+// ---------- public
+
+route('GET', '/api/config', 'none', () => ({
+  appName: APP_NAME,
+  sealPeriodMs: SEAL_PERIOD_MS,
+  iterations: PBKDF2_ITERATIONS,
+  connectorPath: LOOPBACK ? path.join(ROOT, 'connector', 'index.js') : null,
+}));
+
+route('GET', '/api/stats', 'none', () => ({
+  vaults: count('SELECT COUNT(*) n FROM vaults'),
+  memories: count('SELECT COUNT(*) n FROM memories'),
+  reads: count('SELECT COUNT(*) n FROM read_log'),
+  seals: count('SELECT COUNT(*) n FROM seals'),
+}));
+
+route('GET', '/api/seals', 'none', ({ url }) => ({
+  seals: db.prepare('SELECT * FROM seals ORDER BY seq DESC LIMIT ?').all(intParam(url.searchParams.get('limit'), 1, 500, 50)).map(sealOut),
+  periodMs: SEAL_PERIOD_MS,
+  nextCloseAt: (Math.floor(now() / SEAL_PERIOD_MS) + 1) * SEAL_PERIOD_MS,
+}));
+
+route('GET', '/api/seals/:seq', 'none', ({ params }) => {
+  const s = db.prepare('SELECT * FROM seals WHERE seq = ?').get(Number(params.seq));
+  need(s, 404, 'No such seal.');
+  return sealOut(s);
+});
+
+route('POST', '/api/auth/salt', 'none', ({ body, ip }) => {
+  rateLimit(`salt:${ip}`, 60, 60_000);
+  const u = username(body.username);
+  const v = db.prepare('SELECT salt, kdf_iter FROM vaults WHERE username = ?').get(u);
+  return { salt: v ? v.salt : fakeSalt(u), iterations: v ? v.kdf_iter : PBKDF2_ITERATIONS };
+});
+
+route('POST', '/api/auth/register', 'none', ({ body, ip }) => {
+  rateLimit(`register:${ip}`, 10, 3_600_000);
+  const u = username(body.username);
+  need(Number.isInteger(body.iterations) && body.iterations >= 100_000 && body.iterations <= 10_000_000, 400, 'Invalid iterations.');
+  const v = {
+    id: newToken(16),
+    username: u,
+    salt: field(body.salt, RE.salt, 'salt'),
+    kdf_iter: body.iterations,
+    auth_hash: sha256hex(field(body.authKey, RE.key, 'authKey')),
+    rec_auth_hash: sha256hex(field(body.recoveryAuthKey, RE.key, 'recoveryAuthKey')),
+    wrapped_vk: field(body.wrappedVaultKey, RE.ct, 'wrappedVaultKey', 200),
+    wrapped_vk_rec: field(body.wrappedVaultKeyRecovery, RE.ct, 'wrappedVaultKeyRecovery', 200),
+    box_pub: field(body.boxPub, RE.b64, 'boxPub', 300),
+    box_priv_wrapped: field(body.boxPrivWrapped, RE.ct, 'boxPrivWrapped', 500),
+  };
+  need(!db.prepare('SELECT 1 FROM vaults WHERE username = ?').get(u), 409, 'That name is taken.');
+  db.prepare(`INSERT INTO vaults (id, username, salt, kdf_iter, auth_hash, rec_auth_hash, wrapped_vk, wrapped_vk_rec, box_pub, box_priv_wrapped, created_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    .run(v.id, v.username, v.salt, v.kdf_iter, v.auth_hash, v.rec_auth_hash, v.wrapped_vk, v.wrapped_vk_rec, v.box_pub, v.box_priv_wrapped, now());
+  return { token: newSession(v.id), keys: keyBundle(v) };
+});
+
+route('POST', '/api/auth/login', 'none', ({ body, ip }) => {
+  const u = username(body.username);
+  rateLimit(`login:${ip}`, 20, 60_000);
+  rateLimit(`login-user:${u}`, 10, 60_000);
+  const v = db.prepare('SELECT * FROM vaults WHERE username = ?').get(u);
+  const given = sha256hex(field(body.authKey, RE.key, 'authKey'));
+  need(v && safeEqualHex(v.auth_hash, given), 401, 'Wrong name or passphrase.');
+  return { token: newSession(v.id), keys: keyBundle(v) };
+});
+
+route('POST', '/api/auth/recover', 'none', ({ body, ip }) => {
+  const u = username(body.username);
+  rateLimit(`recover:${ip}`, 10, 600_000);
+  rateLimit(`recover-user:${u}`, 5, 600_000);
+  const v = db.prepare('SELECT * FROM vaults WHERE username = ?').get(u);
+  const given = sha256hex(field(body.recoveryAuthKey, RE.key, 'recoveryAuthKey'));
+  need(v && safeEqualHex(v.rec_auth_hash, given), 401, 'Wrong name or recovery phrase.');
+  return { token: newSession(v.id), keys: { ...keyBundle(v), wrappedVaultKeyRecovery: v.wrapped_vk_rec } };
+});
+
+route('POST', '/api/auth/logout', 'owner', ({ auth }) => {
+  db.prepare('DELETE FROM sessions WHERE token_hash = ?').run(auth.tokenHash);
+});
+
+// ---------- owner: vault contents
+
+route('GET', '/api/vault', 'owner', ({ auth }) => {
+  const v = db.prepare('SELECT * FROM vaults WHERE id = ?').get(auth.vaultId);
+  return {
+    keys: keyBundle(v),
+    folders: db.prepare('SELECT id, meta, wrapped_key, updated_at FROM folders WHERE vault_id = ?').all(auth.vaultId)
+      .map((f) => ({ id: f.id, meta: f.meta, wrappedKey: f.wrapped_key, updatedAt: f.updated_at })),
+    memories: db.prepare('SELECT id, folder_id, body, created_at, updated_at FROM memories WHERE vault_id = ? ORDER BY updated_at DESC').all(auth.vaultId)
+      .map((m) => ({ id: m.id, folderId: m.folder_id, body: m.body, createdAt: m.created_at, updatedAt: m.updated_at })),
+  };
+});
+
+route('PUT', '/api/folders/:id', 'owner', ({ auth, params, body }) => {
+  const id = field(params.id, RE.id, 'folder id');
+  const meta = field(body.meta, RE.ct, 'meta', 4000);
+  const wrappedKey = field(body.wrappedKey, RE.ct, 'wrappedKey', 200);
+  const existing = db.prepare('SELECT vault_id FROM folders WHERE id = ?').get(id);
+  if (existing) {
+    need(existing.vault_id === auth.vaultId, 404, 'No such folder.');
+    db.prepare('UPDATE folders SET meta = ?, wrapped_key = ?, updated_at = ? WHERE id = ?').run(meta, wrappedKey, now(), id);
+  } else {
+    need(count('SELECT COUNT(*) n FROM folders WHERE vault_id = ?', auth.vaultId) < LIMITS.folders, 400, 'Too many folders.');
+    db.prepare('INSERT INTO folders (id, vault_id, meta, wrapped_key, updated_at) VALUES (?, ?, ?, ?, ?)').run(id, auth.vaultId, meta, wrappedKey, now());
+  }
+});
+
+route('DELETE', '/api/folders/:id', 'owner', ({ auth, params }) => {
+  const r = db.prepare('DELETE FROM folders WHERE id = ? AND vault_id = ?').run(params.id, auth.vaultId);
+  need(r.changes, 404, 'No such folder.');
+});
+
+route('PUT', '/api/memories/:id', 'owner', ({ auth, params, body }) => {
+  const id = field(params.id, RE.id, 'memory id');
+  const folderId = field(body.folderId, RE.id, 'folderId');
+  const head = field(body.head, RE.ct, 'head', 8000);
+  const content = field(body.body, RE.ct, 'body', 1_500_000);
+  need(db.prepare('SELECT 1 FROM folders WHERE id = ? AND vault_id = ?').get(folderId, auth.vaultId), 400, 'No such folder.');
+  const existing = db.prepare('SELECT vault_id FROM memories WHERE id = ?').get(id);
+  if (existing) {
+    need(existing.vault_id === auth.vaultId, 404, 'No such memory.');
+    db.prepare('UPDATE memories SET folder_id = ?, head = ?, body = ?, updated_at = ? WHERE id = ?').run(folderId, head, content, now(), id);
+  } else {
+    need(count('SELECT COUNT(*) n FROM memories WHERE vault_id = ?', auth.vaultId) < LIMITS.memories, 400, 'Too many memories.');
+    db.prepare('INSERT INTO memories (id, vault_id, folder_id, head, body, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+      .run(id, auth.vaultId, folderId, head, content, now(), now());
+  }
+});
+
+route('DELETE', '/api/memories/:id', 'owner', ({ auth, params }) => {
+  const r = db.prepare('DELETE FROM memories WHERE id = ? AND vault_id = ?').run(params.id, auth.vaultId);
+  need(r.changes, 404, 'No such memory.');
+});
+
+// ---------- owner: apps
+
+function checkFolderKeys(vaultId, appId, list) {
+  need(Array.isArray(list) && list.length <= LIMITS.folders, 400, 'Invalid folderKeys.');
+  const seen = new Set();
+  return list.map((k) => {
+    const folderId = field(k?.folderId, RE.id, 'folderId');
+    need(!seen.has(folderId), 400, 'A folder is listed twice.');
+    seen.add(folderId);
+    need(db.prepare('SELECT 1 FROM folders WHERE id = ? AND vault_id = ?').get(folderId, vaultId), 400, 'No such folder.');
+    return { appId, folderId, wrappedKey: field(k.wrappedKey, RE.ct, 'wrappedKey', 200) };
+  });
+}
+
+function writeGrants(appId, grants) {
+  db.prepare('DELETE FROM app_folder_keys WHERE app_id = ?').run(appId);
+  const ins = db.prepare('INSERT INTO app_folder_keys (app_id, folder_id, wrapped_key) VALUES (?, ?, ?)');
+  for (const g of grants) ins.run(appId, g.folderId, g.wrappedKey);
+}
+
+route('GET', '/api/apps', 'owner', ({ auth }) => ({
+  apps: db.prepare('SELECT * FROM apps WHERE vault_id = ? ORDER BY created_at').all(auth.vaultId).map((a) => ({
+    id: a.id,
+    meta: a.meta,
+    canSuggest: !!a.can_suggest,
+    createdAt: a.created_at,
+    lastUsedAt: a.last_used_at,
+    folderIds: db.prepare('SELECT folder_id FROM app_folder_keys WHERE app_id = ?').all(a.id).map((r) => r.folder_id),
+  })),
+}));
+
+route('PUT', '/api/apps/:id', 'owner', ({ auth, params, body }) => {
+  const id = field(params.id, RE.id, 'app id');
+  need(!db.prepare('SELECT 1 FROM apps WHERE id = ?').get(id), 409, 'That app already exists.');
+  need(count('SELECT COUNT(*) n FROM apps WHERE vault_id = ?', auth.vaultId) < LIMITS.apps, 400, 'Too many apps.');
+  const meta = field(body.meta, RE.ct, 'meta', 4000);
+  const authHash = sha256hex(field(body.authKey, RE.key, 'authKey'));
+  const vouch = field(body.vouch, RE.key, 'vouch');
+  const grants = checkFolderKeys(auth.vaultId, id, body.folderKeys ?? []);
+  tx(db, () => {
+    db.prepare('INSERT INTO apps (id, vault_id, meta, auth_hash, vouch, can_suggest, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+      .run(id, auth.vaultId, meta, authHash, vouch, body.canSuggest ? 1 : 0, now());
+    writeGrants(id, grants);
+  });
+});
+
+route('PATCH', '/api/apps/:id', 'owner', ({ auth, params, body }) => {
+  const app = db.prepare('SELECT id FROM apps WHERE id = ? AND vault_id = ?').get(params.id, auth.vaultId);
+  need(app, 404, 'No such app.');
+  const grants = body.folderKeys !== undefined ? checkFolderKeys(auth.vaultId, app.id, body.folderKeys) : null;
+  const meta = body.meta !== undefined ? field(body.meta, RE.ct, 'meta', 4000) : null;
+  tx(db, () => {
+    if (meta) db.prepare('UPDATE apps SET meta = ? WHERE id = ?').run(meta, app.id);
+    if (body.canSuggest !== undefined) db.prepare('UPDATE apps SET can_suggest = ? WHERE id = ?').run(body.canSuggest ? 1 : 0, app.id);
+    if (grants) writeGrants(app.id, grants);
+  });
+});
+
+// Revoke: the key stops working on its next request, and its wrapped folder keys are deleted.
+route('DELETE', '/api/apps/:id', 'owner', ({ auth, params }) => {
+  const r = db.prepare('DELETE FROM apps WHERE id = ? AND vault_id = ?').run(params.id, auth.vaultId);
+  need(r.changes, 404, 'No such app.');
+});
+
+// ---------- owner: inbox, log, account
+
+route('GET', '/api/inbox', 'owner', ({ auth }) => ({
+  suggestions: db.prepare('SELECT id, app_id, box, created_at FROM suggestions WHERE vault_id = ? ORDER BY created_at').all(auth.vaultId)
+    .map((s) => ({ id: s.id, appId: s.app_id, box: s.box, createdAt: s.created_at })),
+}));
+
+route('DELETE', '/api/inbox/:id', 'owner', ({ auth, params }) => {
+  const r = db.prepare('DELETE FROM suggestions WHERE id = ? AND vault_id = ?').run(params.id, auth.vaultId);
+  need(r.changes, 404, 'No such suggestion.');
+});
+
+route('GET', '/api/log', 'owner', ({ auth, url }) => ({
+  entries: db.prepare('SELECT * FROM read_log WHERE vault_id = ? ORDER BY seq DESC LIMIT ?')
+    .all(auth.vaultId, intParam(url.searchParams.get('limit'), 1, 1000, 200))
+    .map((e) => ({ id: e.id, appId: e.app_id, action: e.action, target: e.target, ts: e.ts, salt: e.salt, leaf: e.leaf, sealSeq: e.seal_seq })),
+  periodMs: SEAL_PERIOD_MS,
+  nextCloseAt: (Math.floor(now() / SEAL_PERIOD_MS) + 1) * SEAL_PERIOD_MS,
+}));
+
+route('GET', '/api/log/:id/proof', 'owner', async ({ auth, params }) => {
+  const p = await proofFor(db, auth.vaultId, params.id);
+  need(p, 404, 'No such log entry.');
+  return p;
+});
+
+route('PUT', '/api/account/passphrase', 'owner', ({ auth, body }) => {
+  need(Number.isInteger(body.iterations) && body.iterations >= 100_000 && body.iterations <= 10_000_000, 400, 'Invalid iterations.');
+  const salt = field(body.salt, RE.salt, 'salt');
+  const authHash = sha256hex(field(body.authKey, RE.key, 'authKey'));
+  const wrapped = field(body.wrappedVaultKey, RE.ct, 'wrappedVaultKey', 200);
+  tx(db, () => {
+    db.prepare('UPDATE vaults SET salt = ?, kdf_iter = ?, auth_hash = ?, wrapped_vk = ? WHERE id = ?').run(salt, body.iterations, authHash, wrapped, auth.vaultId);
+    db.prepare('DELETE FROM sessions WHERE vault_id = ? AND token_hash != ?').run(auth.vaultId, auth.tokenHash);
+  });
+});
+
+route('DELETE', '/api/account', 'owner', ({ auth, body }) => {
+  const v = db.prepare('SELECT username FROM vaults WHERE id = ?').get(auth.vaultId);
+  need(body.confirm === v.username, 400, 'Type your vault name to confirm.');
+  tx(db, () => {
+    db.prepare('DELETE FROM read_log WHERE vault_id = ?').run(auth.vaultId);
+    db.prepare('DELETE FROM vaults WHERE id = ?').run(auth.vaultId); // cascades to everything else
+  });
+});
+
+// ---------- connected apps (through the connector)
+
+const grantedFolder = (appId, folderId) => db.prepare('SELECT 1 FROM app_folder_keys WHERE app_id = ? AND folder_id = ?').get(appId, folderId);
+
+route('GET', '/api/app/info', 'app', async ({ app }) => {
+  await logRead(app.vault_id, app.id, 'folders', null);
+  const v = db.prepare('SELECT box_pub FROM vaults WHERE id = ?').get(app.vault_id);
+  return {
+    appId: app.id,
+    canSuggest: !!app.can_suggest,
+    boxPub: v.box_pub,
+    vouch: app.vouch,
+    folders: db.prepare('SELECT f.id, f.meta, k.wrapped_key FROM app_folder_keys k JOIN folders f ON f.id = k.folder_id WHERE k.app_id = ?')
+      .all(app.id).map((f) => ({ id: f.id, meta: f.meta, wrappedKey: f.wrapped_key })),
+  };
+});
+
+route('GET', '/api/app/memories', 'app', async ({ app, url }) => {
+  const folderId = url.searchParams.get('folderId');
+  let rows;
+  if (folderId) {
+    need(grantedFolder(app.id, folderId), 403, 'This app has no access to that folder.');
+    rows = db.prepare('SELECT id, folder_id, head, created_at, updated_at FROM memories WHERE folder_id = ?').all(folderId);
+  } else {
+    rows = db.prepare(`SELECT m.id, m.folder_id, m.head, m.created_at, m.updated_at FROM memories m
+                       JOIN app_folder_keys k ON k.folder_id = m.folder_id AND k.app_id = ?`).all(app.id);
+  }
+  await logRead(app.vault_id, app.id, 'list', folderId ?? '*');
+  return { memories: rows.map((m) => ({ id: m.id, folderId: m.folder_id, head: m.head, createdAt: m.created_at, updatedAt: m.updated_at })) };
+});
+
+route('GET', '/api/app/memories/:id', 'app', async ({ app, params }) => {
+  const m = db.prepare(`SELECT m.* FROM memories m JOIN app_folder_keys k ON k.folder_id = m.folder_id AND k.app_id = ? WHERE m.id = ?`)
+    .get(app.id, params.id);
+  need(m, 404, 'No such memory, or this app has no access to its folder.');
+  await logRead(app.vault_id, app.id, 'read', m.id); // written before the answer goes out
+  return { id: m.id, folderId: m.folder_id, head: m.head, body: m.body, createdAt: m.created_at, updatedAt: m.updated_at };
+});
+
+route('POST', '/api/app/suggest', 'app', async ({ app, body }) => {
+  need(app.can_suggest, 403, 'This app is not allowed to suggest memories.');
+  const box = field(body.box, RE.box, 'box', 200_000);
+  need(count('SELECT COUNT(*) n FROM suggestions WHERE vault_id = ?', app.vault_id) < LIMITS.suggestions, 429, 'The inbox is full.');
+  const id = newToken(16);
+  db.prepare('INSERT INTO suggestions (id, vault_id, app_id, box, created_at) VALUES (?, ?, ?, ?, ?)').run(id, app.vault_id, app.id, box, now());
+  await logRead(app.vault_id, app.id, 'suggest', id);
+  return { id };
+});
+
+// ---------- token details (public) and the admin panel that edits them
+
+const TOKEN_FIELDS = { status: 'pre-launch', contract: '', explorerUrl: '', twitter: '', supply: '', launchDate: '' };
+
+function tokenInfo() {
+  const row = db.prepare("SELECT value, rev, updated_at FROM site_settings WHERE key = 'token'").get();
+  const saved = row ? JSON.parse(row.value) : {};
+  const out = {};
+  for (const k of Object.keys(TOKEN_FIELDS)) out[k] = typeof saved[k] === 'string' ? saved[k] : TOKEN_FIELDS[k];
+  return { ...out, rev: row?.rev ?? 0, updatedAt: row?.updated_at ?? null };
+}
+
+function cleanToken(body) {
+  const text = (v, name, max) => {
+    need(v === undefined || v === null || typeof v === 'string', 400, `Invalid ${name}.`);
+    const s = (v ?? '').trim();
+    need(s.length <= max, 400, `The ${name} is too long (${max} characters at most).`);
+    need(!/[\u0000-\u001f\u007f<>]/.test(s), 400, `The ${name} has characters that are not allowed.`);
+    return s;
+  };
+  const status = text(body.status, 'status', 20) || 'pre-launch';
+  need(status === 'pre-launch' || status === 'live', 400, 'Status must be pre-launch or live.');
+  const contract = text(body.contract, 'contract address', 42);
+  need(!contract || /^0x[0-9a-fA-F]{40}$/.test(contract), 400, 'The contract address must be 0x followed by 40 hex characters.');
+  const tw = text(body.twitter, 'X account', 120);
+  const m = /^(?:https?:\/\/(?:www\.)?(?:x|twitter)\.com\/)?@?([A-Za-z0-9_]{1,15})\/?$/.exec(tw);
+  need(!tw || m, 400, 'The X account must be a handle like @synovax or an x.com link.');
+  let explorerUrl = text(body.explorerUrl, 'explorer link', 300);
+  if (explorerUrl) {
+    let u = null;
+    try { u = new URL(explorerUrl); } catch {}
+    need(u && u.protocol === 'https:' && !u.username && !u.password, 400, 'The explorer link must start with https://.');
+    explorerUrl = u.href;
+  }
+  const out = { status, contract, explorerUrl, twitter: m ? m[1] : '', supply: text(body.supply, 'supply', 40), launchDate: text(body.launchDate, 'launch date', 40) };
+  need(status !== 'live' || contract, 400, 'Add the contract address before setting the status to live.');
+  return out;
+}
+
+route('GET', '/api/token', 'none', () => {
+  const { rev, ...pub } = tokenInfo();
+  return pub;
+});
+
+route('POST', '/api/admin/login', 'none', ({ body, ip }) => {
+  rateLimit(`admin:${ip}`, 5, 15 * 60_000);
+  const key = typeof body.key === 'string' ? body.key.trim() : '';
+  need(key.length > 0 && key.length <= 200 && safeEqualHex(sha256hex(key), ADMIN_KEY_HASH), 401, 'That admin key is not right.');
+  const token = newToken(32), expiresAt = now() + ADMIN_TTL_MS;
+  db.prepare('INSERT INTO admin_sessions (token_hash, expires_at) VALUES (?, ?)').run(sha256hex(token), expiresAt);
+  return { token, expiresAt };
+});
+
+route('POST', '/api/admin/logout', 'admin', ({ admin }) => {
+  db.prepare('DELETE FROM admin_sessions WHERE token_hash = ?').run(admin.tokenHash);
+});
+
+route('GET', '/api/admin/token', 'admin', () => ({
+  token: tokenInfo(),
+  history: db.prepare('SELECT at, field, old, new FROM admin_audit ORDER BY seq DESC LIMIT 50').all(),
+}));
+
+route('PUT', '/api/admin/token', 'admin', ({ body, ip }) => {
+  const cur = tokenInfo();
+  need(Number(body.rev) === cur.rev, 409, 'Someone saved a newer version. Reload the panel and try again.');
+  const next = cleanToken(body);
+  // a new contract address has to be confirmed by typing its last 6 characters again
+  if (next.contract && next.contract.toLowerCase() !== cur.contract.toLowerCase()) {
+    const c = typeof body.confirmContract === 'string' ? body.confirmContract.trim().toLowerCase() : '';
+    need(c === next.contract.slice(-6).toLowerCase(), 400, 'To publish a new contract address, type its last 6 characters to confirm.');
+  }
+  const changed = Object.keys(TOKEN_FIELDS).filter((k) => next[k] !== cur[k]);
+  if (!changed.length) return { token: cur, changed };
+  const t = now();
+  tx(db, () => {
+    db.prepare(`INSERT INTO site_settings (key, value, rev, updated_at) VALUES ('token', ?, ?, ?)
+                ON CONFLICT(key) DO UPDATE SET value = excluded.value, rev = excluded.rev, updated_at = excluded.updated_at`)
+      .run(JSON.stringify(next), cur.rev + 1, t);
+    const add = db.prepare('INSERT INTO admin_audit (at, ip, field, old, new) VALUES (?, ?, ?, ?, ?)');
+    for (const k of changed) add.run(t, ip, k, cur[k], next[k]);
+  });
+  return { token: tokenInfo(), changed };
+});
+
+// ---------- static files
+
+const SECURITY_HEADERS = {
+  'content-security-policy': "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'",
+  'x-content-type-options': 'nosniff',
+  'referrer-policy': 'no-referrer',
+  'x-frame-options': 'DENY',
+  'cross-origin-opener-policy': 'same-origin',
+  'permissions-policy': 'camera=(), microphone=(), geolocation=()',
+};
+const MIME = {
+  '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
+  '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp',
+  '.ico': 'image/x-icon', '.woff2': 'font/woff2', '.txt': 'text/plain; charset=utf-8',
+};
+
+function send(res, status, data) {
+  res.writeHead(status, { ...SECURITY_HEADERS, 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
+  res.end(JSON.stringify(data));
+}
+
+async function serveStatic(req, res, url) {
+  let p;
+  try { p = decodeURIComponent(url.pathname); } catch { throw new HttpError(400, 'Bad path.'); }
+  if (p === '/vault') { res.writeHead(301, { location: '/vault/' }); return res.end(); }
+  if (p === '/admin') { res.writeHead(301, { location: '/admin/' }); return res.end(); }
+  if (p === '/docs') { res.writeHead(301, { location: '/docs/' }); return res.end(); }
+  const isShared = p.startsWith('/shared/');
+  const base = path.join(ROOT, isShared ? 'shared' : 'web');
+  let file = path.resolve(base, isShared ? p.slice('/shared/'.length) : p.slice(1));
+  if (file !== base && !file.startsWith(base + path.sep)) throw new HttpError(404, 'Not found.');
+  if (p.endsWith('/')) file = path.join(file, 'index.html');
+  let data;
+  try { data = await readFile(file); } catch { throw new HttpError(404, 'Not found.'); }
+  res.writeHead(200, { ...SECURITY_HEADERS, 'content-type': MIME[path.extname(file)] ?? 'application/octet-stream', 'cache-control': 'no-cache' });
+  res.end(req.method === 'HEAD' ? undefined : data);
+}
+
+// ---------- server
+
+const server = http.createServer(async (req, res) => {
+  const url = new URL(req.url, 'http://localhost');
+  try {
+    if (url.pathname.startsWith('/api/')) {
+      for (const r of routes) {
+        if (r.method !== req.method) continue;
+        const m = r.re.exec(url.pathname);
+        if (!m) continue;
+        const ctx = { req, url, ip: req.socket.remoteAddress ?? '?', params: Object.fromEntries(r.keys.map((k, i) => [k, m[i + 1]])) };
+        if (r.auth === 'owner') ctx.auth = ownerAuth(req);
+        if (r.auth === 'app') ctx.app = appAuth(req);
+        if (r.auth === 'admin') ctx.admin = adminAuth(req);
+        ctx.body = req.method === 'GET' ? {} : await readJson(req);
+        return send(res, 200, (await r.handler(ctx)) ?? { ok: true });
+      }
+      throw new HttpError(404, 'Not found.');
+    }
+    if (req.method !== 'GET' && req.method !== 'HEAD') throw new HttpError(405, 'Method not allowed.');
+    await serveStatic(req, res, url);
+  } catch (e) {
+    if (e instanceof HttpError) return send(res, e.status, { error: e.message });
+    console.error(e);
+    send(res, 500, { error: 'Something went wrong on the server.' });
+  }
+});
+
+startSealer(db, SEAL_PERIOD_MS);
+server.listen(PORT, HOST, () => {
+  console.log(`${APP_NAME} running at http://${HOST.includes(':') ? `[${HOST}]` : HOST}:${server.address().port}`);
+  console.log(`Admin panel: /admin/ (key in ${process.env.ADMIN_KEY ? 'ADMIN_KEY' : adminKeyFile})`);
+});

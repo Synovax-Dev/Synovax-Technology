@@ -1,0 +1,571 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>SYNOVAX Docs</title>
+  <meta name="description" content="Everything about SYNOVAX, from your first memory to self-hosting and the security model.">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="preload" href="/fonts/oswald-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/fonts/space-grotesk-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/docs/docs.css">
+  <script type="module" src="/docs/docs.js"></script>
+</head>
+<body>
+  <svg width="0" height="0" class="sprite" aria-hidden="true">
+    <symbol id="i-mark" viewBox="0 0 24 24"><path d="M21.64 1L4.2 7.77L10.6 12.33C9.72 11.6 9.72 10.34 10.75 9.98L17.59 6.89ZM2.36 23L19.8 16.23L13.4 11.67C14.28 12.4 14.28 13.66 13.25 14.02L6.41 17.11Z" fill="currentColor"/></symbol>
+    <symbol id="i-claude" viewBox="0 0 24 24"><path d="M13.45 10.8L12.55 1.4L11.45 1.4L10.55 10.8ZM13.88 11.87L17.8 4.84L16.91 4.2L11.52 10.18ZM13.6 12.99L22.49 9.01L22.14 7.96L12.67 10.24ZM12.98 13.61L21.42 13.91L21.58 12.82L13.39 10.74ZM11.86 13.88L18.98 19.45L19.75 18.66L13.87 11.78ZM10.8 13.45L13.49 22.91L14.57 22.71L13.65 12.91ZM10.27 12.74L8.82 20.86L9.88 21.17L13.05 13.56ZM10.16 11.6L3.39 18.04L4.07 18.9L11.95 13.88ZM10.74 10.6L2.19 11.87L2.23 12.97L10.86 13.5ZM11.51 10.18L2.4 7.01L1.95 8.01L10.31 12.82ZM12.66 10.24L7.85 3.66L6.89 4.21L10.15 11.68Z" fill="currentColor"/><circle cx="12" cy="12" r="2.4" fill="currentColor"/></symbol>
+    <symbol id="i-cursor" viewBox="0 0 24 24"><path d="M12 1.6L21.2 6.8L12 12L2.8 6.8Z" fill="currentColor" fill-opacity="0.45"/><path d="M2.8 6.8L12 12L12 22.4L2.8 17.2Z" fill="currentColor"/><path d="M12 12L21.2 6.8L21.2 17.2L12 22.4Z" fill="currentColor" fill-opacity="0.72"/></symbol>
+    <symbol id="i-windsurf" viewBox="0 0 24 24"><path d="M2 10.5c2.6-4.6 5.2-4.6 7.4 0s4.8 4.6 7.4 0c1.3-2.3 2.6-3.4 5.2-3" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><path d="M2 17.5c2.6-4.6 5.2-4.6 7.4 0s4.8 4.6 7.4 0c1.3-2.3 2.6-3.4 5.2-3" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" opacity="0.55"/></symbol>
+    <symbol id="i-vscode" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M16.9 1.8L21.6 4.1V19.9L16.9 22.2L7.2 13.3L3.5 16.1L2 15.3V8.7L3.5 7.9L7.2 10.7ZM16.9 7L10.5 12L16.9 17Z" fill="currentColor"/></symbol>
+    <symbol id="i-search" viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.8" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M10.5 10.5L14.5 14.5" stroke="currentColor" stroke-width="1.4"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 13.7071 10.7071"><path d="M0 5.35355H13M8 10.3536L13 5.35355L8 0.353553" fill="none" stroke="currentColor"/></symbol>
+    <symbol id="i-corner" viewBox="0 0 10.5 10.5"><path d="M0 0.5H10V10.5" fill="none" stroke="currentColor"/></symbol>
+    <symbol id="i-info" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.8" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 7v4.6M8 4.4v1.4" stroke="currentColor" stroke-width="1.4"/></symbol>
+    <symbol id="i-warn" viewBox="0 0 16 16"><path d="M8 1.6L15 14H1Z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M8 6v4M8 11.4v1.4" stroke="currentColor" stroke-width="1.4"/></symbol>
+    <symbol id="i-spark" viewBox="0 0 16 16"><path d="M8 1v4M8 11v4M1 8h4M11 8h4M3.2 3.2l2.4 2.4M10.4 10.4l2.4 2.4M12.8 3.2l-2.4 2.4M5.6 10.4l-2.4 2.4" stroke="currentColor" stroke-width="1.4"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 16 16"><path d="M1.5 4h13M1.5 8h13M1.5 12h13" stroke="currentColor" stroke-width="1.4"/></symbol>
+  </svg>
+
+  <a class="skip" href="#content">Skip to content</a>
+  <div class="d-progress" aria-hidden="true"><span data-progress></span></div>
+
+  <header class="d-top">
+    <a class="d-logo" href="/" aria-label="SYNOVAX home">
+      <svg aria-hidden="true"><use href="#i-mark"/></svg><span>synovax</span><em>docs</em>
+    </a>
+    <nav class="d-topnav" aria-label="Site">
+      <a href="/">home</a>
+      <a href="/#security">security</a>
+      <a href="/docs/" aria-current="page">docs</a>
+    </nav>
+    <label class="d-search">
+      <svg aria-hidden="true"><use href="#i-search"/></svg>
+      <span class="sr">Search the docs</span>
+      <input type="search" placeholder="Search the docs" autocomplete="off" spellcheck="false" data-search>
+      <kbd aria-hidden="true">/</kbd>
+    </label>
+    <a class="d-cta" href="/vault/">open vault <svg aria-hidden="true"><use href="#i-arrow"/></svg></a>
+    <button class="d-burger" type="button" aria-expanded="false" aria-controls="d-side" data-menu><svg aria-hidden="true"><use href="#i-menu"/></svg><span>chapters</span></button>
+  </header>
+
+  <section class="d-hero" aria-labelledby="d-hero-h">
+    <div class="d-hero-in">
+      <div class="d-hero-text">
+      <p class="d-eyebrow">documentation · synovax v1</p>
+      <h1 class="d-h1" id="d-hero-h"><span>from zero</span><span>to expert<i>.</i></span></h1>
+      <p class="d-lead">Every step, in order. Start with what a vault is, end with running your own server and checking a Merkle proof by hand. Skip to any level.</p>
+      </div>
+      <div class="d-quick" aria-label="Quickstart">
+        <div class="dq-bar"><span>quickstart · about a minute</span><span class="dq-dots" aria-hidden="true"><i></i><i></i><i></i></span></div>
+        <ol>
+          <li><b>01</b><code>node --version</code><em>22.13 or newer</em></li>
+          <li><b>02</b><code>npm start</code><em>nothing to install</em></li>
+          <li><b>03</b><code>127.0.0.1:8787/vault/</code><em>create your vault</em></li>
+          <li><b>04</b><code>apps → create app key</code><em>paste into your ai app</em></li>
+        </ol>
+        <a class="dq-go" href="#install">read the full setup <svg aria-hidden="true"><use href="#i-arrow"/></svg></a>
+      </div>
+      <ol class="d-ladder">
+        <li><a href="#what-is"><b>00</b><span>basics</span></a></li>
+        <li><a href="#install"><b>01</b><span>first steps</span></a></li>
+        <li><a href="#app-key"><b>02</b><span>connect ai</span></a></li>
+        <li><a href="#permissions"><b>03</b><span>stay in control</span></a></li>
+        <li><a href="#keys"><b>04</b><span>security model</span></a></li>
+        <li><a href="#self-host"><b>05</b><span>expert</span></a></li>
+      </ol>
+    </div>
+    <span class="d-corner d-corner--tl" aria-hidden="true"></span>
+    <span class="d-corner d-corner--br" aria-hidden="true"></span>
+  </section>
+
+  <div class="d-layout">
+    <aside class="d-side" id="d-side" data-side aria-label="Chapters">
+      <div class="d-side-in">
+        <div class="d-lv"><p><b>00</b>basics</p><ul>
+          <li><a href="#what-is">What SYNOVAX is</a></li>
+          <li><a href="#concepts">The words you need</a></li>
+        </ul></div>
+        <div class="d-lv"><p><b>01</b>first steps</p><ul>
+          <li><a href="#install">Run it</a></li>
+          <li><a href="#create">Create your vault</a></li>
+          <li><a href="#memories">Folders and memories</a></li>
+        </ul></div>
+        <div class="d-lv"><p><b>02</b>connect your ai</p><ul>
+          <li><a href="#app-key">Make an app key</a></li>
+          <li><a href="#clients">Claude, Cursor, Windsurf, VS Code</a></li>
+          <li><a href="#tools">What the AI can do</a></li>
+          <li><a href="#inbox">The inbox</a></li>
+        </ul></div>
+        <div class="d-lv"><p><b>03</b>stay in control</p><ul>
+          <li><a href="#permissions">Change or revoke access</a></li>
+          <li><a href="#read-log">The read log</a></li>
+          <li><a href="#account">Passphrase, recovery, export</a></li>
+        </ul></div>
+        <div class="d-lv"><p><b>04</b>security model</p><ul>
+          <li><a href="#keys">The key hierarchy</a></li>
+          <li><a href="#server-sees">What the server sees</a></li>
+          <li><a href="#threats">Threat model</a></li>
+          <li><a href="#merkle">Seals and proofs</a></li>
+        </ul></div>
+        <div class="d-lv"><p><b>05</b>expert</p><ul>
+          <li><a href="#self-host">Self-hosting</a></li>
+          <li><a href="#api">HTTP API</a></li>
+          <li><a href="#connector">The connector</a></li>
+          <li><a href="#testing">Testing</a></li>
+          <li><a href="#troubleshooting">Troubleshooting</a></li>
+          <li><a href="#limits">Limits and roadmap</a></li>
+        </ul></div>
+      </div>
+    </aside>
+
+    <main class="d-main" id="content">
+      <p class="d-empty" data-empty hidden>Nothing in the docs matches that. Try a shorter word, like <b>key</b> or <b>folder</b>.</p>
+
+      <!-- ===================== 00 · basics ===================== -->
+      <section class="d-ch" id="what-is" data-level="00">
+        <header class="d-ch-h"><span class="lvl">00 · basics</span><span class="mins">2 min</span></header>
+        <h2>What SYNOVAX is</h2>
+        <p class="big">One place for what your AI apps should know about you, locked so that only you and the apps you choose can read it.</p>
+        <p>Every AI app you use starts from zero. You explain your job, your stack, your diet, how you like answers, over and over. SYNOVAX keeps those facts in one vault. Apps that speak <abbr title="Model Context Protocol">MCP</abbr> (Claude Desktop, Cursor, Windsurf, VS Code and others) can read the folders you allow, and only those.</p>
+        <div class="d-grid3">
+          <div class="d-fact"><b>Encrypted on your device</b><p>Memories are locked in your browser before they are sent. The server stores ciphertext.</p></div>
+          <div class="d-fact"><b>Read only where you allow</b><p>Each app gets its own key and a list of folders. Everything else stays locked for it.</p></div>
+          <div class="d-fact"><b>Every read sealed</b><p>Each read is logged, and every hour the log is folded into a fingerprint you can check.</p></div>
+        </div>
+      </section>
+
+      <section class="d-ch" id="concepts" data-level="00">
+        <header class="d-ch-h"><span class="lvl">00 · basics</span><span class="mins">3 min</span></header>
+        <h2>The words you need</h2>
+        <p>Ten words cover the whole product. You will see all of them in the vault.</p>
+        <dl class="d-terms">
+          <div><dt>Vault</dt><dd>Your account. It has a name (3 to 32 characters) and holds everything else.</dd></div>
+          <div><dt>Passphrase</dt><dd>What you type to open the vault. It never leaves your device; it is turned into keys in the browser.</dd></div>
+          <div><dt>Recovery phrase</dt><dd>24 words shown once when you create the vault. The only way back in if you forget the passphrase.</dd></div>
+          <div><dt>Folder</dt><dd>A group of memories with its own key, like <em>About me</em> or <em>Work</em>. Access is given per folder.</dd></div>
+          <div><dt>Memory</dt><dd>One fact: a title, a body and tags. Encrypted with its folder's key.</dd></div>
+          <div><dt>App key</dt><dd>A key for one AI app, shaped like <code>vlt_app.&lt;id&gt;.&lt;secret&gt;</code>. It opens only the folders you ticked.</dd></div>
+          <div><dt>Connector</dt><dd>A small program on your computer that your AI app talks to. It fetches ciphertext and decrypts it locally.</dd></div>
+          <div><dt>Inbox</dt><dd>Where memories that apps suggest wait for you. Nothing is saved until you approve it.</dd></div>
+          <div><dt>Read log</dt><dd>A line for every time an app touched your vault: which app, what it did, when.</dd></div>
+          <div><dt>Seal</dt><dd>Once per period (one hour by default) every log line is folded into one hash, a Merkle root, that is published.</dd></div>
+        </dl>
+      </section>
+
+      <!-- ===================== 01 · first steps ===================== -->
+      <section class="d-ch" id="install" data-level="01">
+        <header class="d-ch-h"><span class="lvl">01 · first steps</span><span class="mins">3 min</span></header>
+        <h2>Run it</h2>
+        <p>SYNOVAX has no dependencies to install. You need <b>Node.js 22.13 or newer</b> (it is tested on Node 24).</p>
+        <ol class="d-steps">
+          <li><b>Check Node</b><p>Open a terminal and check the version. If it is older than 22.13, install the current LTS from nodejs.org.</p>
+            <div class="code"><div class="code-bar"><span>terminal</span><button type="button" data-copy>copy</button></div><pre><code>node --version</code></pre></div></li>
+          <li><b>Start the server</b><p>From the project folder. There is no <code>npm install</code> step.</p>
+            <div class="code"><div class="code-bar"><span>terminal</span><button type="button" data-copy>copy</button></div><pre><code>npm start</code></pre></div></li>
+          <li><b>Open the vault</b><p>Go to <code>http://127.0.0.1:8787/vault/</code>. The landing page is at <code>/</code> and these docs at <code>/docs/</code>.</p></li>
+        </ol>
+        <div class="call call--note"><svg aria-hidden="true"><use href="#i-info"/></svg><div><b>Only on this computer by default</b><p>The server listens on <code>127.0.0.1</code>, so nothing outside your machine can reach it. Level 05 covers putting it online.</p></div></div>
+      </section>
+
+      <section class="d-ch" id="create" data-level="01">
+        <header class="d-ch-h"><span class="lvl">01 · first steps</span><span class="mins">4 min</span></header>
+        <h2>Create your vault</h2>
+        <ol class="d-steps">
+          <li><b>Choose “Create vault”</b><p>Pick a vault name. It is the only thing the server knows you by, so it does not need to be your real name.</p></li>
+          <li><b>Set a passphrase</b><p>At least 10 characters. Longer is much better: four or five unrelated words beat a short password full of symbols.</p></li>
+          <li><b>Wait a second</b><p>Your browser runs 600,000 rounds of PBKDF2 to turn the passphrase into a key, then makes your vault key, inbox keys and recovery phrase. This is on purpose: it makes guessing slow for anyone else too.</p></li>
+          <li><b>Write down the 24 words</b><p>They are shown <b>once</b>. Write them on paper, in order, and keep them somewhere safe. Tick the box to enter your vault.</p></li>
+        </ol>
+        <div class="call call--danger"><svg aria-hidden="true"><use href="#i-warn"/></svg><div><b>Nobody can reset your passphrase</b><p>Not the server, not us. If you lose both the passphrase and the 24 words, the vault cannot be opened by anyone. That is the price of the server never holding your keys.</p></div></div>
+        <div class="call call--tip"><svg aria-hidden="true"><use href="#i-spark"/></svg><div><b>Good passphrase, fast</b><p>Pick five random words from a book page, add a number you will remember. Store it in a password manager if you use one.</p></div></div>
+      </section>
+
+      <section class="d-ch" id="memories" data-level="01">
+        <header class="d-ch-h"><span class="lvl">01 · first steps</span><span class="mins">4 min</span></header>
+        <h2>Folders and memories</h2>
+        <p>Folders are how you decide what each app may read, so think of them as permission groups first and topics second.</p>
+        <h3 id="memories-folders">Make folders</h3>
+        <p>Type a name under <b>Folders</b> in the sidebar and press <b>+</b>. Rename or delete a folder from the top of its list. Deleting a folder deletes its memories too, and there is no undo.</p>
+        <div class="d-grid3">
+          <div class="d-fact"><b>About me</b><p>Name, language, location, how you like answers.</p></div>
+          <div class="d-fact"><b>Work</b><p>Role, stack, projects, team conventions.</p></div>
+          <div class="d-fact"><b>Health</b><p>Allergies, routines. Grant it to as few apps as possible.</p></div>
+        </div>
+        <h3 id="memories-write">Write memories that help</h3>
+        <p>Press <b>New memory</b>, pick a folder, write a title and a body, add tags separated by commas. Short, specific facts work best because apps search by words.</p>
+        <div class="d-compare">
+          <div class="bad"><span>vague</span><p>“I like coding.”</p></div>
+          <div class="good"><span>useful</span><p>“Prefers TypeScript, strict mode, no default exports. Tests with Vitest.”</p></div>
+        </div>
+        <h3 id="memories-search">Search</h3>
+        <p>The search box filters by title, body and tags, inside the selected folder or across all of them. It runs in your browser on the decrypted text.</p>
+      </section>
+
+      <!-- ===================== 02 · connect ===================== -->
+      <section class="d-ch" id="app-key" data-level="02">
+        <header class="d-ch-h"><span class="lvl">02 · connect your ai</span><span class="mins">3 min</span></header>
+        <h2>Make an app key</h2>
+        <ol class="d-steps">
+          <li><b>Open Apps</b><p>In the vault sidebar, choose <b>Apps</b>, then <b>Connect a new app</b>.</p></li>
+          <li><b>Name it and tick folders</b><p>Use the app's name, like <em>Claude Desktop</em>. Tick only the folders it needs. Optionally allow it to suggest memories to your inbox.</p></li>
+          <li><b>Create the key and copy the config</b><p>The key and a ready-made MCP config appear <b>once</b>. When the server runs on your own computer, the config already contains the right path to the connector.</p></li>
+        </ol>
+        <div class="call call--warn"><svg aria-hidden="true"><use href="#i-warn"/></svg><div><b>Treat the key like a password</b><p>Anyone with it can read the folders you granted. Use one key per app, so you can revoke one without touching the others.</p></div></div>
+      </section>
+
+      <section class="d-ch" id="clients" data-level="02">
+        <header class="d-ch-h"><span class="lvl">02 · connect your ai</span><span class="mins">5 min</span></header>
+        <h2>Claude, Cursor, Windsurf, VS Code</h2>
+        <p>Every MCP app needs the same three things: run <code>node</code>, point it at <code>connector/index.js</code>, and pass your key and server address as environment variables. Only the file and its wrapper differ.</p>
+        <div class="tabs" data-tabs>
+          <div class="tab-list" role="tablist" aria-label="AI app">
+            <button type="button" role="tab" id="tb-claude" aria-controls="tp-claude" aria-selected="true"><svg aria-hidden="true"><use href="#i-claude"/></svg>Claude Desktop</button>
+            <button type="button" role="tab" id="tb-cursor" aria-controls="tp-cursor" aria-selected="false" tabindex="-1"><svg aria-hidden="true"><use href="#i-cursor"/></svg>Cursor</button>
+            <button type="button" role="tab" id="tb-windsurf" aria-controls="tp-windsurf" aria-selected="false" tabindex="-1"><svg aria-hidden="true"><use href="#i-windsurf"/></svg>Windsurf</button>
+            <button type="button" role="tab" id="tb-vscode" aria-controls="tp-vscode" aria-selected="false" tabindex="-1"><svg aria-hidden="true"><use href="#i-vscode"/></svg>VS Code</button>
+          </div>
+          <div class="tab-panel" role="tabpanel" id="tp-claude" aria-labelledby="tb-claude">
+            <p>Settings → Developer → <b>Edit Config</b>. That opens <code>claude_desktop_config.json</code> (on Windows in <code>%APPDATA%\Claude\</code>, on macOS in <code>~/Library/Application Support/Claude/</code>). Paste, save, then quit and reopen Claude Desktop.</p>
+            <div class="code"><div class="code-bar"><span>claude_desktop_config.json</span><button type="button" data-copy>copy</button></div><pre><code>{
+  "mcpServers": {
+    "synovax": {
+      "command": "node",
+      "args": ["C:\\path\\to\\synovax\\connector\\index.js"],
+      "env": {
+        "VAULT_APP_KEY": "vlt_app.&lt;id&gt;.&lt;secret&gt;",
+        "VAULT_URL": "http://127.0.0.1:8787"
+      }
+    }
+  }
+}</code></pre></div>
+          </div>
+          <div class="tab-panel" role="tabpanel" id="tp-cursor" aria-labelledby="tb-cursor" hidden>
+            <p>Cursor reads <code>~/.cursor/mcp.json</code> for every project, or <code>.cursor/mcp.json</code> inside one project. You can also open it from Cursor's settings under MCP. Same shape as Claude's.</p>
+            <div class="code"><div class="code-bar"><span>~/.cursor/mcp.json</span><button type="button" data-copy>copy</button></div><pre><code>{
+  "mcpServers": {
+    "synovax": {
+      "command": "node",
+      "args": ["/path/to/synovax/connector/index.js"],
+      "env": {
+        "VAULT_APP_KEY": "vlt_app.&lt;id&gt;.&lt;secret&gt;",
+        "VAULT_URL": "http://127.0.0.1:8787"
+      }
+    }
+  }
+}</code></pre></div>
+          </div>
+          <div class="tab-panel" role="tabpanel" id="tp-windsurf" aria-labelledby="tb-windsurf" hidden>
+            <p>Windsurf keeps its MCP servers in <code>~/.codeium/windsurf/mcp_config.json</code>, reachable from its settings under MCP. Same shape again; refresh the server list after saving.</p>
+            <div class="code"><div class="code-bar"><span>~/.codeium/windsurf/mcp_config.json</span><button type="button" data-copy>copy</button></div><pre><code>{
+  "mcpServers": {
+    "synovax": {
+      "command": "node",
+      "args": ["/path/to/synovax/connector/index.js"],
+      "env": {
+        "VAULT_APP_KEY": "vlt_app.&lt;id&gt;.&lt;secret&gt;",
+        "VAULT_URL": "http://127.0.0.1:8787"
+      }
+    }
+  }
+}</code></pre></div>
+          </div>
+          <div class="tab-panel" role="tabpanel" id="tp-vscode" aria-labelledby="tb-vscode" hidden>
+            <p>VS Code uses <code>.vscode/mcp.json</code> in your workspace, with a <code>servers</code> key and an explicit <code>type</code>. Start the server from the file's inline controls, then use it from Copilot Chat in agent mode.</p>
+            <div class="code"><div class="code-bar"><span>.vscode/mcp.json</span><button type="button" data-copy>copy</button></div><pre><code>{
+  "servers": {
+    "synovax": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["/path/to/synovax/connector/index.js"],
+      "env": {
+        "VAULT_APP_KEY": "vlt_app.&lt;id&gt;.&lt;secret&gt;",
+        "VAULT_URL": "http://127.0.0.1:8787"
+      }
+    }
+  }
+}</code></pre></div>
+          </div>
+        </div>
+        <div class="call call--note"><svg aria-hidden="true"><use href="#i-info"/></svg><div><b>Paths and menus</b><p>Use the <b>absolute</b> path to <code>connector/index.js</code>; on Windows, double every backslash inside JSON. Apps move their settings between versions, so if a menu name differs, look for “MCP” in that app's settings.</p></div></div>
+        <div class="call call--warn"><svg aria-hidden="true"><use href="#i-warn"/></svg><div><b>Keep keys out of git</b><p>A project file like <code>.vscode/mcp.json</code> or <code>.cursor/mcp.json</code> can end up in a repository. Prefer the user-level file, or add the project file to <code>.gitignore</code>.</p></div></div>
+      </section>
+
+      <section class="d-ch" id="tools" data-level="02">
+        <header class="d-ch-h"><span class="lvl">02 · connect your ai</span><span class="mins">4 min</span></header>
+        <h2>What the AI can do</h2>
+        <p>The connector gives the app four tools. Apps decide on their own when to call them; you can also ask directly.</p>
+        <div class="tbl"><table>
+          <thead><tr><th>Tool</th><th>Inputs</th><th>What it does</th></tr></thead>
+          <tbody>
+            <tr><td><code>list_folders</code></td><td>none</td><td>Names of the folders this app may read.</td></tr>
+            <tr><td><code>search_memories</code></td><td><code>query</code>, optional <code>folder</code></td><td>Finds memories by words, decrypted on your machine. Empty query returns the most recent.</td></tr>
+            <tr><td><code>read_memory</code></td><td><code>id</code></td><td>Reads one memory in full. Every read lands in your read log.</td></tr>
+            <tr><td><code>suggest_memory</code></td><td><code>title</code>, <code>body</code>, optional <code>tags</code>, <code>folder</code>, <code>reason</code></td><td>Sends a new memory, sealed to your vault, to your inbox. Only if you allowed suggestions.</td></tr>
+          </tbody>
+        </table></div>
+        <h3 id="tools-prompts">Prompts that work</h3>
+        <ul class="d-prompts">
+          <li>“Check my vault for anything about my stack before you answer.”</li>
+          <li>“What do you know about me from SYNOVAX? List the folders first.”</li>
+          <li>“Remember that I prefer metric units. Suggest it to my vault.”</li>
+        </ul>
+        <div class="call call--note"><svg aria-hidden="true"><use href="#i-info"/></svg><div><b>Search is by words</b><p>It matches the words you wrote, not their meaning. Titles and tags with the words you would actually ask about make a big difference.</p></div></div>
+      </section>
+
+      <section class="d-ch" id="inbox" data-level="02">
+        <header class="d-ch-h"><span class="lvl">02 · connect your ai</span><span class="mins">2 min</span></header>
+        <h2>The inbox</h2>
+        <p>When an app learns something about you, it can call <code>suggest_memory</code>. The suggestion is sealed in the connector with your vault's public key, so only your vault can open it.</p>
+        <ol class="d-steps">
+          <li><b>Open Inbox</b><p>Press <b>Refresh</b>; the inbox does not update by itself yet.</p></li>
+          <li><b>Read, edit, decide</b><p>Fix the wording, choose the folder and tags, then press <b>Approve</b> to save it, or <b>Remove</b> to throw it away.</p></li>
+        </ol>
+        <p>The vault also checks a <b>vouch</b>: a signature over its inbox key made with a secret only the vault and the app share. If anyone swapped that key on the server to read suggestions, the check fails and the suggestion is refused.</p>
+      </section>
+
+      <!-- ===================== 03 · control ===================== -->
+      <section class="d-ch" id="permissions" data-level="03">
+        <header class="d-ch-h"><span class="lvl">03 · stay in control</span><span class="mins">3 min</span></header>
+        <h2>Change or revoke access</h2>
+        <p>Under <b>Apps</b>, each app shows what it can read, whether it may suggest, and when it was last used.</p>
+        <ul class="d-list">
+          <li><b>Edit access</b> to tick or untick folders, then <b>Save access</b>. Unticked folders stop being handed out on the next request.</li>
+          <li><b>Revoke</b> to cancel the key. The very next request with it fails.</li>
+        </ul>
+        <div class="call call--warn"><svg aria-hidden="true"><use href="#i-warn"/></svg><div><b>Revoking is not erasing</b><p>An app that already read a memory may have kept a copy in its own history. Revoking stops future reads, not past ones. Folder keys are not rotated yet.</p></div></div>
+      </section>
+
+      <section class="d-ch" id="read-log" data-level="03">
+        <header class="d-ch-h"><span class="lvl">03 · stay in control</span><span class="mins">3 min</span></header>
+        <h2>The read log</h2>
+        <p>Every app action is a line: the app, the action (<code>folders</code>, <code>list</code>, <code>read</code>, <code>suggest</code>), the memory id when there is one, and the time.</p>
+        <ul class="d-list">
+          <li><b>Pending</b> lines wait for the end of the current period.</li>
+          <li><b>Sealed</b> lines belong to a published seal. Press <b>Verify #&lt;seal&gt;</b> and your browser recomputes the line's hash and checks its proof against the public root.</li>
+        </ul>
+        <p>If anyone changed, removed or reordered a line after sealing, the proof no longer leads to the root, and verification fails. Level 04 shows the math.</p>
+      </section>
+
+      <section class="d-ch" id="account" data-level="03">
+        <header class="d-ch-h"><span class="lvl">03 · stay in control</span><span class="mins">3 min</span></header>
+        <h2>Passphrase, recovery, export</h2>
+        <div class="d-grid2">
+          <div class="d-fact"><b>Change passphrase</b><p>Settings → Change passphrase. Every other signed-in session is signed out and the old passphrase stops working.</p></div>
+          <div class="d-fact"><b>Forgot it?</b><p>On the sign-in page choose <b>Recover</b>, enter the vault name, the 24 words and a new passphrase.</p></div>
+          <div class="d-fact"><b>Export</b><p>Settings → <b>Download export</b> saves every folder and memory as one JSON file, decrypted on your device. Store it somewhere safe: it is plain text.</p></div>
+          <div class="d-fact"><b>Delete everything</b><p>Settings → Delete everything removes the vault, memories, app keys and read log. Type the vault name to confirm. Public seals stay, because they reveal nothing.</p></div>
+        </div>
+        <p>Sessions last up to 7 days. Reloading the vault page locks it, because keys live only in the page's memory.</p>
+      </section>
+
+      <!-- ===================== 04 · security model ===================== -->
+      <section class="d-ch" id="keys" data-level="04">
+        <header class="d-ch-h"><span class="lvl">04 · security model</span><span class="mins">5 min</span></header>
+        <h2>The key hierarchy</h2>
+        <p>Every key is made and used in your browser (or in the connector on your machine). The server stores wrapped keys it cannot open.</p>
+        <div class="code code--diagram"><div class="code-bar"><span>keys</span></div><pre><code>passphrase ──PBKDF2-SHA-256 × 600,000──▶ master ──HKDF──▶ authKey  (sent; stored as a hash)
+                                                   └──HKDF──▶ kek      (never leaves the device)
+24 recovery words ──HKDF──▶ recovery master ──▶ authKey / kek            (the backup path)
+
+vault key   random · wrapped with kek and with the recovery kek
+folder key  random · wrapped with the vault key, and with each granted app's wrap key
+memory      AES-256-GCM with its folder key · AAD binds the ciphertext to its id
+inbox       ECDH P-256 key pair · apps seal suggestions to the vault's public key
+app key     vlt_app.&lt;id&gt;.&lt;secret&gt; ──HKDF──▶ auth (stored as a hash) / wrap / vouch</code></pre></div>
+        <ul class="d-list">
+          <li><b>Why AAD:</b> a ciphertext moved to another memory id refuses to decrypt, so the server cannot swap memories around.</li>
+          <li><b>Why per-folder keys:</b> granting an app a folder means wrapping just that folder's key for it. Other folders are never unlocked for it.</li>
+          <li><b>Why the slow derivation:</b> the server stores a hash of <code>authKey</code>. Anyone who steals it still pays 600,000 rounds per guess.</li>
+        </ul>
+      </section>
+
+      <section class="d-ch" id="server-sees" data-level="04">
+        <header class="d-ch-h"><span class="lvl">04 · security model</span><span class="mins">2 min</span></header>
+        <h2>What the server sees</h2>
+        <div class="d-grid2">
+          <div class="d-fact d-fact--plain"><b>It can see</b><ul><li>Your vault name</li><li>How many items there are and how big</li><li>Times of requests</li><li>Which app read which memory id, and when</li></ul></div>
+          <div class="d-fact d-fact--solid"><b>It cannot see</b><ul><li>Titles, text and tags</li><li>Folder names and app names</li><li>What the AI searched for</li><li>Any key</li></ul></div>
+        </div>
+        <p>Deleted rows are overwritten on disk (<code>secure_delete</code>), not just unlinked. Pages are served with a strict content security policy, so only scripts from the site itself can run.</p>
+      </section>
+
+      <section class="d-ch" id="threats" data-level="04">
+        <header class="d-ch-h"><span class="lvl">04 · security model</span><span class="mins">4 min</span></header>
+        <h2>Threat model</h2>
+        <div class="tbl"><table>
+          <thead><tr><th>If someone…</th><th>they get</th></tr></thead>
+          <tbody>
+            <tr><td>steals the database</td><td>Ciphertext and wrapped keys. No key to open them.</td></tr>
+            <tr><td>runs the server</td><td>The metadata above. Not titles, text, tags, folder names or searches.</td></tr>
+            <tr><td>guesses passphrases online</td><td>Rate limits: 20 logins a minute per address, 10 a minute per vault.</td></tr>
+            <tr><td>guesses offline from a stolen hash</td><td>600,000 PBKDF2 rounds per guess. A long passphrase makes this hopeless.</td></tr>
+            <tr><td>steals an app key</td><td>Only that app's folders, until you revoke it.</td></tr>
+            <tr><td>swaps your inbox key</td><td>Nothing: the vouch check fails and the suggestion is refused.</td></tr>
+            <tr><td>edits the read log</td><td>A root that no longer matches; every affected proof fails.</td></tr>
+            <tr><td>injects a script into the page</td><td>Blocked by the content security policy.</td></tr>
+          </tbody>
+        </table></div>
+        <div class="call call--danger"><svg aria-hidden="true"><use href="#i-warn"/></svg><div><b>What this does not protect against</b><p>Malware on your own device, someone who knows your passphrase, or an app you granted keeping what it read. SYNOVAX has <b>not been independently audited yet</b>; get one before storing other people's sensitive data.</p></div></div>
+      </section>
+
+      <section class="d-ch" id="merkle" data-level="04">
+        <header class="d-ch-h"><span class="lvl">04 · security model</span><span class="mins">5 min</span></header>
+        <h2>Seals and proofs</h2>
+        <p>Each log line commits to exact bytes, including a random salt so the hash reveals nothing on its own:</p>
+        <div class="code"><div class="code-bar"><span>shared/merkle.js</span><button type="button" data-copy>copy</button></div><pre><code>leaf = SHA-256( 0x00 ‖ JSON.stringify([id, ts, vault_id, app_id, action, target, salt]) )
+node = SHA-256( 0x01 ‖ left ‖ right )
+// an odd node at the end of a level moves up unchanged</code></pre></div>
+        <p>The different prefixes stop a leaf from being passed off as a node. A proof is the list of sibling hashes from your leaf up to the root, each marked left or right. Check one yourself in the browser console on the vault page:</p>
+        <div class="code"><div class="code-bar"><span>browser console</span><button type="button" data-copy>copy</button></div><pre><code>const { leafHash, verifyProof } = await import('/shared/merkle.js');
+const leaf = await leafHash(entry);           // entry: the log line's fields
+const ok = await verifyProof(leaf, proof, root);
+// proof: GET /api/log/:id/proof · root: GET /api/seals/:seq</code></pre></div>
+        <p>Seals are public at <code>/api/seals</code>. Today they live on the same server; publishing roots somewhere nobody can edit is on the roadmap.</p>
+      </section>
+
+      <!-- ===================== 05 · expert ===================== -->
+      <section class="d-ch" id="self-host" data-level="05">
+        <header class="d-ch-h"><span class="lvl">05 · expert</span><span class="mins">6 min</span></header>
+        <h2>Self-hosting</h2>
+        <div class="tbl"><table>
+          <thead><tr><th>Variable</th><th>Default</th><th>Meaning</th></tr></thead>
+          <tbody>
+            <tr><td><code>PORT</code></td><td><code>8787</code></td><td>HTTP port.</td></tr>
+            <tr><td><code>HOST</code></td><td><code>127.0.0.1</code></td><td>Address to listen on.</td></tr>
+            <tr><td><code>DATA_DIR</code></td><td><code>./data</code></td><td>Where <code>vault.db</code> and <code>admin-key</code> live.</td></tr>
+            <tr><td><code>SEAL_PERIOD_MS</code></td><td><code>3600000</code></td><td>How often the log is sealed (one hour).</td></tr>
+            <tr><td><code>ADMIN_KEY</code></td><td>random</td><td>Admin panel key, at least 32 characters. Otherwise one is made in <code>DATA_DIR/admin-key</code>.</td></tr>
+          </tbody>
+        </table></div>
+        <h3 id="self-host-https">Put it behind HTTPS</h3>
+        <p>The server speaks plain HTTP. Online, always put a reverse proxy with TLS in front. If the proxy runs on the same machine, keep <code>HOST=127.0.0.1</code>. For example with Caddy:</p>
+        <div class="code"><div class="code-bar"><span>Caddyfile</span><button type="button" data-copy>copy</button></div><pre><code>vault.example.com {
+  reverse_proxy 127.0.0.1:8787
+}</code></pre></div>
+        <div class="call call--warn"><svg aria-hidden="true"><use href="#i-warn"/></svg><div><b>Rate limits behind a proxy</b><p>Limits are counted per client address, and behind a proxy every request comes from the proxy. Per-vault limits still apply, but per-address ones become shared. Add limits at the proxy too.</p></div></div>
+        <h3 id="self-host-backup">Backups</h3>
+        <p>Everything is in <code>DATA_DIR</code>. Back up the folder while the server is stopped, or use SQLite's own backup. A backup is still ciphertext: useless without passphrases, but it does include metadata.</p>
+        <h3 id="self-host-admin">The admin panel</h3>
+        <p><code>/admin/</code> publishes the $SYNOVAX token details to the landing page. Its key is in <code>DATA_DIR/admin-key</code>, read it with <code>Get-Content data\admin-key</code>. New contract addresses must be confirmed by typing their last six characters; every change is logged. Sessions last 12 hours and end on restart.</p>
+      </section>
+
+      <section class="d-ch" id="api" data-level="05">
+        <header class="d-ch-h"><span class="lvl">05 · expert</span><span class="mins">6 min</span></header>
+        <h2>HTTP API</h2>
+        <p>JSON over HTTP. Four kinds of callers, told apart by the <code>Authorization</code> header:</p>
+        <div class="tbl"><table>
+          <thead><tr><th>Caller</th><th>Header</th></tr></thead>
+          <tbody>
+            <tr><td>public</td><td>none</td></tr>
+            <tr><td>vault owner</td><td><code>Bearer s.&lt;session&gt;</code></td></tr>
+            <tr><td>app (connector)</td><td><code>Bearer a.&lt;app id&gt;.&lt;auth&gt;</code></td></tr>
+            <tr><td>admin</td><td><code>Bearer adm.&lt;session&gt;</code></td></tr>
+          </tbody>
+        </table></div>
+        <div class="tbl tbl--api"><table>
+          <thead><tr><th>Method</th><th>Path</th><th>Caller</th><th>Purpose</th></tr></thead>
+          <tbody>
+            <tr><td>GET</td><td><code>/api/config</code></td><td>public</td><td>App name, seal period, PBKDF2 rounds</td></tr>
+            <tr><td>GET</td><td><code>/api/stats</code></td><td>public</td><td>Counts of vaults, memories, reads, seals</td></tr>
+            <tr><td>GET</td><td><code>/api/seals</code>, <code>/api/seals/:seq</code></td><td>public</td><td>Published Merkle roots</td></tr>
+            <tr><td>POST</td><td><code>/api/auth/salt</code></td><td>public</td><td>Salt for a vault name (a fake, stable one for unknown names)</td></tr>
+            <tr><td>POST</td><td><code>/api/auth/register</code>, <code>/login</code>, <code>/recover</code></td><td>public</td><td>Create, open, recover</td></tr>
+            <tr><td>POST</td><td><code>/api/auth/logout</code></td><td>owner</td><td>End this session</td></tr>
+            <tr><td>GET</td><td><code>/api/vault</code></td><td>owner</td><td>Wrapped keys, folders, memories (all ciphertext)</td></tr>
+            <tr><td>PUT · DELETE</td><td><code>/api/folders/:id</code>, <code>/api/memories/:id</code></td><td>owner</td><td>Save or delete</td></tr>
+            <tr><td>GET · PUT · PATCH · DELETE</td><td><code>/api/apps</code>, <code>/api/apps/:id</code></td><td>owner</td><td>List, create, change grants, revoke</td></tr>
+            <tr><td>GET · DELETE</td><td><code>/api/inbox</code>, <code>/api/inbox/:id</code></td><td>owner</td><td>Sealed suggestions</td></tr>
+            <tr><td>GET</td><td><code>/api/log</code>, <code>/api/log/:id/proof</code></td><td>owner</td><td>Read log and Merkle proofs</td></tr>
+            <tr><td>PUT · DELETE</td><td><code>/api/account/passphrase</code>, <code>/api/account</code></td><td>owner</td><td>Change passphrase, delete account</td></tr>
+            <tr><td>GET</td><td><code>/api/app/info</code>, <code>/api/app/memories</code>, <code>/api/app/memories/:id</code></td><td>app</td><td>What the connector fetches</td></tr>
+            <tr><td>POST</td><td><code>/api/app/suggest</code></td><td>app</td><td>Send a sealed suggestion</td></tr>
+            <tr><td>GET</td><td><code>/api/token</code></td><td>public</td><td>Token details shown on the landing page</td></tr>
+            <tr><td>POST · GET · PUT</td><td><code>/api/admin/login</code>, <code>/logout</code>, <code>/token</code></td><td>admin</td><td>Admin panel</td></tr>
+          </tbody>
+        </table></div>
+        <div class="tbl"><table>
+          <thead><tr><th>Rate limit</th><th>Limit</th></tr></thead>
+          <tbody>
+            <tr><td>salt</td><td>60 a minute per address</td></tr>
+            <tr><td>register</td><td>10 an hour per address</td></tr>
+            <tr><td>login</td><td>20 a minute per address, 10 a minute per vault</td></tr>
+            <tr><td>recover</td><td>10 per 10 minutes per address, 5 per 10 minutes per vault</td></tr>
+            <tr><td>admin login</td><td>5 per 15 minutes per address</td></tr>
+          </tbody>
+        </table></div>
+      </section>
+
+      <section class="d-ch" id="connector" data-level="05">
+        <header class="d-ch-h"><span class="lvl">05 · expert</span><span class="mins">3 min</span></header>
+        <h2>The connector</h2>
+        <p><code>connector/index.js</code> is an MCP server over stdio. It reads two environment variables:</p>
+        <div class="tbl"><table>
+          <thead><tr><th>Variable</th><th>Meaning</th></tr></thead>
+          <tbody>
+            <tr><td><code>VAULT_APP_KEY</code></td><td>The app key from the vault. Required.</td></tr>
+            <tr><td><code>VAULT_URL</code></td><td>Server address. Default <code>http://127.0.0.1:8787</code>.</td></tr>
+          </tbody>
+        </table></div>
+        <p>From the key it derives three secrets: one to sign in as the app, one to unwrap the folder keys it was granted, and one to check the inbox key's vouch. It then decrypts locally and hands the app plain text. Run it by hand to see errors:</p>
+        <div class="code"><div class="code-bar"><span>powershell</span><button type="button" data-copy>copy</button></div><pre><code>$env:VAULT_APP_KEY = "vlt_app.&lt;id&gt;.&lt;secret&gt;"
+node connector/index.js</code></pre></div>
+        <p>It waits for MCP messages on stdin; that silence means it started. Errors go to stderr.</p>
+      </section>
+
+      <section class="d-ch" id="testing" data-level="05">
+        <header class="d-ch-h"><span class="lvl">05 · expert</span><span class="mins">2 min</span></header>
+        <h2>Testing</h2>
+        <div class="code"><div class="code-bar"><span>terminal</span><button type="button" data-copy>copy</button></div><pre><code>npm test</code></pre></div>
+        <p>23 end-to-end checks against a real server in a throwaway data folder, a “browser” built from the same crypto module, and the real connector spoken to over MCP. Among them:</p>
+        <ul class="d-list">
+          <li>AES-GCM refuses a wrong context or a single flipped bit.</li>
+          <li>An app sees only its folders; a removed folder or revoked key stops it.</li>
+          <li>A swapped inbox key is caught by the vouch.</li>
+          <li>Every sealed read verifies; a forged one does not.</li>
+          <li>The raw database file contains <b>no plaintext</b>.</li>
+          <li>Pages carry a strict CSP and path tricks return 404.</li>
+        </ul>
+      </section>
+
+      <section class="d-ch" id="troubleshooting" data-level="05">
+        <header class="d-ch-h"><span class="lvl">05 · expert</span><span class="mins">4 min</span></header>
+        <h2>Troubleshooting</h2>
+        <details class="d-faq"><summary>The AI app shows no SYNOVAX tools</summary><p>Check that the path in <code>args</code> is absolute and points at <code>connector/index.js</code>, that <code>node</code> is on the app's PATH (or use the full path to <code>node</code>), then fully restart the app. Run the connector by hand to see its error.</p></details>
+        <details class="d-faq"><summary>“VAULT_APP_KEY is not set”</summary><p>The <code>env</code> block is missing or misspelled in the app's config. It must contain <code>VAULT_APP_KEY</code>.</p></details>
+        <details class="d-faq"><summary>“This app key was revoked or is not valid”</summary><p>The key was removed under Apps, mistyped, or belongs to another server. Make a new key and replace it in the config.</p></details>
+        <details class="d-faq"><summary>The app finds nothing</summary><p>It only sees folders you ticked for it, and search is by words. Check its folders under Apps and use the words you would ask with in titles and tags.</p></details>
+        <details class="d-faq"><summary>The port is already in use</summary><p>Something else runs on 8787. Start with another port, then use that port in <code>VAULT_URL</code> too:</p><div class="code"><div class="code-bar"><span>powershell</span><button type="button" data-copy>copy</button></div><pre><code>$env:PORT = "8790"; npm start</code></pre></div></details>
+        <details class="d-faq"><summary>I forgot my passphrase</summary><p>Use <b>Recover</b> on the sign-in page with your 24 words. Without them, the vault cannot be opened by anyone.</p></details>
+        <details class="d-faq"><summary>Unlocking takes a moment</summary><p>That is the 600,000 PBKDF2 rounds running in your browser. It is the same work an attacker has to do for every guess.</p></details>
+      </section>
+
+      <section class="d-ch" id="limits" data-level="05">
+        <header class="d-ch-h"><span class="lvl">05 · expert</span><span class="mins">2 min</span></header>
+        <h2>Limits and roadmap</h2>
+        <div class="d-grid2">
+          <div class="d-fact d-fact--plain"><b>Known limits today</b><ul><li>Not independently audited</li><li>Search by words, not meaning</li><li>Folder keys are not rotated after revoking</li><li>Seals are stored on the same server</li><li>The inbox needs a manual refresh</li></ul></div>
+          <div class="d-fact d-fact--solid"><b>Being considered next</b><ul><li>Passkey sign-in (WebAuthn PRF)</li><li>Import from ChatGPT and Claude exports</li><li>Local semantic search</li><li>Sharing a folder between vaults</li><li>Browser extension and mobile</li></ul></div>
+        </div>
+      </section>
+
+      <nav class="d-end" aria-label="Next">
+        <a href="/vault/"><span>ready?</span><b>open your vault</b><svg aria-hidden="true"><use href="#i-arrow"/></svg></a>
+        <a href="#what-is"><span>back to</span><b>the start</b><svg aria-hidden="true"><use href="#i-arrow"/></svg></a>
+      </nav>
+    </main>
+
+    <nav class="d-toc" aria-label="On this page">
+      <p>on this page</p>
+      <ol data-toc></ol>
+    </nav>
+  </div>
+
+  <footer class="d-foot">
+    <a class="d-logo" href="/"><svg aria-hidden="true"><use href="#i-mark"/></svg><span>synovax</span></a>
+    <p>© 2026 SYNOVAX. Encrypted on your device. Not yet independently audited.</p>
+    <nav aria-label="Footer"><a href="/">home</a><a href="/vault/">vault</a><a href="#what-is">top</a></nav>
+  </footer>
+</body>
+</html>

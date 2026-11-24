@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>SYNOVAX · token control</title>
+  <link rel="preload" href="/fonts/oswald-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/admin/admin.css">
+  <script type="module" src="/admin/admin.js"></script>
+</head>
+<body>
+  <svg class="defs" aria-hidden="true">
+    <symbol id="i-corner" viewBox="0 0 10.5 10.5"><path d="M0 0.5H10V10.5" fill="none" stroke="currentColor"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 13.7071 10.7071"><path d="M0 5.35355H13M8 10.3536L13 5.35355L8 0.353553" fill="none" stroke="currentColor"/></symbol>
+    <symbol id="i-mark" viewBox="0 0 24 24"><path d="M21.64 1L4.2 7.77L10.6 12.33C9.72 11.6 9.72 10.34 10.75 9.98L17.59 6.89ZM2.36 23L19.8 16.23L13.4 11.67C14.28 12.4 14.28 13.66 13.25 14.02L6.41 17.11Z" fill="currentColor"/></symbol>
+    <symbol id="i-seal" viewBox="0 0 16 16"><path d="M8 1l6 3.5v7L8 15l-6-3.5v-7Z" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M5.2 8.2l1.9 1.9 3.8-4" fill="none" stroke="currentColor" stroke-width="1.4"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 16 16"><path d="M4.5 7V5a3.5 3.5 0 0 1 7 0v2M2.5 7h11v8h-11Z" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 10v2.4" stroke="currentColor" stroke-width="1.4"/></symbol>
+  </svg>
+
+  <canvas class="bg" data-contours="--admin-contour" aria-hidden="true"></canvas>
+
+  <header class="top">
+    <a class="brand" href="/" aria-label="SYNOVAX home">
+      <svg class="brand-mark" aria-hidden="true"><use href="#i-mark"/></svg>
+      <span class="brand-word">synovax</span>
+      <span class="brand-chip">admin</span>
+    </a>
+    <p class="top-crumb" data-signed-in hidden>token control <span>/</span> $synovax</p>
+    <nav class="top-nav" data-signed-in hidden>
+      <span class="top-clock"><i></i><span data-clock>--:--</span></span>
+      <a href="/#token" target="_blank" rel="noopener">view<span class="top-long"> on site</span> ↗</a>
+      <button type="button" class="top-out" data-signout><span aria-hidden="true">[ </span>sign out<span aria-hidden="true"> ]</span></button>
+    </nav>
+  </header>
+
+  <!-- ============ sign in ============ -->
+  <main class="signin" data-view="signin">
+    <div class="signin-copy">
+      <p class="eyebrow">admin · restricted</p>
+      <h1 class="giant" data-head><span data-line>token</span><span data-line>control</span></h1>
+      <p class="lead">Publish the $SYNOVAX contract address and the official X account. Every change is logged.</p>
+    </div>
+    <div class="signin-stage">
+      <canvas class="signin-coin" data-coin aria-hidden="true"></canvas>
+      <form class="plate signin-card" data-signin-form autocomplete="off">
+        <svg class="corner corner--tl" aria-hidden="true"><use href="#i-corner"/></svg>
+        <svg class="corner corner--tr" aria-hidden="true"><use href="#i-corner"/></svg>
+        <svg class="corner corner--bl" aria-hidden="true"><use href="#i-corner"/></svg>
+        <svg class="corner corner--br" aria-hidden="true"><use href="#i-corner"/></svg>
+        <p class="plate-eye"><svg aria-hidden="true"><use href="#i-lock"/></svg>admin key</p>
+        <label class="field">
+          <span class="sr">admin key</span>
+          <input type="password" name="key" required spellcheck="false" autocomplete="off" placeholder="adm_…">
+        </label>
+        <p class="hint">Find it in <code>data/admin-key</code> on the machine that runs the server.</p>
+        <p class="error" data-signin-error role="alert"></p>
+        <button class="btn" type="submit">
+          <svg class="btn-frame" viewBox="0 0 275 50" preserveAspectRatio="none" aria-hidden="true"><path class="btn-body" d="M0 0H275V41.165L266.165 50H0Z"/><path class="btn-flood" d="M0 0H275V41.165L266.165 50H0Z"/></svg>
+          <span class="btn-label">unlock</span><svg class="btn-arrow" aria-hidden="true"><use href="#i-arrow"/></svg>
+        </button>
+      </form>
+    </div>
+  </main>
+
+  <!-- ============ dashboard ============ -->
+  <main class="dash" data-view="editor" hidden>
+    <section class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow">admin · what the landing page shows</p>
+        <h1 class="giant giant--sm" data-head><span data-line>token</span><span data-line>control</span></h1>
+      </div>
+      <ul class="tiles">
+        <li class="tile" data-tile="status">
+          <svg class="corner corner--tl" aria-hidden="true"><use href="#i-corner"/></svg><svg class="corner corner--br" aria-hidden="true"><use href="#i-corner"/></svg>
+          <span class="tile-eye">status</span><span class="tile-v" data-tile-v="status">—</span><span class="tile-s" data-tile-s="status"></span>
+        </li>
+        <li class="tile" data-tile="contract">
+          <svg class="corner corner--tl" aria-hidden="true"><use href="#i-corner"/></svg><svg class="corner corner--br" aria-hidden="true"><use href="#i-corner"/></svg>
+          <span class="tile-eye">contract</span><span class="tile-v mono" data-tile-v="contract">—</span><span class="tile-s" data-tile-s="contract"></span>
+        </li>
+        <li class="tile" data-tile="twitter">
+          <svg class="corner corner--tl" aria-hidden="true"><use href="#i-corner"/></svg><svg class="corner corner--br" aria-hidden="true"><use href="#i-corner"/></svg>
+          <span class="tile-eye">x account</span><span class="tile-v" data-tile-v="twitter">—</span><span class="tile-s" data-tile-s="twitter"></span>
+        </li>
+        <li class="tile" data-tile="published">
+          <svg class="corner corner--tl" aria-hidden="true"><use href="#i-corner"/></svg><svg class="corner corner--br" aria-hidden="true"><use href="#i-corner"/></svg>
+          <span class="tile-eye">last publish</span><span class="tile-v" data-tile-v="published">—</span><span class="tile-s" data-tile-s="published"></span>
+        </li>
+      </ul>
+    </section>
+
+    <div class="grid">
+      <form class="form" data-token-form novalidate>
+        <!-- 01 status -->
+        <fieldset class="plate step">
+          <legend class="sr">status</legend>
+          <p class="step-n">01</p>
+          <div class="step-body">
+            <p class="step-t">status</p>
+            <div class="choice">
+              <label class="choice-opt"><input type="radio" name="status" value="pre-launch"><span class="choice-box"><b>pre-launch</b><small>Token not out yet. The page says so.</small></span></label>
+              <label class="choice-opt"><input type="radio" name="status" value="live"><span class="choice-box"><b>live</b><small>Token is out. Needs the contract address.</small></span></label>
+            </div>
+          </div>
+        </fieldset>
+
+        <!-- 02 contract -->
+        <div class="plate step step--ca">
+          <p class="step-n">02</p>
+          <div class="step-body">
+            <label class="step-t" for="f-contract">contract address <em>robinhood chain</em></label>
+            <div class="ca-wrap">
+              <input id="f-contract" name="contract" class="mono ca-input" spellcheck="false" autocomplete="off" placeholder="0x…" maxlength="42">
+              <ol class="hexmeter" data-hexmeter aria-hidden="true"></ol>
+            </div>
+            <p class="hint" data-hint="contract">Leave empty until launch. A new address has to be confirmed before it goes live.</p>
+            <label class="field">
+              <span class="label">explorer link <em>optional</em></span>
+              <input name="explorerUrl" type="url" spellcheck="false" autocomplete="off" placeholder="https://…">
+              <span class="hint" data-hint="explorerUrl">The contract's page on the chain explorer.</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- 03 x -->
+        <div class="plate step">
+          <p class="step-n">03</p>
+          <div class="step-body">
+            <label class="step-t" for="f-twitter">official x account</label>
+            <div class="at-wrap">
+              <span class="at" aria-hidden="true">@</span>
+              <input id="f-twitter" name="twitter" spellcheck="false" autocomplete="off" placeholder="handle or https://x.com/handle">
+            </div>
+            <p class="hint" data-hint="twitter">Shown on the token section and in the footer.</p>
+          </div>
+        </div>
+
+        <!-- 04 supply / launch -->
+        <div class="plate step">
+          <p class="step-n">04</p>
+          <div class="step-body">
+            <p class="step-t">supply &amp; launch <em>optional</em></p>
+            <div class="row2">
+              <label class="field"><span class="label">supply</span><input name="supply" maxlength="40" autocomplete="off" placeholder="e.g. 1,000,000,000"></label>
+              <label class="field"><span class="label">launch date</span><input name="launchDate" maxlength="40" autocomplete="off" placeholder="e.g. 12 dec 2026"></label>
+            </div>
+          </div>
+        </div>
+
+        <div class="bar" data-bar>
+          <p class="bar-state"><i></i><span data-dirty>no unsaved changes</span></p>
+          <p class="error" data-form-error role="alert"></p>
+          <div class="bar-actions">
+            <button class="btn-ghost" type="button" data-reset>undo</button>
+            <button class="btn" type="submit" data-publish>
+              <svg class="btn-frame" viewBox="0 0 275 50" preserveAspectRatio="none" aria-hidden="true"><path class="btn-body" d="M0 0H275V41.165L266.165 50H0Z"/><path class="btn-flood" d="M0 0H275V41.165L266.165 50H0Z"/></svg>
+              <span class="btn-label" data-publish-label>publish</span><svg class="btn-arrow" aria-hidden="true"><use href="#i-arrow"/></svg>
+            </button>
+          </div>
+        </div>
+      </form>
+
+      <aside class="side">
+        <section class="plate preview">
+          <svg class="corner corner--tl" aria-hidden="true"><use href="#i-corner"/></svg><svg class="corner corner--tr" aria-hidden="true"><use href="#i-corner"/></svg>
+          <svg class="corner corner--bl" aria-hidden="true"><use href="#i-corner"/></svg><svg class="corner corner--br" aria-hidden="true"><use href="#i-corner"/></svg>
+          <p class="plate-eye">live preview <span>· not published until you press publish</span></p>
+          <canvas class="pv-coin" data-coin aria-hidden="true"></canvas>
+          <p class="pv-status" data-pv="status"><i></i><span></span></p>
+          <dl class="pv-facts">
+            <div><dt>ticker</dt><dd>$SYNOVAX</dd></div>
+            <div><dt>chain</dt><dd>robinhood chain</dd></div>
+            <div><dt>launch</dt><dd data-pv="launchDate"></dd></div>
+            <div><dt>supply</dt><dd data-pv="supply"></dd></div>
+            <div class="pv-wide"><dt>contract address</dt><dd class="mono" data-pv="contract"></dd></div>
+            <div class="pv-wide"><dt>official x account</dt><dd data-pv="twitter"></dd></div>
+          </dl>
+        </section>
+        <section class="plate log">
+          <p class="plate-eye">change log <span data-log-count></span></p>
+          <ol class="hist" data-history></ol>
+        </section>
+      </aside>
+    </div>
+  </main>
+
+  <div class="toast" data-toast role="status" aria-live="polite" hidden>
+    <svg aria-hidden="true"><use href="#i-seal"/></svg><p><b data-toast-t>published</b><span data-toast-s></span></p>
+  </div>
+
+  <dialog class="confirm" data-confirm>
+    <form method="dialog" class="confirm-form" data-confirm-form>
+      <svg class="corner corner--tl" aria-hidden="true"><use href="#i-corner"/></svg><svg class="corner corner--tr" aria-hidden="true"><use href="#i-corner"/></svg>
+      <svg class="corner corner--bl" aria-hidden="true"><use href="#i-corner"/></svg><svg class="corner corner--br" aria-hidden="true"><use href="#i-corner"/></svg>
+      <p class="eyebrow">check before you publish</p>
+      <h2 class="giant giant--xs">new contract<br>address</h2>
+      <p class="muted">This goes on the public page. Check every group against the deploy.</p>
+      <ol class="ca-groups mono" data-confirm-ca></ol>
+      <label class="field">
+        <span class="label">type the last 6 characters</span>
+        <input name="tail" class="mono tail" maxlength="6" spellcheck="false" autocomplete="off" required>
+      </label>
+      <p class="error" data-confirm-error role="alert"></p>
+      <div class="bar-actions">
+        <button class="btn-ghost" value="cancel" formnovalidate>cancel</button>
+        <button class="btn" value="ok" data-confirm-ok>
+          <svg class="btn-frame" viewBox="0 0 275 50" preserveAspectRatio="none" aria-hidden="true"><path class="btn-body" d="M0 0H275V41.165L266.165 50H0Z"/><path class="btn-flood" d="M0 0H275V41.165L266.165 50H0Z"/></svg>
+          <span class="btn-label">publish address</span><svg class="btn-arrow" aria-hidden="true"><use href="#i-arrow"/></svg>
+        </button>
+      </div>
+    </form>
+  </dialog>
+</body>
+</html>

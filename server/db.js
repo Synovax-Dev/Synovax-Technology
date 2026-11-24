@@ -1,0 +1,138 @@
+import { DatabaseSync } from 'node:sqlite';
+
+// Everything a person writes is stored as ciphertext. What stays readable here
+// is only what the server needs: ids, sizes, times, and who read what.
+const SCHEMA = `
+CREATE TABLE IF NOT EXISTS vaults (
+  id               TEXT PRIMARY KEY,
+  username         TEXT NOT NULL UNIQUE,
+  salt             TEXT NOT NULL,
+  kdf_iter         INTEGER NOT NULL,
+  auth_hash        TEXT NOT NULL,
+  rec_auth_hash    TEXT NOT NULL,
+  wrapped_vk       TEXT NOT NULL,
+  wrapped_vk_rec   TEXT NOT NULL,
+  box_pub          TEXT NOT NULL,
+  box_priv_wrapped TEXT NOT NULL,
+  created_at       INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS sessions (
+  token_hash TEXT PRIMARY KEY,
+  vault_id   TEXT NOT NULL REFERENCES vaults(id) ON DELETE CASCADE,
+  expires_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS folders (
+  id          TEXT PRIMARY KEY,
+  vault_id    TEXT NOT NULL REFERENCES vaults(id) ON DELETE CASCADE,
+  meta        TEXT NOT NULL,
+  wrapped_key TEXT NOT NULL,
+  updated_at  INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS memories (
+  id         TEXT PRIMARY KEY,
+  vault_id   TEXT NOT NULL REFERENCES vaults(id) ON DELETE CASCADE,
+  folder_id  TEXT NOT NULL REFERENCES folders(id) ON DELETE CASCADE,
+  head       TEXT NOT NULL,
+  body       TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS apps (
+  id           TEXT PRIMARY KEY,
+  vault_id     TEXT NOT NULL REFERENCES vaults(id) ON DELETE CASCADE,
+  meta         TEXT NOT NULL,
+  auth_hash    TEXT NOT NULL,
+  vouch        TEXT NOT NULL,
+  can_suggest  INTEGER NOT NULL DEFAULT 0,
+  created_at   INTEGER NOT NULL,
+  last_used_at INTEGER
+);
+CREATE TABLE IF NOT EXISTS app_folder_keys (
+  app_id      TEXT NOT NULL REFERENCES apps(id) ON DELETE CASCADE,
+  folder_id   TEXT NOT NULL REFERENCES folders(id) ON DELETE CASCADE,
+  wrapped_key TEXT NOT NULL,
+  PRIMARY KEY (app_id, folder_id)
+);
+CREATE TABLE IF NOT EXISTS suggestions (
+  id         TEXT PRIMARY KEY,
+  vault_id   TEXT NOT NULL REFERENCES vaults(id) ON DELETE CASCADE,
+  app_id     TEXT,
+  box        TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+-- No foreign keys: the log outlives revoked apps. Leaf hashes are copied into
+-- seal_leaves when sealed, so other vaults' proofs survive an account deletion.
+CREATE TABLE IF NOT EXISTS read_log (
+  seq      INTEGER PRIMARY KEY AUTOINCREMENT,
+  id       TEXT NOT NULL UNIQUE,
+  vault_id TEXT NOT NULL,
+  app_id   TEXT,
+  action   TEXT NOT NULL,
+  target   TEXT,
+  ts       INTEGER NOT NULL,
+  salt     TEXT NOT NULL,
+  leaf     TEXT NOT NULL,
+  seal_seq INTEGER,
+  leaf_idx INTEGER
+);
+CREATE TABLE IF NOT EXISTS seals (
+  seq          INTEGER PRIMARY KEY AUTOINCREMENT,
+  period_start INTEGER NOT NULL UNIQUE,
+  period_end   INTEGER NOT NULL,
+  root         TEXT NOT NULL,
+  count        INTEGER NOT NULL,
+  created_at   INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS seal_leaves (
+  seal_seq INTEGER NOT NULL,
+  idx      INTEGER NOT NULL,
+  leaf     TEXT NOT NULL,
+  PRIMARY KEY (seal_seq, idx)
+);
+CREATE INDEX IF NOT EXISTS memories_vault ON memories(vault_id);
+CREATE INDEX IF NOT EXISTS memories_folder ON memories(folder_id);
+CREATE INDEX IF NOT EXISTS folders_vault ON folders(vault_id);
+-- the admin panel: public token details (contract address, X account) and who changed what
+CREATE TABLE IF NOT EXISTS admin_sessions (
+  token_hash TEXT PRIMARY KEY,
+  expires_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS site_settings (
+  key        TEXT PRIMARY KEY,
+  value      TEXT NOT NULL,
+  rev        INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS admin_audit (
+  seq   INTEGER PRIMARY KEY AUTOINCREMENT,
+  at    INTEGER NOT NULL,
+  ip    TEXT,
+  field TEXT NOT NULL,
+  old   TEXT,
+  new   TEXT
+);
+CREATE INDEX IF NOT EXISTS apps_vault ON apps(vault_id);
+CREATE INDEX IF NOT EXISTS suggestions_vault ON suggestions(vault_id);
+CREATE INDEX IF NOT EXISTS log_vault ON read_log(vault_id, seq);
+CREATE INDEX IF NOT EXISTS log_unsealed ON read_log(seal_seq, ts);
+`;
+
+export function openDb(file) {
+  const db = new DatabaseSync(file);
+  // secure_delete: deleted rows are overwritten on disk, not just unlinked.
+  db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA secure_delete = ON; PRAGMA busy_timeout = 5000;');
+  db.exec(SCHEMA);
+  return db;
+}
+
+export function tx(db, fn) {
+  db.exec('BEGIN');
+  try {
+    const out = fn();
+    db.exec('COMMIT');
+    return out;
+  } catch (e) {
+    db.exec('ROLLBACK');
+    throw e;
+  }
+}
