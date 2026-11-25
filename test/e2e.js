@@ -382,6 +382,85 @@ try {
     assert.ok((await connector.tool('read_memory', { id: workMem })).isError, 'the app without access still gets nothing');
   });
 
+  await step('sharing a folder: only the vault in the share code can open it, every opening is logged, and stopping cuts it off', async () => {
+    // a second vault, the recipient
+    const fSalt = C.b64(C.randomBytes(16)), fk = await C.keysFromPassphrase('friend passphrase here', fSalt, iterations);
+    const fRec = await C.keysFromRecovery(C.newRecoveryPhrase()), fVk = C.randomBytes(32), fBox = await C.newBoxKeyPair();
+    const friend = await ok('POST', '/api/auth/register', {
+      username: 'friend', salt: fSalt, iterations, authKey: fk.authKey, recoveryAuthKey: fRec.authKey,
+      wrappedVaultKey: await C.wrapKey(fk.kek, fVk, 'vk/passphrase'), wrappedVaultKeyRecovery: await C.wrapKey(fRec.kek, fVk, 'vk/recovery'),
+      boxPub: fBox.pub, boxPrivWrapped: await C.wrapKey(fVk, fBox.priv, 'box/private'),
+    });
+    const fToken = friend.token;
+    const code = C.formatShareCode('friend', await C.keyFingerprint(fBox.pub));
+    const parsed = C.parseShareCode(code);
+    assert.throws(() => C.parseShareCode('friend'), /share code/);
+
+    // the owner looks the key up by the code; a wrong fingerprint looks the same as a wrong name
+    assert.equal((await api('POST', '/api/share-key', { username: 'friend', fingerprint: 'A'.repeat(20) }, token)).status, 404);
+    assert.equal((await api('POST', '/api/share-key', { username: 'nobody-here', fingerprint: parsed.fingerprint }, token)).status, 404);
+    const { boxPub } = await ok('POST', '/api/share-key', parsed, token);
+    assert.equal(boxPub, fBox.pub);
+    assert.equal((await api('POST', '/api/share-key', { username, fingerprint: await C.keyFingerprint(box.pub) }, token)).status, 400, 'not your own code');
+
+    const fid = folders.Work.id;
+    const shareId = C.newId();
+    const sealed = await C.shareSeal(box.priv, box.pub, boxPub, { shareId, folderId: fid, folderKey: folders.Work.key, folderName: 'Work', owner: username, recipient: 'friend' });
+    const meta = await C.encryptJSON(vk, { recipient: 'friend', fingerprint: parsed.fingerprint }, `share:${shareId}:meta`);
+    await ok('PUT', `/api/shares/${shareId}`, { folderId: fid, recipient: 'friend', box: sealed, meta }, token);
+    assert.equal((await api('PUT', `/api/shares/${C.newId()}`, { folderId: fid, recipient: 'friend', box: sealed, meta }, token)).status, 409, 'once per vault');
+    assert.equal((await api('PUT', `/api/shares/${C.newId()}`, { folderId: fid, recipient: username, box: sealed, meta }, token)).status, 400, 'not with yourself');
+    assert.equal((await api('PUT', `/api/shares/${C.newId()}`, { folderId: fid, recipient: 'tester', box: sealed, meta }, fToken)).status, 404, 'only your own folders');
+    assert.equal((await ok('GET', '/api/shares', null, token)).shares[0].recipient, 'friend');
+
+    // the recipient opens it and checks who it came from
+    const { shares } = await ok('GET', '/api/shared', null, fToken);
+    assert.equal(shares.length, 1);
+    assert.equal(shares[0].owner, username);
+    const opened = await C.shareOpen(fBox.priv, fBox.pub, shares[0].ownerBoxPub, shares[0].box);
+    assert.equal(opened.folderName, 'Work');
+    assert.equal(opened.shareId, shareId);
+    const stranger = await C.newBoxKeyPair();
+    await assert.rejects(C.shareOpen(fBox.priv, fBox.pub, stranger.pub, shares[0].box), /valid tag/, 'a share claiming another sender fails');
+    const forged = await C.shareSeal(stranger.priv, stranger.pub, fBox.pub, { shareId, folderId: fid, folderKey: C.randomBytes(32), folderName: 'Work', owner: username, recipient: 'friend' });
+    await assert.rejects(C.shareOpen(fBox.priv, fBox.pub, box.pub, forged), /valid tag/, 'a box sealed by anyone else (the server, say) is refused');
+    const { memories } = await ok('GET', `/api/shared/${shareId}`, null, fToken);
+    const mine = await Promise.all(memories.map((m) => C.decryptJSON(opened.folderKey, m.body, `memory:${m.id}:body`)));
+    assert.ok(mine.some((m) => /before nine/.test(m.body)));
+    assert.equal((await api('GET', `/api/shared/${shareId}`, null, token)).status, 404, 'the owner is not the recipient');
+    const log = (await ok('GET', '/api/log?limit=5', null, token)).entries;
+    assert.ok(log.some((e) => e.action === 'shared' && e.target === shareId && e.appId === null), 'the opening is in the owner\'s log');
+
+    // replacing the key of a shared folder must re-seal it for the recipient
+    const newKey = C.randomBytes(32);
+    const inWork = (await ok('GET', '/api/vault', null, token)).memories.filter((m) => m.folderId === fid);
+    const mems = await Promise.all(inWork.map(async (m) => {
+      const d = await C.decryptJSON(folders.Work.key, m.body, `memory:${m.id}:body`);
+      return { id: m.id, head: await C.encryptJSON(newKey, { title: d.title, tags: d.tags, snippet: d.body.slice(0, 240) }, `memory:${m.id}:head`), body: await C.encryptJSON(newKey, d, `memory:${m.id}:body`) };
+    }));
+    const rotation = { meta: await C.encryptJSON(newKey, { name: 'Work' }, `folder:${fid}:meta`), wrappedKey: await C.wrapKey(vk, newKey, `folder:${fid}:key`), memories: mems, grants: [] };
+    assert.equal((await api('POST', `/api/folders/${fid}/rotate`, rotation, token)).status, 409, 'a shared folder needs its shares re-sealed');
+    const resealed = await C.shareSeal(box.priv, box.pub, boxPub, { shareId, folderId: fid, folderKey: newKey, folderName: 'Work', owner: username, recipient: 'friend' });
+    assert.equal((await ok('POST', `/api/folders/${fid}/rotate`, { ...rotation, shares: [{ id: shareId, box: resealed }] }, token)).shares, 1);
+    folders.Work.key = newKey;
+    const again = await C.shareOpen(fBox.priv, fBox.pub, box.pub, (await ok('GET', '/api/shared', null, fToken)).shares[0].box);
+    assert.deepEqual(again.folderKey, newKey);
+
+    // stopping: the recipient gets nothing more; the recipient can also leave
+    await ok('DELETE', `/api/shares/${shareId}`, null, token);
+    assert.equal((await api('GET', `/api/shared/${shareId}`, null, fToken)).status, 404);
+    assert.equal((await ok('GET', '/api/shared', null, fToken)).shares.length, 0);
+    const s2 = C.newId();
+    await ok('PUT', `/api/shares/${s2}`, { folderId: fid, recipient: 'friend', box: resealed, meta }, token);
+    await ok('DELETE', `/api/shares/${s2}`, null, fToken);
+    assert.equal((await ok('GET', '/api/shares', null, token)).shares.length, 0, 'the recipient left');
+    // a deleted vault takes its shares with it, on both sides
+    const s3 = C.newId();
+    await ok('PUT', `/api/shares/${s3}`, { folderId: fid, recipient: 'friend', box: resealed, meta }, token);
+    await ok('DELETE', '/api/account', { confirm: 'friend' }, fToken);
+    assert.equal((await ok('GET', '/api/shares', null, token)).shares.length, 0, 'gone with the recipient\'s vault');
+  });
+
   await step('signed-in devices can be listed and signed out', async () => {
     const other = (await ok('POST', '/api/auth/login', { username, authKey: k.authKey }, null, { 'user-agent': 'Mozilla/5.0 (Windows NT 10.0) Chrome/130.0 Safari/537.36' })).token;
     const { sessions } = await ok('GET', '/api/sessions', null, token);

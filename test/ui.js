@@ -219,7 +219,7 @@ try {
   await step('information pages: built, load without errors, live parts answer, fit a phone', async () => {
     const built = spawnSync(process.execPath, ['scripts/build-pages.mjs', '--check'], { cwd: ROOT, encoding: 'utf8' });
     assert.equal(built.status, 0, `pages out of date: ${built.stderr}`);
-    for (const slug of ['product', 'inbox', 'import', 'apps', 'devices', 'seals', 'how-it-works', 'security', 'threat-model', 'immune', 'privacy', 'status', 'connector', 'reference', 'standard', 'verify', 'open-source']) {
+    for (const slug of ['product', 'inbox', 'import', 'apps', 'sharing', 'devices', 'seals', 'how-it-works', 'security', 'threat-model', 'immune', 'privacy', 'status', 'connector', 'reference', 'standard', 'verify', 'open-source']) {
       await open(`/${slug}/`);
       await sleep(400);
       assert.ok(await js('return $("h1").textContent.trim().length > 3 && $$(".d-ch h2").length >= 2'), `${slug}: headline and sections`);
@@ -251,7 +251,7 @@ try {
     await page('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
     await sleep(300);
     await js('$("[data-menu]").click(); return true');
-    assert.ok(await js('return !$("#p-menu").hidden && $$("#p-menu a").length >= 22 && $$("#p-menu a").some((a) => a.pathname === "/devices/")'), 'the page menu');
+    assert.ok(await js('return !$("#p-menu").hidden && $$("#p-menu a").length >= 23 && $$("#p-menu a").some((a) => a.pathname === "/devices/")'), 'the page menu');
     await page('Emulation.clearDeviceMetricsOverride');
     noProblems();
   });
@@ -338,6 +338,73 @@ try {
     await until('return byText(".link", "Replace key")', 'the Replace key button');
     await js('window.confirm = () => true; click(".link", "Replace key")');
     await toast('New key for "Work"');
+    noProblems();
+  });
+
+  await step('sharing: share a folder with another vault, open one shared with you, stop sharing', async () => {
+    // a second vault, made the way the vault page makes one
+    const C = await import('../shared/crypto.js');
+    const post = async (p, body, token, method = 'POST') => {
+      const r = await fetch(BASE + p, { method, headers: { 'content-type': 'application/json', ...(token ? { authorization: `Bearer s.${token}` } : {}) }, body: body ? JSON.stringify(body) : undefined });
+      const data = await r.json().catch(() => ({}));
+      assert.ok(r.ok, `${method} ${p}: ${r.status} ${JSON.stringify(data)}`);
+      return data;
+    };
+    const fSalt = C.b64(C.randomBytes(16)), fk = await C.keysFromPassphrase('friend passphrase here', fSalt, 100_000);
+    const fRec = await C.keysFromRecovery(C.newRecoveryPhrase()), fVk = C.randomBytes(32), fBox = await C.newBoxKeyPair();
+    const fToken = (await post('/api/auth/register', {
+      username: 'friend', salt: fSalt, iterations: 100_000, authKey: fk.authKey, recoveryAuthKey: fRec.authKey,
+      wrappedVaultKey: await C.wrapKey(fk.kek, fVk, 'vk/passphrase'), wrappedVaultKeyRecovery: await C.wrapKey(fRec.kek, fVk, 'vk/recovery'),
+      boxPub: fBox.pub, boxPrivWrapped: await C.wrapKey(fVk, fBox.priv, 'box/private'),
+    })).token;
+    const friendCode = C.formatShareCode('friend', await C.keyFingerprint(fBox.pub));
+
+    // 1. share "About me" with the friend, from the folder's Share panel
+    await js('click(".folder .fname", "About me")');
+    await until('return byText(".link", "Share")', 'the Share button');
+    await js('click(".link", "Share")');
+    await until('return $(".share-panel")', 'the share panel');
+    await js(`type('.share-panel input[name=code]', ${JSON.stringify(friendCode)}); $('.share-form').requestSubmit(); return true`);
+    await toast('Shared');
+    await until('return byText(".share-panel .session b", "friend")', 'friend in the list');
+    await shot('vault-share');
+    await noSideScroll('the share panel');
+    const shared = (await post('/api/shared', null, fToken, 'GET')).shares;
+    assert.equal(shared.length, 1);
+    const opened = await C.shareOpen(fBox.priv, fBox.pub, shared[0].ownerBoxPub, shared[0].box);
+    assert.equal(opened.folderName, 'About me');
+    const mems = (await post(`/api/shared/${shared[0].id}`, null, fToken, 'GET')).memories;
+    assert.ok((await Promise.all(mems.map((m) => C.decryptJSON(opened.folderKey, m.body, `memory:${m.id}:body`)))).some((d) => d.body === 'Call me Dee.'));
+
+    // 2. the friend shares a folder back; it shows up under Shared, read only
+    await js('click(".nav-item", "Shared")');
+    const myCode = await until('return $("[data-share-code]")?.textContent', 'my share code');
+    const mine = C.parseShareCode(myCode);
+    assert.equal(mine.username, user);
+    const { boxPub } = await post('/api/share-key', mine, fToken);
+    const folderId = C.newId(), folderKey = C.randomBytes(32), memId = C.newId();
+    await post(`/api/folders/${folderId}`, { meta: await C.encryptJSON(folderKey, { name: 'Trip plans' }, `folder:${folderId}:meta`), wrappedKey: await C.wrapKey(fVk, folderKey, `folder:${folderId}:key`) }, fToken, 'PUT');
+    await post(`/api/memories/${memId}`, { folderId, head: await C.encryptJSON(folderKey, { title: 'Flights', tags: [], snippet: '' }, `memory:${memId}:head`), body: await C.encryptJSON(folderKey, { title: 'Flights', body: 'Lisbon on May 3, back May 10.', tags: ['travel'] }, `memory:${memId}:body`) }, fToken, 'PUT');
+    const backId = C.newId();
+    await post(`/api/shares/${backId}`, { folderId, recipient: user, box: await C.shareSeal(fBox.priv, fBox.pub, boxPub, { shareId: backId, folderId, folderKey, folderName: 'Trip plans', owner: 'friend', recipient: user }), meta: await C.encryptJSON(fVk, { recipient: user, fingerprint: mine.fingerprint }, `share:${backId}:meta`) }, fToken, 'PUT');
+    await js('click(".btn", "Refresh")');
+    await until('return byText(".card.shared h2", "Trip plans")', 'the folder shared with me');
+    assert.ok(await js(`return $(".card.shared .fine").textContent.includes(${JSON.stringify((await C.keyFingerprint(fBox.pub)).slice(-8))})`), 'the sender\'s fingerprint is shown');
+    await js('click(".card.shared .btn.primary", "Open folder")');
+    await until('return byText(".shared-mem summary", "Flights")', 'the shared memory');
+    await js('$(".shared-mem summary").click(); return true');
+    assert.ok(await js('return $(".shared-body").textContent === "Lisbon on May 3, back May 10."'));
+    await shot('vault-shared'); await shot('vault-shared', true);
+    await noSideScroll('the Shared page');
+
+    // 3. stop sharing "About me": the friend is cut off and the folder gets a new key
+    await js('window.confirm = () => true; click(".card .session .btn", "Stop sharing")');
+    await toast('new key');
+    assert.equal((await fetch(`${BASE}/api/shared/${shared[0].id}`, { headers: { authorization: `Bearer s.${fToken}` } })).status, 404);
+    // the friend's opening is in the read log
+    await js('click(".nav-item", "Read log")');
+    await until('return byText(".log td", "friend (shared)") || byText(".log td", "A vault you stopped sharing with")', 'the shared opening in the log');
+    await post('/api/account', { confirm: 'friend' }, fToken, 'DELETE');
     noProblems();
   });
 

@@ -1,0 +1,44 @@
+<!--
+title: Sharing
+description: Share one folder of your SYNOVAX vault with another vault you trust, read only, end-to-end encrypted, with every opening in your read log.
+section: product
+eyebrow: Product · sharing
+h1: One folder,|read by a vault you trust
+lead: Share a single folder with a partner, a colleague or a family member's vault. They can read it, now and as it grows, but never change it. You see every time they open it, and you can stop at any moment.
+next: product, security, seals
+-->
+<section class="d-ch" id="steps">
+  <h2>Share a folder</h2>
+  <ol class="d-steps">
+    <li><b>They send you their share code</b><p>In their vault, under <b>Shared</b>, there is a code like <code>synovax-share:name:…</code>. It holds their vault name and a fingerprint of their vault's public key. It is not a secret; it only lets people share with them.</p></li>
+    <li><b>You open the folder and choose Share</b><p>Paste their code and press <b>Share</b>. Your vault fetches their public key, checks it against the fingerprint in the code, and seals the folder's key for them.</p></li>
+    <li><b>They open it under Shared</b><p>The folder appears in their vault, read only, with your vault name and the end of your share code, so they can check it really came from you.</p></li>
+  </ol>
+</section>
+
+<section class="d-ch" id="crypto">
+  <h2>What the server can and cannot do</h2>
+  <ol class="p-flow">
+    <li class="is-you"><b>Your vault</b><span>Checks the recipient's key against the fingerprint in their code, then seals the folder key to it (ECDH P-256, HKDF, AES-256-GCM).</span></li>
+    <li class="is-you"><b>Your vault</b><span>Adds a tag made from your key and theirs together (static ECDH and HMAC), which only your two vaults can make.</span></li>
+    <li><b>SYNOVAX server</b><span>Stores the sealed box and passes it on. It cannot open it, and it cannot make one that passes the tag.</span></li>
+    <li class="is-you"><b>Their vault</b><span>Opens the box, checks the tag against your public key, then decrypts the memories in their browser.</span></li>
+  </ol>
+  <div class="d-grid3">
+    <div class="d-fact"><b>A swapped key is caught</b><p>If the server answered with its own key instead of theirs, the fingerprint would not match and nothing would be shared.</p></div>
+    <div class="d-fact"><b>A forged share is refused</b><p>A box sealed by anyone but you fails the tag, so the server cannot slip a made-up folder into their vault.</p></div>
+    <div class="d-fact d-fact--solid"><b>Compare the code once</b><p>The one check left to people: the recipient sees the end of your share code and can compare it with you, in person or by phone.</p></div>
+  </div>
+</section>
+
+<section class="d-ch" id="control">
+  <h2>You stay in control</h2>
+  <ul>
+    <li><b>Read only.</b> The other vault can read every memory in the folder, including ones you add later, but cannot change or delete anything.</li>
+    <li><b>On the record.</b> Each time their vault opens the folder, it is a line in your read log, sealed with its hour like any read.</li>
+    <li><b>Stop at any time.</b> Stop sharing and their vault is cut off at once. The folder then gets a new key, so a copy of the old one opens nothing you write from then on.</li>
+    <li><b>They can leave.</b> The recipient can remove a shared folder from their vault whenever they like.</li>
+    <li>A folder can be shared with up to 20 vaults. Replacing a shared folder's key seals the new key for each of them.</li>
+  </ul>
+  <div class="call call--warn"><svg aria-hidden="true"><use href="#i-warn"/></svg><div><b>Sharing is trust</b><p>Once the other vault has read a memory, they have it. Stopping a share ends future reads, not past ones. Share only a folder you would be fine with them keeping. Shared folders are read in their vault; their AI apps do not see them.</p></div></div>
+</section>

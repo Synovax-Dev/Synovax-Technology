@@ -160,6 +160,60 @@ export async function boxOpen(privPkcs8, recipientPubB64, token) {
   return decryptJSON(await boxKey(shared, m[1], recipientPubB64), m[2], 'box');
 }
 
+// ---------- sharing a folder with another vault
+// The recipient hands over a share code: their vault name and a fingerprint of
+// their inbox public key. The owner's vault fetches that key and checks the
+// fingerprint, so a server that swapped in its own key is caught. The folder key
+// then goes to the recipient in a sealed box, with a tag made from the two
+// vaults' keys (static ECDH), so the recipient knows which vault sent it and the
+// server cannot forge a share.
+
+export const SHARE_PREFIX = 'synovax-share';
+
+export async function keyFingerprint(boxPubB64) {
+  const d = new Uint8Array(await subtle.digest('SHA-256', te.encode(`vault/fingerprint/v1|${boxPubB64}`)));
+  return b64(d.subarray(0, 15)); // 20 characters
+}
+
+export function formatShareCode(username, fingerprint) {
+  return `${SHARE_PREFIX}:${username}:${fingerprint}`;
+}
+
+export function parseShareCode(str) {
+  const m = new RegExp(`^${SHARE_PREFIX}:([a-z0-9][a-z0-9_.-]{2,31}):([A-Za-z0-9_-]{20})$`).exec(String(str).trim());
+  if (!m) throw new CryptoError(`That does not look like a share code (${SHARE_PREFIX}:<vault name>:<fingerprint>).`);
+  return { username: m[1], fingerprint: m[2] };
+}
+
+// The same key from both sides: ECDH(owner private, recipient public) equals
+// ECDH(recipient private, owner public).
+async function pairKey(myPrivPkcs8, theirPubB64, ownerPubB64, recipientPubB64) {
+  const priv = await subtle.importKey('pkcs8', myPrivPkcs8, P256, false, ['deriveBits']);
+  const pub = await subtle.importKey('spki', unb64(theirPubB64), P256, false, []);
+  const shared = new Uint8Array(await subtle.deriveBits({ name: 'ECDH', public: pub }, priv, 256));
+  return hkdf(shared, `vault/share/v1|${ownerPubB64}|${recipientPubB64}`);
+}
+
+const shareText = (s) => JSON.stringify(['share/v1', s.shareId, s.folderId, s.folderKey, s.folderName, s.owner, s.recipient]);
+
+/** Seal a folder key for another vault. s: { shareId, folderId, folderKey (bytes), folderName, owner, recipient } */
+export async function shareSeal(ownerPrivPkcs8, ownerPubB64, recipientPubB64, s) {
+  const payload = { shareId: s.shareId, folderId: s.folderId, folderKey: b64(s.folderKey), folderName: s.folderName, owner: s.owner, recipient: s.recipient };
+  const k = await subtle.importKey('raw', await pairKey(ownerPrivPkcs8, recipientPubB64, ownerPubB64, recipientPubB64), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const tag = b64(new Uint8Array(await subtle.sign('HMAC', k, te.encode(shareText(payload)))));
+  return boxSeal(recipientPubB64, { ...payload, tag });
+}
+
+/** Open a share as its recipient, and check it came from the vault with ownerPubB64. */
+export async function shareOpen(recipientPrivPkcs8, recipientPubB64, ownerPubB64, box) {
+  const p = await boxOpen(recipientPrivPkcs8, recipientPubB64, box);
+  const k = await subtle.importKey('raw', await pairKey(recipientPrivPkcs8, ownerPubB64, ownerPubB64, recipientPubB64), { name: 'HMAC', hash: 'SHA-256' }, false, ['verify']);
+  if (typeof p?.tag !== 'string' || !(await subtle.verify('HMAC', k, unb64(p.tag), te.encode(shareText(p))))) {
+    throw new CryptoError('This share does not carry a valid tag from the vault it claims to come from.');
+  }
+  return { shareId: p.shareId, folderId: p.folderId, folderKey: unb64(p.folderKey), folderName: p.folderName, owner: p.owner, recipient: p.recipient };
+}
+
 // ---------- app keys
 
 export function formatAppKey(appId, secret) {

@@ -14,7 +14,7 @@ import { createRpcIndex, fromBlockscout } from './holders.js';
 import { startSealer, proofFor, sealOut } from './seals.js';
 import { leafHash, GENESIS, merkleProof } from '../shared/merkle.js';
 import { runRound, roundHash, STRAINS, DISGUISES } from './immune-round.js';
-import { PBKDF2_ITERATIONS } from '../shared/crypto.js';
+import { PBKDF2_ITERATIONS, keyFingerprint } from '../shared/crypto.js';
 import { APP_NAME } from '../shared/brand.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -25,7 +25,7 @@ const SEAL_PERIOD_MS = Number(process.env.SEAL_PERIOD_MS ?? 3_600_000);
 const SESSION_TTL_MS = 7 * 24 * 3600 * 1000;
 const MAX_BODY = 4 * 1024 * 1024;
 const LOOPBACK = ['127.0.0.1', 'localhost', '::1'].includes(HOST);
-const LIMITS = { folders: 200, memories: 20_000, apps: 50, suggestions: 500 };
+const LIMITS = { folders: 200, memories: 20_000, apps: 50, suggestions: 500, sharesPerFolder: 20, shares: 200 };
 // Every new vault and passphrase uses exactly this many PBKDF2 rounds, so the salt
 // endpoint answers the same for names that exist and names that do not.
 const KDF_ITERATIONS = Number(process.env.KDF_ITERATIONS ?? PBKDF2_ITERATIONS);
@@ -531,9 +531,18 @@ route('POST', '/api/folders/:id/rotate', 'owner', ({ auth, params, body }) => {
     need(db.prepare('SELECT 1 FROM apps WHERE id = ? AND vault_id = ?').get(appId, auth.vaultId), 400, 'No such app.');
     return { appId, wrappedKey: field(g.wrappedKey, RE.ct, 'wrappedKey', 200) };
   });
+  // A shared folder's new key must go to every vault it is still shared with,
+  // so the request carries a fresh sealed box for each of them, and no others.
+  const shareIds = db.prepare('SELECT id FROM shares WHERE folder_id = ?').all(id).map((r) => r.id).sort();
+  need(body.shares === undefined ? !shareIds.length : Array.isArray(body.shares), 409, 'This folder is shared, so its new key must go to those vaults too. Reload and try again.');
+  const reshares = (body.shares ?? []).map((s) => ({ id: field(s?.id, RE.id, 'share id'), box: field(s.box, RE.box, 'share box', 4000) }));
+  const sentShares = reshares.map((s) => s.id).sort();
+  need(sentShares.length === shareIds.length && sentShares.every((x, i) => x === shareIds[i]), 409, 'The vaults this folder is shared with changed while its key was being replaced. Reload and try again.');
   const t = now();
   tx(db, () => {
     db.prepare('UPDATE folders SET meta = ?, wrapped_key = ?, updated_at = ? WHERE id = ?').run(meta, wrappedKey, t, id);
+    const reseal = db.prepare('UPDATE shares SET box = ? WHERE id = ? AND folder_id = ?');
+    for (const s of reshares) reseal.run(s.box, s.id, id);
     // updated_at is left alone: the memory's words did not change, only the lock on them
     const upd = db.prepare('UPDATE memories SET head = ?, body = ? WHERE id = ? AND folder_id = ?');
     for (const m of mems) upd.run(m.head, m.body, m.id, id);
@@ -541,7 +550,7 @@ route('POST', '/api/folders/:id/rotate', 'owner', ({ auth, params, body }) => {
     const ins = db.prepare('INSERT INTO app_folder_keys (app_id, folder_id, wrapped_key) VALUES (?, ?, ?)');
     for (const g of grants) ins.run(g.appId, id, g.wrappedKey);
   });
-  return { rotated: mems.length, apps: grants.length };
+  return { rotated: mems.length, apps: grants.length, shares: reshares.length };
 }, { maxBody: 64 * 1024 * 1024 });
 
 route('DELETE', '/api/folders/:id', 'owner', ({ auth, params }) => {
@@ -635,6 +644,65 @@ route('DELETE', '/api/apps/:id', 'owner', ({ auth, params }) => {
   need(r.changes, 404, 'No such app.');
 });
 
+// ---------- owner: sharing a folder with another vault
+// The server matches vault names and passes sealed boxes along. It can neither
+// open a share nor make one up: the box is sealed for the recipient and tagged
+// with a key only the two vaults can make.
+
+route('POST', '/api/share-key', 'owner', async ({ auth, body }) => {
+  rateLimit(`share-key:${auth.vaultId}`, 60, 3_600_000);
+  const u = username(body.username);
+  const fp = field(body.fingerprint, /^[A-Za-z0-9_-]{20}$/, 'fingerprint');
+  const v = db.prepare('SELECT id, box_pub FROM vaults WHERE username = ?').get(u);
+  // the same answer for a name that does not exist and a fingerprint that does not match
+  need(v && (await keyFingerprint(v.box_pub)) === fp, 404, 'No vault matches that share code. Check it with the person who sent it.');
+  need(v.id !== auth.vaultId, 400, 'That is your own share code.');
+  return { boxPub: v.box_pub };
+});
+
+route('GET', '/api/shares', 'owner', ({ auth }) => ({
+  shares: db.prepare('SELECT s.id, s.folder_id, s.meta, s.created_at, v.username, v.box_pub FROM shares s JOIN vaults v ON v.id = s.recipient_id WHERE s.owner_id = ? ORDER BY s.created_at')
+    .all(auth.vaultId).map((s) => ({ id: s.id, folderId: s.folder_id, meta: s.meta, recipient: s.username, recipientBoxPub: s.box_pub, createdAt: s.created_at })),
+}));
+
+route('PUT', '/api/shares/:id', 'owner', ({ auth, params, body }) => {
+  const id = field(params.id, RE.id, 'share id');
+  const folderId = field(body.folderId, RE.id, 'folderId');
+  need(db.prepare('SELECT 1 FROM folders WHERE id = ? AND vault_id = ?').get(folderId, auth.vaultId), 404, 'No such folder.');
+  const r = db.prepare('SELECT id FROM vaults WHERE username = ?').get(username(body.recipient));
+  need(r, 404, 'No such vault.');
+  need(r.id !== auth.vaultId, 400, 'You cannot share a folder with your own vault.');
+  need(!db.prepare('SELECT 1 FROM shares WHERE id = ?').get(id), 409, 'That share already exists.');
+  need(!db.prepare('SELECT 1 FROM shares WHERE folder_id = ? AND recipient_id = ?').get(folderId, r.id), 409, 'This folder is already shared with that vault.');
+  need(count('SELECT COUNT(*) n FROM shares WHERE folder_id = ?', folderId) < LIMITS.sharesPerFolder, 400, `A folder can be shared with ${LIMITS.sharesPerFolder} vaults at most.`);
+  need(count('SELECT COUNT(*) n FROM shares WHERE owner_id = ?', auth.vaultId) < LIMITS.shares, 400, 'Too many shares.');
+  db.prepare('INSERT INTO shares (id, folder_id, owner_id, recipient_id, box, meta, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+    .run(id, folderId, auth.vaultId, r.id, field(body.box, RE.box, 'box', 4000), field(body.meta, RE.ct, 'meta', 2000), now());
+});
+
+// Either side can end a share: the owner stops sharing, or the recipient leaves.
+route('DELETE', '/api/shares/:id', 'owner', ({ auth, params }) => {
+  const r = db.prepare('DELETE FROM shares WHERE id = ? AND (owner_id = ? OR recipient_id = ?)').run(params.id, auth.vaultId, auth.vaultId);
+  need(r.changes, 404, 'No such share.');
+});
+
+// The recipient's side: folders shared with this vault, and their memories.
+route('GET', '/api/shared', 'owner', ({ auth }) => ({
+  shares: db.prepare('SELECT s.id, s.folder_id, s.box, s.created_at, v.username, v.box_pub FROM shares s JOIN vaults v ON v.id = s.owner_id WHERE s.recipient_id = ? ORDER BY s.created_at')
+    .all(auth.vaultId).map((s) => ({ id: s.id, folderId: s.folder_id, box: s.box, owner: s.username, ownerBoxPub: s.box_pub, createdAt: s.created_at })),
+}));
+
+route('GET', '/api/shared/:id', 'owner', async ({ auth, params }) => {
+  const s = db.prepare('SELECT id, folder_id, owner_id FROM shares WHERE id = ? AND recipient_id = ?').get(params.id, auth.vaultId);
+  need(s, 404, 'This folder is no longer shared with you.');
+  rateLimit(`shared:${s.id}`, 120, 3_600_000);
+  // the owner sees every opening in their read log, sealed like any read
+  await logRead(s.owner_id, null, 'shared', s.id);
+  return {
+    memories: db.prepare('SELECT id, body, created_at, updated_at FROM memories WHERE folder_id = ? ORDER BY updated_at DESC').all(s.folder_id)
+      .map((m) => ({ id: m.id, body: m.body, createdAt: m.created_at, updatedAt: m.updated_at })),
+  };
+});
 // ---------- owner: inbox, log, account
 
 route('GET', '/api/inbox', 'owner', ({ auth }) => ({

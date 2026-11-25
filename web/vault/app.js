@@ -37,6 +37,7 @@ const $toast = document.getElementById('toast');
 const blank = () => ({
   token: null, vaultId: null, username: null, vk: null, boxPub: null, boxPriv: null,
   folders: new Map(), memories: new Map(), apps: new Map(), inbox: [], log: null, seals: new Map(),
+  shares: new Map(), sharedIn: [], sharedMems: new Map(), shareCode: null, sharePanel: null, openShared: null,
   view: 'memories', folder: 'all', query: '', editing: null,
   authMode: 'open', pendingPhrase: null, newAppKey: null, editingApp: null, verified: new Map(), chain: null,
 });
@@ -159,6 +160,7 @@ async function setPassphrase(vk, pass) {
 async function enter(r, vk, username, doRender = true) {
   Object.assign(S, { token: r.token, vaultId: r.keys.vaultId, username, vk, boxPub: r.keys.boxPub });
   S.boxPriv = await C.unwrapKey(vk, r.keys.boxPrivWrapped, 'box/private');
+  S.shareCode = C.formatShareCode(username, await C.keyFingerprint(S.boxPub));
   await loadAll();
   if (doRender) render();
 }
@@ -193,7 +195,30 @@ async function loadAll() {
       S.memories.set(m.id, { id: m.id, folderId: m.folderId, title: 'Unreadable memory', body: '', tags: [], broken: true, createdAt: m.createdAt, updatedAt: m.updatedAt });
     }
   }
-  await Promise.all([loadApps(), loadInbox()]);
+  await Promise.all([loadApps(), loadInbox(), loadShares()]);
+}
+
+// Folders this vault shares, and folders shared with it. A share is opened here
+// and checked: it must be sealed for this vault and tagged by the vault it names.
+async function loadShares() {
+  const [out, inc] = await Promise.all([api('GET', '/api/shares'), api('GET', '/api/shared')]);
+  S.shares.clear();
+  for (const s of out.shares) {
+    let meta = null;
+    try { meta = await C.decryptJSON(S.vk, s.meta, `share:${s.id}:meta`); } catch {}
+    S.shares.set(s.id, { ...s, fingerprint: meta?.fingerprint ?? null, broken: !meta || meta.recipient !== s.recipient });
+  }
+  S.sharedIn = [];
+  for (const s of inc.shares) {
+    try {
+      const d = await C.shareOpen(S.boxPriv, S.boxPub, s.ownerBoxPub, s.box);
+      if (d.shareId !== s.id || d.folderId !== s.folderId || d.owner !== s.owner || d.recipient !== S.username) throw new Error('This share names another folder or vault.');
+      S.sharedIn.push({ ...s, folderName: d.folderName, key: d.folderKey, ownerFingerprint: await C.keyFingerprint(s.ownerBoxPub) });
+    } catch {
+      S.sharedIn.push({ ...s, broken: true });
+    }
+  }
+  for (const id of S.sharedMems.keys()) if (!S.sharedIn.some((s) => s.id === id)) S.sharedMems.delete(id);
 }
 
 async function loadApps() {
@@ -284,7 +309,16 @@ async function rotateFolder(folderId) {
   if (mems.some((m) => m.broken)) throw new Error(`"${f.name}" has a memory that cannot be opened, so its key cannot be replaced.`);
   const key = C.randomBytes(32);
   const keep = [...S.apps.values()].filter((a) => !a.broken && a.folderIds.includes(folderId));
+  // the vaults this folder is still shared with get the new key, sealed for each
+  await loadShares();
+  const shared = [...S.shares.values()].filter((s) => s.folderId === folderId);
+  if (shared.some((s) => s.broken)) throw new Error(`One of the shares of "${f.name}" cannot be opened, so its key cannot be replaced.`);
+  const shares = await Promise.all(shared.map(async (s) => {
+    if (await C.keyFingerprint(s.recipientBoxPub) !== s.fingerprint) throw new Error(`The server gave a different key for ${s.recipient} than the one you shared with. Nothing was changed.`);
+    return { id: s.id, box: await C.shareSeal(S.boxPriv, S.boxPub, s.recipientBoxPub, { shareId: s.id, folderId, folderKey: key, folderName: f.name, owner: S.username, recipient: s.recipient }) };
+  }));
   const r = await api('POST', `/api/folders/${folderId}/rotate`, {
+    shares,
     meta: await C.encryptJSON(key, { name: f.name }, `folder:${folderId}:meta`),
     wrappedKey: await C.wrapKey(S.vk, key, `folder:${folderId}:key`),
     memories: await Promise.all(mems.map(async (m) => ({
@@ -310,6 +344,68 @@ async function rotateAfterRevoke(folderIds, appName) {
   }
   if (failed.length) toast(`${appName} lost access, but the key of ${failed.join(', ')} could not be replaced. Open the folder and press “Replace key”.`, 'err');
   return !failed.length;
+}
+
+// ---------- sharing
+
+// The share code names a vault and the fingerprint of its key. The key the server
+// returns must match that fingerprint, or nothing is shared.
+async function shareFolder(folder, codeText) {
+  const { username, fingerprint } = C.parseShareCode(codeText);
+  if (username === S.username) throw new Error('That is your own share code. Ask the other person for theirs.');
+  const { boxPub } = await api('POST', '/api/share-key', { username, fingerprint });
+  if (await C.keyFingerprint(boxPub) !== fingerprint) throw new Error('The server answered with a different key than the share code names. Nothing was shared.');
+  const shareId = C.newId();
+  await api('PUT', `/api/shares/${shareId}`, {
+    folderId: folder.id,
+    recipient: username,
+    box: await C.shareSeal(S.boxPriv, S.boxPub, boxPub, { shareId, folderId: folder.id, folderKey: folder.key, folderName: folder.name, owner: S.username, recipient: username }),
+    meta: await C.encryptJSON(S.vk, { recipient: username, fingerprint }, `share:${shareId}:meta`),
+  });
+  await loadShares();
+  return username;
+}
+
+// Stopping takes effect at once on the server; then the folder gets a new key,
+// so a copy of the old one opens nothing written from now on.
+async function stopSharing(s, btn) {
+  const name = S.folders.get(s.folderId)?.name ?? 'this folder';
+  if (!confirm(`Stop sharing "${name}" with ${s.recipient}? Their vault can no longer open it, and the folder gets a new key.`)) return;
+  await busy(btn, 'Stopping…', async () => {
+    await api('DELETE', `/api/shares/${s.id}`);
+    S.shares.delete(s.id);
+    try {
+      await rotateFolder(s.folderId);
+      toast(`Stopped sharing "${name}" with ${s.recipient}. The folder has a new key.`);
+    } catch (e) {
+      toast(`Stopped sharing "${name}" with ${s.recipient}, but its key could not be replaced: ${e.message} Open the folder and press "Replace key".`, 'err');
+    }
+    render();
+  });
+}
+
+async function openShared(s) {
+  const { memories } = await api('GET', `/api/shared/${s.id}`);
+  const list = [];
+  for (const m of memories) {
+    try {
+      const d = await C.decryptJSON(s.key, m.body, `memory:${m.id}:body`);
+      list.push({ id: m.id, title: d.title, body: d.body, tags: d.tags ?? [], updatedAt: m.updatedAt });
+    } catch {
+      list.push({ id: m.id, title: 'Unreadable memory', body: '', tags: [], broken: true, updatedAt: m.updatedAt });
+    }
+  }
+  S.sharedMems.set(s.id, list);
+}
+
+async function leaveShared(s, btn) {
+  if (!confirm(`Leave "${s.folderName ?? 'this folder'}" from ${s.owner}? You can no longer open it unless they share it again.`)) return;
+  await busy(btn, 'Leaving…', async () => {
+    await api('DELETE', `/api/shares/${s.id}`);
+    await loadShares();
+    if (S.openShared === s.id) S.openShared = null;
+    render();
+  });
 }
 
 // ---------- views
@@ -410,6 +506,7 @@ const ICONS = {
   out: 'M6 2.5H2.5v11H6M10 4.5 13.5 8 10 11.5M13.5 8H6',
   download: 'M8 2v8.5M4.5 7 8 10.5 11.5 7M2.5 13.5h11',
   search: 'M7 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10ZM10.6 10.6 14 14',
+  share: 'M12 5.5a2 2 0 1 0 0-4 2 2 0 0 0 0 4ZM4 10a2 2 0 1 0 0-4 2 2 0 0 0 0 4ZM12 14.5a2 2 0 1 0 0-4 2 2 0 0 0 0 4ZM5.8 9l4.4 2.5M10.2 4.5 5.8 7',
 };
 const MARK = 'M21.64 1L4.2 7.77L10.6 12.33C9.72 11.6 9.72 10.34 10.75 9.98L17.59 6.89ZM2.36 23L19.8 16.23L13.4 11.67C14.28 12.4 14.28 13.66 13.25 14.02L6.41 17.11Z';
 function icon(name, cls = 'ic') {
@@ -631,12 +728,13 @@ const NAV = [
   ['memories', 'Memories', 'stack'],
   ['inbox', 'Inbox', 'inbox'],
   ['apps', 'Apps', 'apps'],
+  ['shared', 'Shared', 'share'],
   ['log', 'Read log', 'log'],
   ['settings', 'Settings', 'sliders'],
 ];
 
 function viewShell() {
-  const counts = { memories: S.memories.size, inbox: S.inbox.length || null, apps: S.apps.size || null };
+  const counts = { memories: S.memories.size, inbox: S.inbox.length || null, apps: S.apps.size || null, shared: S.sharedIn.length || null };
   const folders = [...S.folders.values()].sort((a, b) => a.name.localeCompare(b.name));
   const side = h('aside', { class: 'side' },
     h('div', { class: 'side-top' },
@@ -657,7 +755,7 @@ function viewShell() {
       h('span', { class: 'avatar', 'aria-hidden': 'true' }, (S.username || '?').slice(0, 1).toUpperCase()),
       h('span', { class: 'who' }, h('b', {}, S.username), h('small', {}, 'locks on tab close')),
       h('button', { class: 'side-lock', onclick: lock, title: 'Lock vault' }, icon('lock'), h('span', {}, 'Lock'))));
-  const views = { memories: viewMemories, inbox: viewInbox, apps: viewApps, log: viewLog, settings: viewSettings };
+  const views = { memories: viewMemories, inbox: viewInbox, apps: viewApps, shared: viewShared, log: viewLog, settings: viewSettings };
   const here = NAV.find((n) => n[0] === S.view)?.[1];
   const folder = S.view === 'memories' && S.folders.get(S.folder);
   return h('div', { class: `shell${motion.area ? ' is-enter' : ''}` }, side,
@@ -745,8 +843,11 @@ function viewMemories() {
   return h('div', { class: 'memories' },
     pageHead(folder ? 'F' : '01', folder ? 'folder · own key' : 'your vault', folder ? folder.name : 'All memories', null,
       folder && h('button', { class: 'link', onclick: () => renameFolder(folder) }, 'Rename'),
+      folder && !folder.broken && h('button', { class: 'link', title: 'Let another vault read this folder', 'aria-expanded': String(S.sharePanel === folder.id), onclick: () => { S.sharePanel = S.sharePanel === folder.id ? null : folder.id; render(); } },
+        sharedWith(folder.id).length ? `Shared · ${sharedWith(folder.id).length}` : 'Share'),
       folder && !folder.broken && h('button', { class: 'link', title: 'Re-encrypt this folder with a new key', onclick: (e) => replaceKey(folder, e.currentTarget) }, 'Replace key'),
       folder && h('button', { class: 'link danger', onclick: () => deleteFolder(folder) }, 'Delete folder')),
+    folder && !folder.broken && S.sharePanel === folder.id && sharePanel(folder),
     S.folder === 'all' && h('div', { class: 'stats' }, stats.map(([label, n, to]) =>
       h(to ? 'button' : 'div', { class: 'stat', onclick: to ? () => go(to) : null },
         h('span', { class: 'stat-l' }, label), h('b', { class: 'stat-n', 'data-count': n }, String(n)), to && icon('arrow', 'ic stat-go')))),
@@ -782,9 +883,79 @@ async function deleteFolder(folder) {
     for (const m of [...S.memories.values()]) if (m.folderId === folder.id) S.memories.delete(m.id);
     S.folder = 'all';
     S.editing = null;
-    await loadApps();
+    await Promise.all([loadApps(), loadShares()]);
     render();
   });
+}
+
+// ---------- sharing: the panel on a folder, and the Shared page
+
+const sharedWith = (folderId) => [...S.shares.values()].filter((s) => s.folderId === folderId);
+
+function sharePanel(folder) {
+  const mine = sharedWith(folder.id);
+  const input = h('input', { name: 'code', placeholder: 'synovax-share:name:…', required: true, autocomplete: 'off', spellcheck: 'false' });
+  const form = h('form', { class: 'row share-form', onsubmit: (e) => {
+    e.preventDefault();
+    busy(form.querySelector('[type=submit]'), 'Sharing…', async () => {
+      const who = await shareFolder(folder, input.value);
+      toast(`Shared "${folder.name}" with ${who}.`);
+      render();
+    });
+  } }, h('label', { class: 'grow' }, 'Their share code', input), h('button', { class: 'btn primary', type: 'submit' }, 'Share'));
+  return h('div', { class: 'card share-panel' },
+    h('h2', {}, `Share "${folder.name}"`),
+    h('p', { class: 'muted' }, 'The other vault can read every memory in this folder, now and later, but cannot change anything. Each time it opens the folder, that is in your read log. Ask for the share code shown under Shared in their vault.'),
+    mine.length ? h('div', { class: 'sessions' }, mine.map((s) => h('div', { class: 'row session' },
+      h('span', { class: 'grow' }, h('b', {}, s.recipient), h('br'), h('small', { class: 'fine' }, `shared ${fmt(s.createdAt)}`)),
+      h('button', { class: 'btn small', onclick: (e) => stopSharing(s, e.currentTarget) }, 'Stop sharing')))) : null,
+    form,
+    h('button', { class: 'btn', type: 'button', onclick: () => { S.sharePanel = null; render(); } }, 'Close'));
+}
+
+function viewShared() {
+  const out = [...S.shares.values()].sort((a, b) => a.createdAt - b.createdAt);
+  return h('div', { class: 'page' },
+    pageHead('04', 'between vaults', 'Shared', 'Folders other vaults share with you, read only: the owner keeps the keys. To receive one, give the owner your share code.',
+      h('button', { class: 'btn', onclick: (e) => busy(e.currentTarget, 'Checking…', async () => { await loadShares(); render(); }) }, 'Refresh')),
+    h('div', { class: 'card' },
+      h('h2', {}, 'Your share code'),
+      h('p', { class: 'muted' }, 'It holds your vault name and a fingerprint of your vault\'s public key, so the other vault can check that the server did not swap the key. It is not a secret, but it only lets people share with you, never read from you.'),
+      h('div', { class: 'keybox' }, h('code', { 'data-share-code': '' }, S.shareCode), h('button', { class: 'btn small', onclick: () => copy(S.shareCode) }, 'Copy code'))),
+    h('h2', { class: 'sec-h' }, h('span', {}, 'Shared with you'), h('span', { class: 'sec-n' }, String(S.sharedIn.length).padStart(2, '0'))),
+    S.sharedIn.length ? S.sharedIn.map(sharedCard) : emptyState('Nothing shared with you yet.', 'Send your share code to someone who wants to share a folder with you.'),
+    h('h2', { class: 'sec-h' }, h('span', {}, 'You share'), h('span', { class: 'sec-n' }, String(out.length).padStart(2, '0'))),
+    out.length ? h('div', { class: 'card' }, h('div', { class: 'sessions' }, out.map((s) => h('div', { class: 'row session' },
+      h('span', { class: 'grow' }, h('b', {}, S.folders.get(s.folderId)?.name ?? 'A folder'), ` with ${s.recipient}`, h('br'), h('small', { class: 'fine' }, `shared ${fmt(s.createdAt)}`)),
+      h('button', { class: 'btn small', onclick: (e) => stopSharing(s, e.currentTarget) }, 'Stop sharing')))))
+      : emptyState('You share nothing yet.', 'Open a folder and choose Share.'));
+}
+
+function sharedCard(s) {
+  if (s.broken) {
+    return h('div', { class: 'card' },
+      h('p', {}, `A share from ${s.owner} could not be opened. It may not come from the vault it names.`),
+      h('button', { class: 'btn danger', onclick: (e) => leaveShared(s, e.currentTarget) }, 'Remove'));
+  }
+  const open = S.openShared === s.id;
+  const mems = S.sharedMems.get(s.id);
+  return h('div', { class: 'card shared' },
+    h('h2', {}, s.folderName),
+    h('p', { class: 'muted' }, `From ${s.owner}, shared ${fmt(s.createdAt)}. Read only.`),
+    h('p', { class: 'fine' }, `To be sure it is really ${s.owner}: their share code ends in …${s.ownerFingerprint.slice(-8)}.`),
+    h('div', { class: 'row' },
+      h('button', { class: 'btn primary', 'aria-expanded': String(open), onclick: (e) => busy(e.currentTarget, 'Opening…', async () => {
+        if (open) S.openShared = null;
+        else { await openShared(s); S.openShared = s.id; }
+        render();
+      }) }, open ? 'Close' : 'Open folder'),
+      h('button', { class: 'btn', onclick: (e) => leaveShared(s, e.currentTarget) }, 'Leave')),
+    open && mems && (mems.length
+      ? h('div', { class: 'shared-list' }, mems.map((m) => h('details', { class: 'shared-mem' },
+        h('summary', {}, h('b', {}, m.title || 'Untitled'), h('small', { class: 'fine' }, ` · ${ago(m.updatedAt)}`)),
+        h('p', { class: 'shared-body' }, m.body),
+        m.tags.length ? h('p', {}, m.tags.map((t) => h('span', { class: 'chip ghost' }, t))) : null)))
+      : h('p', { class: 'fine' }, 'This folder is empty.')));
 }
 
 function folderSelect(name, selected) {
@@ -1040,6 +1211,10 @@ async function checkChain(newestFirst) {
 }
 
 function describe(e) {
+  if (e.action === 'shared') {
+    const s = S.shares.get(e.target);
+    return { app: s ? `${s.recipient} (shared)` : 'A vault you stopped sharing with', what: `Opened the shared folder “${S.folders.get(s?.folderId)?.name ?? 'a folder'}”` };
+  }
   const app = S.apps.get(e.appId)?.name ?? 'Revoked app';
   const what = {
     folders: () => 'Listed the folders it may read',
@@ -1054,7 +1229,7 @@ function describe(e) {
 function viewLog() {
   const latest = [...S.seals.values()].sort((a, b) => b.seq - a.seq)[0];
   return h('div', { class: 'page' },
-    pageHead('04', 'audit trail', 'Read log', 'Every time an app touches your vault, it is written here. At the end of each period all reads are folded into one fingerprint (a Merkle root). Check any entry against its seal, right here in your browser.',
+    pageHead('05', 'audit trail', 'Read log', 'Every time an app touches your vault, it is written here. At the end of each period all reads are folded into one fingerprint (a Merkle root). Check any entry against its seal, right here in your browser.',
       h('button', { class: 'btn', onclick: (e) => busy(e.currentTarget, 'Loading…', refreshLog) }, 'Refresh')),
     latest && h('div', { class: 'card seal' },
       h('span', { class: 'seal-ic' }, icon('seal')),
@@ -1137,7 +1312,7 @@ function viewSettings() {
     h('button', { class: 'btn danger', type: 'submit' }, 'Delete my vault'));
 
   return h('div', { class: 'page' },
-    pageHead('05', 'account', 'Settings', `Signed in as ${S.username}.`),
+    pageHead('06', 'account', 'Settings', `Signed in as ${S.username}.`),
     sessionsCard(),
     twoFactorCard(),
     importCard(),

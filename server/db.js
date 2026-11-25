@@ -121,6 +121,20 @@ CREATE TABLE IF NOT EXISTS immune_rounds (
   prev       TEXT NOT NULL,
   hash       TEXT NOT NULL
 );
+-- a folder shared with another vault: its key, sealed for that vault (the server cannot open it),
+-- and the owner's own note of who it went to, encrypted with the owner's vault key
+CREATE TABLE IF NOT EXISTS shares (
+  id           TEXT PRIMARY KEY,
+  folder_id    TEXT NOT NULL REFERENCES folders(id) ON DELETE CASCADE,
+  owner_id     TEXT NOT NULL REFERENCES vaults(id) ON DELETE CASCADE,
+  recipient_id TEXT NOT NULL REFERENCES vaults(id) ON DELETE CASCADE,
+  box          TEXT NOT NULL,
+  meta         TEXT NOT NULL,
+  created_at   INTEGER NOT NULL,
+  UNIQUE (folder_id, recipient_id)
+);
+CREATE INDEX IF NOT EXISTS shares_owner ON shares(owner_id);
+CREATE INDEX IF NOT EXISTS shares_recipient ON shares(recipient_id);
 -- rate limits live here, so a restart does not give a guesser a fresh start
 CREATE TABLE IF NOT EXISTS rate_hits (
   key TEXT NOT NULL,

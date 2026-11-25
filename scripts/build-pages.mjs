@@ -25,6 +25,7 @@ export const PAGES = {
   inbox: { title: 'Inbox', group: 'Product', blurb: 'Memories your apps suggest, kept only if you approve' },
   import: { title: 'Import', group: 'Product', blurb: 'Bring what ChatGPT and Claude remember about you' },
   apps: { title: 'Apps', group: 'Product', blurb: 'Step-by-step setup for every AI app' },
+  sharing: { title: 'Sharing', group: 'Product', blurb: 'One folder, read by another vault you trust' },
   devices: { title: 'Phone and devices', group: 'Product', blurb: 'Open and install it anywhere, sign out any device' },
   seals: { title: 'Seals', group: 'Product', blurb: 'The hourly seals of every read, and how to check them' },
   'how-it-works': { title: 'How it works', group: 'Trust', blurb: 'From your first memory to deleting it all' },
