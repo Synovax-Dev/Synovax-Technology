@@ -247,18 +247,19 @@
             <div class="st-plate">
               <div class="plate-fill">
                 <div class="mk mk-kdf">
-                    <p class="mk-eye">derive · on this device</p>
-                    <div class="kdf">
-                      <span class="kdf-box kdf-in">passphrase<small>••••••••••••••</small></span>
-                      <span class="kdf-arrow">pbkdf2-sha256<small>× 600,000</small></span>
-                      <span class="kdf-box">master<small>256 bit</small></span>
-                      <span class="kdf-arrow">hkdf</span>
-                      <span class="kdf-split">
-                        <span class="kdf-box kdf-out">authkey<small>→ server, hashed</small></span>
-                        <span class="kdf-box kdf-out kdf-keep">kek<small>never leaves</small></span>
-                      </span>
+                  <div class="mk-bar"><span class="mk-dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="mk-title">derive.local</span><span class="mk-chip"><i aria-hidden="true"></i>on this device</span></div>
+                  <div class="kdf2">
+                    <div class="k-node k-in"><small>you type</small><b>passphrase</b><span class="k-dots" aria-hidden="true">••••••••••</span></div>
+                    <div class="k-link"><span>pbkdf2</span><i aria-hidden="true"></i><em data-rounds>600,000</em><span>rounds</span></div>
+                    <div class="k-node"><small>master key</small><b>256 bit</b></div>
+                    <div class="k-link k-link--short"><span>hkdf</span><i aria-hidden="true"></i></div>
+                    <div class="k-out">
+                      <div class="k-node k-send"><small>auth key</small><b>proves it is you</b><span class="k-tag">→ server, hashed</span></div>
+                      <div class="k-node k-keep"><svg aria-hidden="true"><use href="#i-lock"/></svg><small>vault unlock key</small><b>opens the vault</b><span class="k-tag">never leaves</span></div>
                     </div>
                   </div>
+                  <div class="mk-foot"><span>pbkdf2-sha256</span><span>600,000 rounds</span><span>per-vault salt</span><span>hkdf-sha256</span></div>
+                </div>
               </div>
               <svg class="plate-outline" viewBox="0 0 710.995 462.995" preserveAspectRatio="none" aria-hidden="true"><use href="#plate-outline"/></svg>
             </div>
@@ -272,9 +273,10 @@
             <div class="st-plate">
               <div class="plate-fill">
                 <div class="mk mk-words">
-                    <p class="mk-eye">recovery · 24 words</p>
-                    <ol class="words" data-words-grid></ol>
-                  </div>
+                  <div class="mk-bar"><span class="mk-dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="mk-title">recovery.words</span><span class="mk-chip"><i aria-hidden="true"></i>shown once</span></div>
+                  <ol class="words" data-words-grid></ol>
+                  <div class="mk-foot"><span>24 words</span><span>192 bits</span><span>one list of 256</span><span>write it on paper</span></div>
+                </div>
               </div>
               <svg class="plate-outline" viewBox="0 0 710.995 462.995" preserveAspectRatio="none" aria-hidden="true"><use href="#plate-outline"/></svg>
             </div>
@@ -288,14 +290,15 @@
             <div class="st-plate">
               <div class="plate-fill">
                 <div class="mk mk-folders">
-                    <p class="mk-eye">folders · one key each</p>
-                    <ul class="folders">
-                      <li><span class="fname">about me</span><span class="fkey">fk_9Qe2…tL0w</span><span class="fapps">claude desktop · cursor</span></li>
-                      <li><span class="fname">work</span><span class="fkey">fk_c81M…aa3P</span><span class="fapps">cursor</span></li>
-                      <li class="is-shut"><span class="fname">personal</span><span class="fkey">fk_Zr7d…0kqB</span><span class="fapps">no app</span></li>
-                    </ul>
-                    <p class="mk-note">vault key ── wraps ──▶ folder key ── wraps ──▶ app key</p>
-                  </div>
+                  <div class="mk-bar"><span class="mk-dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="mk-title">vault.folders</span><span class="mk-chip"><i aria-hidden="true"></i>one key each</span></div>
+                  <ul class="fold2">
+                    <li><svg class="f-ic" aria-hidden="true"><use href="#i-key"/></svg><span class="fname">about me</span><span class="fkey">fk_9Qe2…tL0w</span><span class="f-apps"><i title="Claude Desktop"><svg aria-hidden="true"><use href="#i-claude"/></svg></i><i title="Cursor"><svg aria-hidden="true"><use href="#i-cursor"/></svg></i></span></li>
+                    <li><svg class="f-ic" aria-hidden="true"><use href="#i-key"/></svg><span class="fname">work</span><span class="fkey">fk_c81M…aa3P</span><span class="f-apps"><i title="Cursor"><svg aria-hidden="true"><use href="#i-cursor"/></svg></i></span></li>
+                    <li class="is-shut"><svg class="f-ic" aria-hidden="true"><use href="#i-lock"/></svg><span class="fname">personal</span><span class="fkey">fk_Zr7d…0kqB</span><span class="f-apps"><em>no app · sealed</em></span></li>
+                  </ul>
+                  <p class="f-chain"><span>vault key</span><i aria-hidden="true"></i><span>folder key</span><i aria-hidden="true"></i><span>app key</span></p>
+                  <div class="mk-foot"><span>aes-256-gcm</span><span>one random key per folder</span><span>wrapped per app</span></div>
+                </div>
               </div>
               <svg class="plate-outline" viewBox="0 0 710.995 462.995" preserveAspectRatio="none" aria-hidden="true"><use href="#plate-outline"/></svg>
             </div>
@@ -309,9 +312,14 @@
             <div class="st-plate">
               <div class="plate-fill">
                 <div class="mk mk-cipher">
-                    <p class="mk-eye">what the server stores</p>
-                    <p class="cipher" data-cipher>v1.</p>
+                  <div class="mk-bar"><span class="mk-dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="mk-title">upload.memory</span><span class="mk-chip"><i aria-hidden="true"></i>sealed before upload</span></div>
+                  <div class="ct2">
+                    <div class="ct-plain"><small>on your device</small><b>allergic to penicillin</b><span>health · medical</span></div>
+                    <div class="ct-arrow"><span>aes-256-gcm</span><i aria-hidden="true"></i></div>
+                    <div class="ct-out"><small>what the server stores</small><p class="cipher" data-cipher>v1.</p></div>
                   </div>
+                  <div class="mk-foot"><span>96-bit iv</span><span>128-bit tag</span><span>bound to its record</span></div>
+                </div>
               </div>
               <svg class="plate-outline" viewBox="0 0 710.995 462.995" preserveAspectRatio="none" aria-hidden="true"><use href="#plate-outline"/></svg>
             </div>
@@ -325,19 +333,19 @@
             <div class="st-plate">
               <div class="plate-fill">
                 <div class="mk mk-config">
-                    <p class="mk-eye">claude_desktop_config.json</p>
-<pre class="code"><span class="c-p">{</span>
+                  <div class="mk-bar"><span class="mk-dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="mk-title">claude_desktop_config.json</span><span class="mk-chip"><i aria-hidden="true"></i>shown once</span></div>
+<pre class="code code--lines"><span class="c-p">{</span>
   <span class="c-k">"mcpServers"</span>: <span class="c-p">{</span>
     <span class="c-k">"synovax"</span>: <span class="c-p">{</span>
-      <span class="c-k">"command"</span>: <span class="c-s">"node"</span>,
-      <span class="c-k">"args"</span>: [<span class="c-s">"connector/index.js"</span>],
-      <span class="c-k">"env"</span>: <span class="c-p">{</span>
-        <span class="c-k">"VAULT_APP_KEY"</span>: <span class="c-s">"vlt_app.Ux4…"</span>
-      <span class="c-p">}</span>
+      <span class="c-k">"command"</span>: <span class="c-s">"npx"</span>,
+      <span class="c-k">"args"</span>: [<span class="c-s">"-y"</span>, <span class="c-s">"synovax"</span>, <span class="c-s">"connector"</span>],
+      <span class="c-k">"env"</span>: <span class="c-p">{</span> <span class="c-k">"VAULT_APP_KEY"</span>: <span class="c-s">"vlt_app.Ux4…"</span> <span class="c-p">}</span>
     <span class="c-p">}</span>
   <span class="c-p">}</span>
-<span class="c-p">}</span></pre>
-                  </div>
+<span class="c-p">}</span><span class="c-caret" aria-hidden="true"></span></pre>
+                  <p class="mk-apps"><span><svg aria-hidden="true"><use href="#i-claude"/></svg>claude</span><span><svg aria-hidden="true"><use href="#i-cursor"/></svg>cursor</span><span><svg aria-hidden="true"><use href="#i-vscode"/></svg>vs code</span><span><svg aria-hidden="true"><use href="#i-windsurf"/></svg>windsurf</span></p>
+                  <div class="mk-foot"><span>mcp over stdio</span><span>4 tools</span><span>any mcp app</span></div>
+                </div>
               </div>
               <svg class="plate-outline" viewBox="0 0 710.995 462.995" preserveAspectRatio="none" aria-hidden="true"><use href="#plate-outline"/></svg>
             </div>
@@ -351,13 +359,17 @@
             <div class="st-plate">
               <div class="plate-fill">
                 <div class="mk mk-inbox">
-                    <p class="mk-eye">inbox · 1 suggestion</p>
+                  <div class="mk-bar"><span class="mk-dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="mk-title">vault.inbox</span><span class="mk-chip"><i aria-hidden="true"></i>1 waiting</span></div>
+                  <div class="inbox-stack">
+                    <div class="inbox-card inbox-card--ghost" aria-hidden="true"></div>
                     <div class="inbox-card">
-                      <p class="inbox-from">from cursor · work</p>
+                      <p class="inbox-from"><span class="inbox-badge"><svg aria-hidden="true"><use href="#i-cursor"/></svg></span>from cursor · suggested for work<span class="inbox-seal"><svg aria-hidden="true"><use href="#i-seal"/></svg>sealed</span></p>
                       <p class="inbox-title">prefers metric units</p>
-                      <p class="inbox-btns"><span class="ib ib--yes">approve</span><span class="ib">dismiss</span></p>
+                      <p class="inbox-btns"><span class="ib ib--yes">approve</span><span class="ib">edit</span><span class="ib">dismiss</span></p>
                     </div>
                   </div>
+                  <div class="mk-foot"><span>ecdh p-256 sealed box</span><span>30 an hour per app</span><span>nothing kept until you approve</span></div>
+                </div>
               </div>
               <svg class="plate-outline" viewBox="0 0 710.995 462.995" preserveAspectRatio="none" aria-hidden="true"><use href="#plate-outline"/></svg>
             </div>
@@ -371,23 +383,24 @@
             <div class="st-plate">
               <div class="plate-fill">
                 <div class="mk mk-proof">
-                    <p class="mk-eye">read log · verify against seal</p>
-                    <svg class="tree" viewBox="0 0 600 230" aria-hidden="true">
-                      <g class="tree-lines" fill="none">
-                        <path d="M300 34V70M150 70H450M150 70V120M450 70V120M75 120H225M375 120H525M75 120V170M225 120V170M375 120V170M525 120V170"/>
-                      </g>
-                      <g class="tree-path" fill="none"><path d="M300 34V70H450V120H375V170"/></g>
-                      <rect class="tree-root" x="236" y="6" width="128" height="28"/>
-                      <text x="300" y="25" class="tree-t tree-t--root">root 4be1…09f3</text>
-                      <g class="tree-leaves">
-                        <rect x="35" y="170" width="80" height="26"/><rect x="185" y="170" width="80" height="26"/>
-                        <rect x="335" y="170" width="80" height="26" class="is-hit"/><rect x="485" y="170" width="80" height="26"/>
-                      </g>
-                      <text x="75" y="188" class="tree-t">read</text><text x="225" y="188" class="tree-t">read</text>
-                      <text x="375" y="188" class="tree-t tree-t--hit">your read</text><text x="525" y="188" class="tree-t">read</text>
-                      <text x="300" y="224" class="tree-t tree-t--ok">✓ proof matches seal #128</text>
-                    </svg>
-                  </div>
+                  <div class="mk-bar"><span class="mk-dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="mk-title">readlog.verify</span><span class="mk-chip"><i aria-hidden="true"></i>checked here</span></div>
+                  <svg class="tree" viewBox="0 0 600 230" aria-hidden="true">
+                    <g class="tree-lines" fill="none">
+                      <path d="M300 34V70M150 70H450M150 70V120M450 70V120M75 120H225M375 120H525M75 120V170M225 120V170M375 120V170M525 120V170"/>
+                    </g>
+                    <g class="tree-path" fill="none"><path pathLength="1" d="M375 170V120H450V70H300V34"/></g>
+                    <rect class="tree-root" x="236" y="6" width="128" height="28"/>
+                    <text x="300" y="25" class="tree-t tree-t--root">root 4be1…09f3</text>
+                    <g class="tree-leaves">
+                      <rect x="35" y="170" width="80" height="26"/><rect x="185" y="170" width="80" height="26"/>
+                      <rect x="335" y="170" width="80" height="26" class="is-hit"/><rect x="485" y="170" width="80" height="26"/>
+                    </g>
+                    <text x="75" y="188" class="tree-t">read</text><text x="225" y="188" class="tree-t">read</text>
+                    <text x="375" y="188" class="tree-t tree-t--hit">your read</text><text x="525" y="188" class="tree-t">read</text>
+                    <text x="300" y="224" class="tree-t tree-t--ok">✓ proof matches seal #128</text>
+                  </svg>
+                  <div class="mk-foot"><span>sha-256 merkle tree</span><span>sealed every hour</span><span>chained to the last seal</span></div>
+                </div>
               </div>
               <svg class="plate-outline" viewBox="0 0 710.995 462.995" preserveAspectRatio="none" aria-hidden="true"><use href="#plate-outline"/></svg>
             </div>

@@ -293,8 +293,39 @@ function steps() {
       rise($('.st-plate', row), { delay: 160, y: '1.5rem' });
     }, { rootMargin: '0% 0% -20% 0%' });
   }
+  // each word lights up in turn (the delay comes from its place)
+  [...grid.children].forEach((li, i) => li.style.setProperty('--i', String(i)));
+
+  // the live parts of a plate run only while its row is the live one
+  const rounds = $('[data-rounds]', section);
+  const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+  let countFrom = 0, scrambleTimer = null;
+  const countRounds = () => {
+    if (reduced || !rounds) return;
+    const t0 = performance.now();
+    const step = (t) => {
+      const p = Math.min(1, (t - t0) / 1600);
+      rounds.textContent = Math.round(600_000 * (1 - (1 - p) ** 3)).toLocaleString('en-US');
+      if (p < 1) countFrom = requestAnimationFrame(step);
+    };
+    cancelAnimationFrame(countFrom);
+    countFrom = requestAnimationFrame(step);
+  };
+  const scramble = (on) => {
+    clearInterval(scrambleTimer);
+    if (!on || reduced) return;
+    scrambleTimer = setInterval(() => {
+      const s = cipher.textContent.split('');
+      for (let k = 0; k < 6; k++) { const i = 3 + Math.floor(Math.random() * (s.length - 3)); s[i] = B64[Math.floor(Math.random() * 64)]; }
+      cipher.textContent = s.join('');
+    }, 90);
+  };
   const live = new IntersectionObserver((entries) => {
-    for (const e of entries) e.target.classList.toggle('is-on', e.isIntersecting);
+    for (const e of entries) {
+      e.target.classList.toggle('is-on', e.isIntersecting);
+      if (e.target.contains(rounds) && e.isIntersecting) countRounds();
+      if (e.target.contains(cipher)) scramble(e.isIntersecting);
+    }
   }, { rootMargin: '-42% 0% -42% 0%' });
   rows.forEach((r) => live.observe(r));
 
