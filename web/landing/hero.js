@@ -85,7 +85,8 @@ function burger() {
     top.append(logo, x);
     const nav = document.createElement('nav'); nav.setAttribute('aria-label', 'Menu');
     const gh = $('[data-github]')?.getAttribute('href');
-    const links = [...$$('.mast-nav a').map((a) => [a.textContent, a.getAttribute('href')]), ...(gh ? [['github ↗', gh]] : []), ['open vault', '/vault/']];
+const npm = $('[data-npm]')?.getAttribute('href');
+    const links = [...$$('.mast-nav a').map((a) => [a.textContent, a.getAttribute('href')]), ...(gh ? [['github ↗', gh]] : []), ...(npm ? [['npm ↗', npm]] : []), ['open vault', '/vault/']];
     links.forEach(([label, href], i) => {
       const a = document.createElement('a'); a.href = href; a.textContent = label;
       if (/^https?:/.test(href)) { a.target = '_blank'; a.rel = 'noopener noreferrer'; }
