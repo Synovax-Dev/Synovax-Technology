@@ -43,8 +43,10 @@
     "test:wallet": "node test/wallet.js",
     "test:immune": "node test/immune.js",
     "test:vectors": "node test/vectors.js",
+    "test:extension": "node test/extension.js",
     "vectors": "node scripts/vectors.mjs",
     "pages": "node scripts/build-pages.mjs",
+    "extension": "node scripts/build-extension.mjs",
     "test:semantic": "node test/semantic.js"
   },
   "license": "MIT",

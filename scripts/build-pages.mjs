@@ -25,6 +25,7 @@ export const PAGES = {
   inbox: { title: 'Inbox', group: 'Product', blurb: 'Memories your apps suggest, kept only if you approve' },
   import: { title: 'Import', group: 'Product', blurb: 'Bring what ChatGPT and Claude remember about you' },
   apps: { title: 'Apps', group: 'Product', blurb: 'Step-by-step setup for every AI app' },
+  extension: { title: 'Extension', group: 'Product', blurb: 'Save a selection, a page or a chat from the browser' },
   sharing: { title: 'Sharing', group: 'Product', blurb: 'One folder, read by another vault you trust' },
   legacy: { title: 'Legacy', group: 'Product', blurb: 'Who receives your vault, and only when' },
   devices: { title: 'Phone and devices', group: 'Product', blurb: 'Open and install it anywhere, sign out any device' },

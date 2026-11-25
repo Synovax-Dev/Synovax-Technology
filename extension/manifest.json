@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "SYNOVAX: save to your vault",
+  "short_name": "SYNOVAX",
+  "version": "0.1.0",
+  "description": "Save a selection, a page or an AI chat to your SYNOVAX inbox, sealed on your computer so only your vault can open it.",
+  "homepage_url": "https://synovax.tech/extension/",
+  "minimum_chrome_version": "116",
+  "icons": { "128": "icon.png" },
+  "action": { "default_popup": "popup.html", "default_title": "Save to SYNOVAX", "default_icon": { "128": "icon.png" } },
+  "background": { "service_worker": "background.js", "type": "module" },
+  "options_page": "options.html",
+  "permissions": ["contextMenus", "storage", "activeTab", "scripting"],
+  "host_permissions": ["https://synovax.tech/*", "http://127.0.0.1/*", "http://localhost/*"],
+  "optional_host_permissions": ["https://*/*"]
+}

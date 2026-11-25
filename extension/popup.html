@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Save to SYNOVAX</title>
+  <link rel="stylesheet" href="ui.css">
+  <script type="module" src="popup.js"></script>
+</head>
+<body class="popup">
+  <main>
+    <p class="brand"><img src="icon.png" alt=""> SYNOVAX</p>
+    <section data-setup hidden>
+      <p>Connect the extension to your vault first. It needs an app key that may suggest memories.</p>
+      <button class="primary" type="button" data-open-options>Set up</button>
+    </section>
+    <form data-save hidden>
+      <div class="kinds" role="group" aria-label="What to save">
+        <button type="button" data-kind="selection">Selection</button>
+        <button type="button" data-kind="page">Page</button>
+        <button type="button" data-kind="chat">Chat</button>
+      </div>
+      <label>Title <input name="title" maxlength="200" required></label>
+      <label>Note, optional <textarea name="note" rows="2" maxlength="500" placeholder="Why keep this?"></textarea></label>
+      <label>Folder, optional <input name="folder" maxlength="60" placeholder="About me"></label>
+      <p class="fine" data-preview></p>
+      <div class="row">
+        <button class="primary" type="submit">Save to inbox</button>
+        <button type="button" data-open-options>Settings</button>
+      </div>
+      <p class="status" data-status role="status"></p>
+      <p class="fine">Sealed on this computer so only your vault can open it. It waits in your inbox until you approve it.</p>
+    </form>
+  </main>
+</body>
+</html>

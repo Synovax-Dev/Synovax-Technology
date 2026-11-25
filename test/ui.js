@@ -219,7 +219,7 @@ try {
   await step('information pages: built, load without errors, live parts answer, fit a phone', async () => {
     const built = spawnSync(process.execPath, ['scripts/build-pages.mjs', '--check'], { cwd: ROOT, encoding: 'utf8' });
     assert.equal(built.status, 0, `pages out of date: ${built.stderr}`);
-    for (const slug of ['product', 'inbox', 'import', 'apps', 'sharing', 'legacy', 'devices', 'seals', 'how-it-works', 'security', 'threat-model', 'immune', 'privacy', 'status', 'connector', 'reference', 'standard', 'verify', 'open-source']) {
+    for (const slug of ['product', 'inbox', 'import', 'apps', 'extension', 'sharing', 'legacy', 'devices', 'seals', 'how-it-works', 'security', 'threat-model', 'immune', 'privacy', 'status', 'connector', 'reference', 'standard', 'verify', 'open-source']) {
       await open(`/${slug}/`);
       await sleep(400);
       assert.ok(await js('return $("h1").textContent.trim().length > 3 && $$(".d-ch h2").length >= 2'), `${slug}: headline and sections`);
@@ -251,7 +251,7 @@ try {
     await page('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
     await sleep(300);
     await js('$("[data-menu]").click(); return true');
-    assert.ok(await js('return !$("#p-menu").hidden && $$("#p-menu a").length >= 24 && $$("#p-menu a").some((a) => a.pathname === "/devices/")'), 'the page menu');
+    assert.ok(await js('return !$("#p-menu").hidden && $$("#p-menu a").length >= 25 && $$("#p-menu a").some((a) => a.pathname === "/devices/")'), 'the page menu');
     await page('Emulation.clearDeviceMetricsOverride');
     noProblems();
   });

@@ -1,0 +1,45 @@
+<!--
+title: Extension
+description: The SYNOVAX browser extension saves a selection, a page or an AI chat to your vault's inbox, sealed on your computer so only your vault can open it.
+section: product
+eyebrow: Product · browser extension
+h1: Save it from|the browser
+lead: Keep what you read and what your AI said. Right-click a selection or a page, or press the toolbar button on a ChatGPT or Claude chat, and it lands in your vault's inbox, sealed so only your vault can open it.
+next: inbox, apps, immune
+-->
+<section class="d-ch" id="install">
+  <h2>Install it</h2>
+  <p>The extension works in Chrome, Edge, Brave and other Chromium browsers. Until it is listed in the Chrome Web Store, install it from the file:</p>
+  <ol class="d-steps">
+    <li><b>Download and unzip</b><p><a href="/extension/synovax-extension.zip" download>synovax-extension.zip</a> (about 40 KB). Unzip it somewhere it can stay, such as your Documents folder.</p></li>
+    <li><b>Load it</b><p>Open <code>chrome://extensions</code> (in Edge, <code>edge://extensions</code>), turn on <b>Developer mode</b>, choose <b>Load unpacked</b>, and pick the <code>synovax-extension</code> folder.</p></li>
+    <li><b>Connect it to your vault</b><p>In your vault, under <b>Apps</b>, make a key named "Browser extension". Tick no folders, and tick <b>Allow it to suggest memories to my inbox</b>. Paste the key into the extension's settings page, which opens by itself.</p></li>
+  </ol>
+  <div class="call call--note"><svg aria-hidden="true"><use href="#i-info"/></svg><div><b>Read the code first</b><p>It is plain JavaScript, no build step, in <a href="https://github.com/Synovax-Dev/Synovax-Technology/tree/main/extension" target="_blank" rel="noopener noreferrer"><code>extension/</code></a> on GitHub. The ZIP is made from that folder by <code>npm run extension</code>, the same way every time.</p></div></div>
+</section>
+
+<section class="d-ch" id="save">
+  <h2>Three ways to save</h2>
+  <div class="d-grid3">
+    <div class="d-fact"><b>A selection</b><p>Select text, right-click, <b>Save selection to SYNOVAX</b>. The page's address goes with it.</p></div>
+    <div class="d-fact"><b>A page</b><p>Right-click anywhere, <b>Save this page or chat to SYNOVAX</b>, and the page's readable text is saved, up to about 100 KB.</p></div>
+    <div class="d-fact d-fact--solid"><b>A chat</b><p>On ChatGPT, Claude, Gemini, Copilot or Perplexity, the toolbar button offers <b>Chat</b> and saves the conversation on screen.</p></div>
+  </div>
+  <p>The toolbar button also lets you change the title and add a note and a folder before saving. Whatever you save waits in your <a href="/inbox/">inbox</a>, and nothing is kept until you approve it.</p>
+</section>
+
+<section class="d-ch" id="safe">
+  <h2>What it can and cannot do</h2>
+  <ol class="p-flow">
+    <li class="is-you"><b>The extension</b><span>Reads the page you chose, only when you click, and checks your vault's inbox key against the tag your vault made for this key.</span></li>
+    <li class="is-you"><b>The extension</b><span>Seals what you saved to that key (ECDH P-256, HKDF, AES-256-GCM), on your computer.</span></li>
+    <li><b>SYNOVAX server</b><span>Stores the sealed box, which it cannot open, and writes "suggested" to your read log.</span></li>
+    <li class="is-you"><b>Your vault</b><span>Opens it in your inbox, where you approve, edit or reject it. Text that looks like instructions for an AI is flagged first.</span></li>
+  </ol>
+  <ul>
+    <li><b>It cannot read your vault.</b> Its key has no folders, and an app may only suggest, never change a memory.</li>
+    <li><b>It reads a page only when you ask,</b> through the browser's active-tab permission. It does not watch your browsing.</li>
+    <li><b>It talks only to your vault.</b> synovax.tech and this computer are allowed from the start; any other address asks your permission once.</li>
+  </ul>
+  <div class="call call--warn"><svg aria-hidden="true"><use href="#i-warn"/></svg><div><b>The key lives in the browser</b><p>The app key is kept in the extension's storage in this browser profile. Someone using that profile could send suggestions with it, never read your vault. Revoke it under Apps at any time.</p></div></div>
+</section>

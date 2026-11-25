@@ -33,6 +33,7 @@ npm run test:ui       # browser
 npm run test:wallet   # connect wallet and top holders
 npm run test:immune   # hidden-instruction checks: every attack held, no false alarms
 npm run test:vectors  # the open standard's test vectors
+npm run test:extension # the browser extension, loaded into headless Chrome or Edge
 ```
 
 **Browser tests (18 flows):** the real pages run in headless Chrome or Edge (no dependencies, driven over the DevTools protocol), from creating a vault to recovering it. A test fails on any JS error, CSP violation, failed request, or page that scrolls sideways at phone width. Set `UI_SHOTS=<folder>` to save desktop and phone screenshots.
@@ -120,6 +121,7 @@ Run it once, in the vault folder. This is the project's only dependency, and onl
 | Folder | Contents |
 |---|---|
 | `shared/` | Crypto (WebCrypto) and a Merkle tree. **The same code** runs in the browser and the connector. |
+| `extension/` | The browser extension (Chrome, Edge and other Chromium browsers): saves a selection, a page or an AI chat to the inbox, sealed. `npm run extension` copies the shared crypto in and writes `web/extension/synovax-extension.zip`. |
 | `bin/synovax.js` | The `synovax` command for `npx`: starts the server, the connector or the admin password reset, with the data in `~/.synovax`. |
 | `server/` | HTTP API, SQLite (`node:sqlite`), the hourly log sealer, and the holder index (`holders.js`). |
 | `web/vault/` | The vault app (plain JS, no build step). Sign-in page with a ciphertext art panel, sign in / create / recover forms with a passphrase strength meter, Caps Lock warning, and the 24-word recovery screen. Dashboard with a dark sidebar, stats strip, and a sliding editor. Entry animations run only when the view changes and are off under `prefers-reduced-motion`. |

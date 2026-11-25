@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SYNOVAX extension settings</title>
+  <link rel="stylesheet" href="ui.css">
+  <script type="module" src="options.js"></script>
+</head>
+<body class="options">
+  <main>
+    <p class="brand"><img src="icon.png" alt=""> SYNOVAX</p>
+    <h1>Connect to your vault</h1>
+    <p class="muted">The extension sends what you save to your vault's inbox, sealed so only your vault can open it. It cannot read your vault.</p>
+    <div class="card">
+      <ol>
+        <li>Open your vault and go to <b>Apps</b>.</li>
+        <li>Name the app "Browser extension", tick no folders, and tick <b>Allow it to suggest memories to my inbox</b>.</li>
+        <li>Press <b>Create app key</b> and paste the key below.</li>
+      </ol>
+    </div>
+    <form data-config>
+      <label>Vault address <input name="vaultUrl" placeholder="https://synovax.tech" autocomplete="url"></label>
+      <label>App key <input name="appKey" placeholder="vlt_app.…" autocomplete="off" spellcheck="false" required></label>
+      <div class="row">
+        <button class="primary" type="submit">Save and test</button>
+        <button type="button" data-forget>Forget the key</button>
+      </div>
+      <p class="status" data-status role="status"></p>
+    </form>
+    <p class="fine">The key is kept in this browser's extension storage, on this computer. Anyone who can use this browser profile can send suggestions with it, never read your vault. Revoke it under Apps at any time.</p>
+  </main>
+</body>
+</html>
