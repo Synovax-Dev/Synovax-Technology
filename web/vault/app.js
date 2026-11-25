@@ -5,6 +5,7 @@ import { leafHash, verifyProof, verifySealChain, GENESIS } from '/shared/merkle.
 import { APP_NAME } from '/shared/brand.js';
 import { authArt } from '/vault/auth-art.js';
 import * as Immune from '/shared/immune.js';
+import { qrMatrix, qrPath } from '/vault/qr.js';
 
 // Text that looks like instructions for an AI (shared/immune.js). Checked here as
 // memories come in, so the owner sees it; the connector removes those places again
@@ -38,11 +39,14 @@ const blank = () => ({
   token: null, vaultId: null, username: null, vk: null, boxPub: null, boxPriv: null,
   folders: new Map(), memories: new Map(), apps: new Map(), inbox: [], log: null, seals: new Map(),
   shares: new Map(), sharedIn: [], sharedMems: new Map(), shareCode: null, sharePanel: null, openShared: null,
-  legacy: [], legacyIn: [], legacyView: null,
+  legacy: [], legacyIn: [], legacyView: null, draft: null,
   view: 'memories', folder: 'all', query: '', editing: null,
   authMode: 'open', pendingPhrase: null, newAppKey: null, editingApp: null, verified: new Map(), chain: null,
 });
 const S = blank();
+// a new device being added by QR code, and something shared from the phone's share menu
+let pairJoin = null;
+let pendingShare = null;
 let config = { appName: APP_NAME, iterations: C.PBKDF2_ITERATIONS };
 
 // ---------- DOM helper: text goes in as text, never as HTML
@@ -163,6 +167,14 @@ async function enter(r, vk, username, doRender = true) {
   S.boxPriv = await C.unwrapKey(vk, r.keys.boxPrivWrapped, 'box/private');
   S.shareCode = C.formatShareCode(username, await C.keyFingerprint(S.boxPub));
   await loadAll();
+  if (pendingShare) {
+    // what was shared from another app opens as a new memory, ready to check and save
+    const { title, text, url } = pendingShare;
+    pendingShare = null;
+    S.draft = { title: (title || text.split('\n')[0] || url).slice(0, 200), body: [text, url && !text.includes(url) ? url : ''].filter(Boolean).join('\n\n'), source: 'share' };
+    Object.assign(S, { view: 'memories', folder: 'all', editing: 'new' });
+    setTimeout(() => toast('What you shared is ready. Pick a folder and save it.'), 300);
+  }
   if (doRender) render();
 }
 
@@ -490,11 +502,12 @@ $app.addEventListener('input', () => { dirty = true; });
 function render() {
   dirty = false;
   document.title = config.appName;
-  const key = !S.vk ? 'auth' : S.pendingPhrase ? 'phrase' : `shell:${S.view}:${S.folder}`;
+  const key = !S.vk ? (pairJoin ? 'pair' : 'auth') : S.pendingPhrase ? 'phrase' : `shell:${S.view}:${S.folder}`;
   motion = { area: key.split(':')[0] !== lastKey.split(':')[0], view: key !== lastKey, editor: S.editing !== lastEditing };
   lastKey = key;
   lastEditing = S.editing;
-  if (!S.vk) $app.replaceChildren(viewAuth());
+  if (!S.vk && pairJoin) $app.replaceChildren(viewPairJoin());
+  else if (!S.vk) $app.replaceChildren(viewAuth());
   else if (S.pendingPhrase) $app.replaceChildren(viewPhrase());
   else {
     $app.replaceChildren(viewShell());
@@ -723,6 +736,59 @@ function viewAuth() {
   requestAnimationFrame(() => (S.lastUser ? pass.input : user).focus({ preventScroll: true }));
   if (S.lastUser) user.value = S.lastUser;
   return view;
+}
+
+// ---------- a new device, opened from a QR code shown by a signed-in one
+
+function viewPairJoin() {
+  const p = pairJoin;
+  if (p.phase === 'start') { p.phase = 'joining'; joinPairing(p); }
+  const body = {
+    joining: [h('p', { class: 'au-sub' }, 'Connecting to your other device…')],
+    wait: [
+      h('p', { class: 'au-sub' }, 'On the device that shows the QR code, check that it shows this number, then press Approve there.'),
+      h('p', { class: 'pair-code', 'data-pair-code': '' }, p.code ?? ''),
+      h('p', { class: 'au-forgot' }, 'Waiting for approval. The code works once, for 5 minutes.')],
+    opening: [h('p', { class: 'au-sub' }, 'Approved. Opening your vault…')],
+    error: [h('div', { class: 'au-err', role: 'alert' }, icon('warn'), h('span', {}, p.error ?? 'Something went wrong.'))],
+  }[p.phase];
+  return authShell(
+    h('div', { class: 'au-card is-first' },
+      h('p', { class: 'au-eyebrow' }, icon('lock'), 'add this device'),
+      h('h1', { class: 'au-title' }, 'Open your vault here'),
+      ...body,
+      h('p', { class: 'au-swap' }, 'Rather type your passphrase? ', h('button', { type: 'button', onclick: () => { pairJoin = null; render(); } }, 'Sign in instead'))));
+}
+
+async function joinPairing(p) {
+  const fail = (msg) => { if (pairJoin !== p) return; p.phase = 'error'; p.error = msg; render(); };
+  try {
+    const dev = await C.newBoxKeyPair();
+    const { ticket } = await api('POST', `/api/pair/${p.id}/join`, { pub: dev.pub, mac: await C.pairMac(p.secret, `pair/join/v1|${p.id}|${dev.pub}`) });
+    p.code = await C.pairCode(p.secret, dev.pub);
+    p.phase = 'wait';
+    render();
+    for (;;) {
+      await new Promise((r) => setTimeout(r, 1500));
+      if (pairJoin !== p) return;
+      const r = await api('POST', `/api/pair/${p.id}/collect`, { ticket });
+      if (r.waiting) continue;
+      // the sealed key must carry the HMAC only the device that showed the code can make
+      if (!(await C.checkPairMac(p.secret, `pair/give/v1|${p.id}|${r.box}`, r.mac))) return fail('The answer did not come from your other device, so nothing was opened.');
+      const d = await C.boxOpen(dev.priv, dev.pub, r.box);
+      if (d.pairId !== p.id) return fail('The answer was meant for another device.');
+      p.phase = 'opening';
+      render();
+      S.token = r.token;
+      const account = await api('GET', '/api/account');
+      pairJoin = null;
+      await enter({ token: r.token, keys: account.keys }, C.unb64(d.vaultKey), account.username);
+      toast('This device is open. Closing the tab locks it again.');
+      return;
+    }
+  } catch (e) {
+    fail(e.message || String(e));
+  }
 }
 
 async function submitAuth(form, mode, btn, err, T) {
@@ -1066,7 +1132,7 @@ function folderSelect(name, selected) {
 function editor() {
   const isNew = S.editing === 'new';
   const m = isNew
-    ? { title: '', body: '', tags: [], folderId: S.folders.has(S.folder) ? S.folder : [...S.folders.keys()][0] }
+    ? { title: S.draft?.title ?? '', body: S.draft?.body ?? '', tags: [], source: S.draft?.source, folderId: S.folders.has(S.folder) ? S.folder : [...S.folders.keys()][0] }
     : S.memories.get(S.editing);
   if (!m) return null;
   const fname = S.folders.get(m.folderId)?.name;
@@ -1076,6 +1142,7 @@ function editor() {
     busy(form.querySelector('[type=submit]'), 'Saving…', async () => {
       const id = await saveMemory({ id: isNew ? null : m.id, folderId: f.folder.value, title: f.title.value.trim(), body: f.body.value, tags: tagsFrom(f.tags.value), source: m.source });
       S.editing = id;
+      S.draft = null;
       toast('Saved, encrypted.');
       render();
     });
@@ -1091,7 +1158,7 @@ function editor() {
     !isNew && h('p', { class: 'fine' }, `Created ${fmt(m.createdAt)} · updated ${fmt(m.updatedAt)}`, m.source && ` · from ${m.source}`),
     h('div', { class: 'row' },
       h('button', { class: 'btn primary', type: 'submit' }, isNew ? 'Save memory' : 'Save changes'),
-      h('button', { class: 'btn', type: 'button', onclick: () => { S.editing = null; render(); } }, 'Close'),
+      h('button', { class: 'btn', type: 'button', onclick: () => { S.editing = null; S.draft = null; render(); } }, 'Close'),
       !isNew && h('button', { class: 'btn danger push', type: 'button', onclick: (e) => deleteMemory(m, e.target) }, 'Delete')));
   return form;
 }
@@ -1587,10 +1654,14 @@ function importCard() {
 // Signed-in devices: each open vault is a session; sign out any of them here.
 function sessionsCard() {
   const list = h('div', { class: 'sessions' }, h('p', { class: 'fine' }, 'Loading…'));
+  const pairBox = h('div', { class: 'pair-box' });
+  const pairBtn = h('button', { class: 'btn', onclick: () => startPairing(pairBox, pairBtn, fill) }, 'Add a device with a QR code');
   const card = h('div', { class: 'card' },
     h('h2', {}, 'Signed-in devices'),
     h('p', { class: 'muted' }, 'Every place your vault is open right now. Sign out anything you do not recognize, then change your passphrase.'),
-    list);
+    list,
+    h('div', { class: 'row' }, pairBtn),
+    pairBox);
   const fill = async () => {
     try {
       const { sessions } = await api('GET', '/api/sessions');
@@ -1600,15 +1671,74 @@ function sessionsCard() {
           h('span', { class: 'grow' }, h('b', {}, s.agent || 'Unknown device'), s.current ? ' · this device' : '',
             h('br'), h('small', { class: 'fine' }, `signed in ${fmt(s.createdAt)} · active ${ago(s.lastUsedAt)}`)),
           !s.current && h('button', { class: 'btn small', onclick: (e) => busy(e.currentTarget, '…', async () => { await api('DELETE', `/api/sessions/${s.id}`); toast('Signed out.'); await fill(); }) }, 'Sign out'))),
-        others.length > 1 && h('button', { class: 'btn danger', onclick: (e) => busy(e.currentTarget, 'Signing out…', async () => {
+        others.length > 1 ? h('button', { class: 'btn danger', onclick: (e) => busy(e.currentTarget, 'Signing out…', async () => {
           const r = await api('POST', '/api/sessions/sign-out-others');
           toast(`Signed out ${r.signedOut} other device${r.signedOut === 1 ? '' : 's'}.`);
           await fill();
-        }) }, `Sign out all ${others.length} other devices`));
+        }) }, `Sign out all ${others.length} other devices`) : '');
     } catch (e) { list.replaceChildren(h('p', { class: 'bad' }, e.message)); }
   };
   fill();
   return card;
+}
+
+// The signed-in side of adding a device: show the code, check who answered,
+// show the number to compare, and on approval seal the vault key for that device.
+async function startPairing(box, btn, refresh) {
+  btn.hidden = true;
+  dirty = true; // background refreshes must not redraw the screen while a code is shown
+  const done = () => { btn.hidden = false; box.replaceChildren(); };
+  const say = (...kids) => box.replaceChildren(h('div', { class: 'pair-panel' }, ...kids));
+  const cancelBtn = (id) => h('button', { class: 'btn', onclick: () => { stopped = true; api('DELETE', `/api/pair/${id}`).catch(() => {}); done(); } }, 'Cancel');
+  let stopped = false;
+  try {
+    const { id } = await api('POST', '/api/pair');
+    const secret = C.randomBytes(32);
+    const link = `${location.origin}/vault/#pair=${id}.${C.b64(secret)}`;
+    const m = qrMatrix(link);
+    const { d, viewBox } = qrPath(m);
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', viewBox); svg.setAttribute('class', 'qr'); svg.setAttribute('role', 'img'); svg.setAttribute('aria-label', 'QR code to open this vault on another device');
+    const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    bg.setAttribute('width', '100%'); bg.setAttribute('height', '100%'); bg.setAttribute('fill', '#fff');
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', d); path.setAttribute('fill', '#000');
+    svg.append(bg, path);
+    say(svg,
+      h('div', { class: 'pair-text' },
+        h('b', {}, 'Scan this with your phone\'s camera'),
+        h('p', { class: 'muted' }, 'It opens your vault there, without typing your passphrase. The code works once, for 5 minutes. Show it only to your own device.'),
+        h('p', { class: 'fine' }, 'No camera? Open this link on the other device: ', h('button', { class: 'link', 'data-pair-link': link, onclick: () => copy(link) }, 'copy link')),
+        h('div', { class: 'row' }, cancelBtn(id))));
+    let seen = null;
+    while (!stopped && box.isConnected) {
+      await new Promise((r) => setTimeout(r, 1500));
+      if (stopped || !box.isConnected) return;
+      seen = await api('GET', `/api/pair/${id}`);
+      if (seen.devicePub) break;
+    }
+    if (!seen?.devicePub) return;
+    if (!(await C.checkPairMac(secret, `pair/join/v1|${id}|${seen.devicePub}`, seen.deviceMac))) {
+      api('DELETE', `/api/pair/${id}`).catch(() => {});
+      say(h('p', { class: 'bad' }, 'A device answered without the secret in the code, so nothing was given. Make a new code.'), h('button', { class: 'btn', onclick: done }, 'Close'));
+      return;
+    }
+    const code = await C.pairCode(secret, seen.devicePub);
+    say(h('div', { class: 'pair-text' },
+      h('b', {}, `${seen.deviceAgent || 'A device'} wants to open your vault`),
+      h('p', { class: 'muted' }, 'Approve only if the other screen shows this same number:'),
+      h('p', { class: 'pair-code', 'data-pair-code': '' }, code),
+      h('div', { class: 'row' },
+        h('button', { class: 'btn primary', onclick: (e) => busy(e.currentTarget, 'Sealing…', async () => {
+          const sealed = await C.boxSeal(seen.devicePub, { pairId: id, username: S.username, vaultKey: C.b64(S.vk) });
+          await api('POST', `/api/pair/${id}/approve`, { box: sealed, mac: await C.pairMac(secret, `pair/give/v1|${id}|${sealed}`) });
+          say(h('p', { class: 'ok' }, `✓ ${seen.deviceAgent || 'The device'} is opening your vault.`), h('button', { class: 'btn', onclick: done }, 'Close'));
+          setTimeout(refresh, 2500);
+        }) }, 'Approve'),
+        cancelBtn(id))));
+  } catch (e) {
+    say(h('p', { class: 'bad' }, e.message), h('button', { class: 'btn', onclick: done }, 'Close'));
+  }
 }
 
 function exportVault() {
@@ -1643,5 +1773,22 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) poll
 
 // ---------- boot
 
+// Arrived from a QR code (#pair=<id>.<secret>) or from the share menu (#share=…)?
+// Read it, then take it out of the address bar and the history.
+{
+  const hash = location.hash;
+  const pm = /^#pair=([A-Za-z0-9_-]{22})\.([A-Za-z0-9_-]{43})$/.exec(hash);
+  if (pm) pairJoin = { id: pm[1], secret: C.unb64(pm[2]), phase: 'start' };
+  if (hash.startsWith('#share=')) {
+    try {
+      const q = new URLSearchParams(decodeURIComponent(hash.slice(7)));
+      const title = (q.get('title') ?? '').trim(), text = (q.get('text') ?? '').trim(), link = (q.get('url') ?? '').trim();
+      if (title || text || link) pendingShare = { title, text, url: link };
+    } catch { /* not a share we understand */ }
+  }
+  if (pm || hash.startsWith('#share=')) history.replaceState(null, '', '/vault/');
+}
+// The service worker only turns shares from the phone's share menu into a #fragment.
+navigator.serviceWorker?.register('/vault/sw.js', { scope: '/vault/' }).catch(() => {});
 try { config = { ...config, ...(await (await fetch('/api/config')).json()) }; } catch { /* keep defaults */ }
 render();

@@ -19,7 +19,8 @@ next: verify, reference, connector
       <tr><td><a href="#log">5. The read log</a></td><td>An entry, its kinds, its leaf</td><td><code>shared/merkle.js</code></td></tr>
       <tr><td><a href="#seals">6. Seals and the chain</a></td><td>The Merkle rules, the hourly seal, the chain hash</td><td><code>shared/merkle.js</code></td></tr>
       <tr><td><a href="#immune">7. Hidden instructions</a></td><td>The checks, the marker, quoting for a model, the hourly test</td><td><code>shared/immune.js</code></td></tr>
-      <tr><td><a href="#vectors">8. Test vectors</a></td><td>Values another implementation must produce</td><td><code>shared/vectors.json</code></td></tr>
+      <tr><td><a href="#between">8. Between vaults and devices</a></td><td>Share codes, shared folders, legacy, adding a device by QR code</td><td><code>shared/crypto.js</code></td></tr>
+      <tr><td><a href="#vectors">9. Test vectors</a></td><td>Values another implementation must produce</td><td><code>shared/vectors.json</code></td></tr>
     </tbody>
   </table></div>
   <p><b>Conventions.</b> Bytes in text are base64url without padding, unless a field says hex (lowercase). Strings are UTF-8; JSON inside a ciphertext is compact, as <code>JSON.stringify</code> writes it. Times are milliseconds since the Unix epoch. Ids are 16 random bytes in base64url (22 characters). Primitives: AES-256-GCM, HKDF-SHA256, PBKDF2-SHA256, SHA-256, HMAC-SHA256 and ECDH on P-256, all from WebCrypto, so the same code runs in a browser and in Node.</p>
@@ -95,8 +96,8 @@ format   box1.&lt;E&gt;.&lt;envelope&gt;</code></pre></div>
     <dt>id</dt><dd>16 random bytes, base64url.</dd>
     <dt>ts</dt><dd>When, in milliseconds.</dd>
     <dt>vault_id</dt><dd>The vault.</dd>
-    <dt>app_id</dt><dd>The app.</dd>
-    <dt>action</dt><dd><code>folders</code> (listed folders), <code>list</code> (read the heads of one folder or <code>*</code> for all), <code>read</code> (read one memory), <code>suggest</code> (sent a suggestion), <code>caught</code> (the connector removed hidden instructions from a memory).</dd>
+    <dt>app_id</dt><dd>The app, or null for a vault you share with or an heir.</dd>
+    <dt>action</dt><dd><code>folders</code> (listed folders), <code>list</code> (read the heads of one folder or <code>*</code> for all), <code>read</code> (read one memory), <code>suggest</code> (sent a suggestion), <code>caught</code> (the connector removed hidden instructions from a memory), <code>shared</code> (a vault opened a folder shared with it; target is the share id), <code>legacy</code> (an heir opened the vault; target is the legacy id).</dd>
     <dt>target</dt><dd>The folder id or <code>*</code>, the memory id, the suggestion id, or null.</dd>
     <dt>salt</dt><dd>16 random bytes, base64url. Without it the leaf cannot be tied to the entry.</dd>
   </dl>
@@ -129,8 +130,19 @@ chain = SHA-256( 0x02 ‖ UTF-8(JSON.stringify(["seal/v1", seq, periodStart, per
   <p>A server may run the public hourly test: 14 attacks, each in 7 disguises, placed among ordinary memories with choices seeded by <code>SHA-256("immune/v1|" + hourStart)</code>, run through step 1 to 4, and counted as held when the attack's marker no longer reaches the model's input. A round's hash is <code>SHA-256(JSON.stringify(["immune/v1", hourStart, total, held, [[strain, disguise, held], …], prev]))</code> in hex, prev being the hash of the round before (64 zeros for the first).</p>
 </section>
 
+<section class="d-ch" id="between">
+  <h2>8. Between vaults and devices</h2>
+  <p>These use each vault's inbox key pair (ECDH P-256) from part 2, so nothing new has to be registered.</p>
+  <dl class="p-kv">
+    <dt>Share code</dt><dd><code>synovax-share:&lt;vault name&gt;:&lt;fingerprint&gt;</code>, the fingerprint being the first 15 bytes of <code>SHA-256("vault/fingerprint/v1|" + inbox public key)</code>, base64url (20 characters). A vault that uses a code must check the key the server returns against it.</dd>
+    <dt>Pair key</dt><dd><code>HKDF(ECDH(own private key, other public key), "vault/share/v1|" + owner public key + "|" + recipient public key)</code>, the same from both sides, used as an HMAC-SHA256 key.</dd>
+    <dt>Shared folder</dt><dd>A sealed box (part 3) for the recipient's inbox key holding <code>{ "shareId", "folderId", "folderKey", "folderName", "owner", "recipient", "tag" }</code>, the tag being the HMAC with the pair key over <code>JSON.stringify(["share/v1", shareId, folderId, folderKey, folderName, owner, recipient])</code>. The recipient must check the tag against the owner's public key, and the ids against the share. The owner's note of the recipient, <code>{ "recipient", "fingerprint" }</code>, is encrypted with the vault key, record <code>share:&lt;id&gt;:meta</code>. A new folder key must be sealed again for every vault the folder is still shared with.</dd>
+    <dt>Legacy</dt><dd>The same, with the vault key: <code>{ "legacyId", "vaultKey", "owner", "heir", "tag" }</code>, tag over <code>JSON.stringify(["legacy/v1", legacyId, vaultKey, owner, heir])</code>; the owner's note <code>{ "heir", "fingerprint" }</code> is record <code>legacy:&lt;id&gt;:meta</code>. The server hands the box to the heir only while the owner has not opened the vault for the chosen number of days.</dd>
+    <dt>Adding a device</dt><dd>The signed-in device makes a 32-byte secret and shows <code>&lt;origin&gt;/vault/#pair=&lt;pairing id&gt;.&lt;secret&gt;</code>. The new device joins with a fresh public key and <code>HMAC(secret, "pair/join/v1|" + id + "|" + public key)</code>; both show <code>SHA-256("vault/pair-code/v1|" ‖ secret ‖ "|" + public key)</code>, its first four bytes as a number modulo 1,000,000, in six digits. On approval the signed-in device seals <code>{ "pairId", "username", "vaultKey" }</code> to that key, with <code>HMAC(secret, "pair/give/v1|" + id + "|" + box)</code>, which the new device must check.</dd>
+  </dl>
+</section>
 <section class="d-ch" id="vectors">
-  <h2>8. Test vectors and versioning</h2>
+  <h2>9. Test vectors and versioning</h2>
   <p><a href="/shared/vectors.json"><code>shared/vectors.json</code></a> has three parts. <code>input</code> holds the fixed passphrase, salt, words, app secret, log entry, leaves and texts every vector starts from. <code>deterministic</code> holds values that follow from their inputs alone: the passphrase and recovery keys, the app key's token, wrap and vouch keys and its vouch, a leaf and its data, a Merkle root and proof, a seal chain hash, and the guarded and quoted text of part 7; another implementation must produce them byte for byte. <code>sealed</code> holds an envelope and a sealed box made with fresh randomness; another implementation must open each with the key given and get the plaintext listed.</p>
   <div class="code"><div class="code-bar"><span>Terminal</span><button type="button" data-copy>copy</button></div><pre><code>npm run test:vectors   # the code still produces every vector
 npm run vectors        # write them again (sealed values are kept)</code></pre></div>

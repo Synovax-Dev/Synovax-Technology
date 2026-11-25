@@ -148,6 +148,21 @@ CREATE TABLE IF NOT EXISTS legacy (
   UNIQUE (owner_id, heir_id)
 );
 CREATE INDEX IF NOT EXISTS legacy_heir ON legacy(heir_id);
+-- adding a device by QR code: lives at most 5 minutes. The new device's public key
+-- and the vault key sealed for it pass through; the secret in the QR code never does.
+CREATE TABLE IF NOT EXISTS pairings (
+  id           TEXT PRIMARY KEY,
+  vault_id     TEXT NOT NULL REFERENCES vaults(id) ON DELETE CASCADE,
+  created_at   INTEGER NOT NULL,
+  expires_at   INTEGER NOT NULL,
+  device_pub   TEXT,
+  device_mac   TEXT,
+  device_agent TEXT,
+  ticket_hash  TEXT,
+  box          TEXT,
+  box_mac      TEXT,
+  token        TEXT
+);
 -- rate limits live here, so a restart does not give a guesser a fresh start
 CREATE TABLE IF NOT EXISTS rate_hits (
   key TEXT NOT NULL,

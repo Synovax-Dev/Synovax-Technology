@@ -28,7 +28,7 @@ export const PAGES = {
   extension: { title: 'Extension', group: 'Product', blurb: 'Save a selection, a page or a chat from the browser' },
   sharing: { title: 'Sharing', group: 'Product', blurb: 'One folder, read by another vault you trust' },
   legacy: { title: 'Legacy', group: 'Product', blurb: 'Who receives your vault, and only when' },
-  devices: { title: 'Phone and devices', group: 'Product', blurb: 'Open and install it anywhere, sign out any device' },
+  devices: { title: 'Phone and devices', group: 'Product', blurb: 'Install it, add a device by QR code, share into it' },
   seals: { title: 'Seals', group: 'Product', blurb: 'The hourly seals of every read, and how to check them' },
   'how-it-works': { title: 'How it works', group: 'Trust', blurb: 'From your first memory to deleting it all' },
   security: { title: 'Security', group: 'Trust', blurb: 'Keys, encryption and where the limits are' },

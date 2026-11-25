@@ -477,6 +477,46 @@ try {
     assert.equal((await api('GET', '/api/vault', null, token)).status, 200, 'this device stays signed in');
   });
 
+  await step('adding a device by QR code: the new device gets a session and the vault key, and only it can open the key', async () => {
+    const { id } = await ok('POST', '/api/pair', null, token);
+    const secret = C.randomBytes(32); // in the QR code's #fragment, never sent to the server
+    const dev = await C.newBoxKeyPair();
+    const phone = { 'user-agent': 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/130.0 Mobile Safari/537.36' };
+    const joinMac = await C.pairMac(secret, `pair/join/v1|${id}|${dev.pub}`);
+    const { ticket } = await ok('POST', `/api/pair/${id}/join`, { pub: dev.pub, mac: joinMac }, null, phone);
+    assert.equal((await api('POST', `/api/pair/${id}/join`, { pub: dev.pub, mac: joinMac })).status, 409, 'a code works for one device');
+    assert.deepEqual(await ok('POST', `/api/pair/${id}/collect`, { ticket }), { waiting: true });
+
+    // the signed-in device checks that the new key came from whoever scanned the code
+    const seen = await ok('GET', `/api/pair/${id}`, null, token);
+    assert.equal(seen.devicePub, dev.pub);
+    assert.equal(seen.deviceAgent, 'Chrome on Android');
+    assert.ok(await C.checkPairMac(secret, `pair/join/v1|${id}|${seen.devicePub}`, seen.deviceMac));
+    const swapped = await C.newBoxKeyPair();
+    assert.ok(!(await C.checkPairMac(secret, `pair/join/v1|${id}|${swapped.pub}`, seen.deviceMac)), 'a key swapped by the server fails');
+    assert.ok(!(await C.checkPairMac(C.randomBytes(32), `pair/join/v1|${id}|${seen.devicePub}`, seen.deviceMac)), 'without the secret it fails');
+    assert.match(await C.pairCode(secret, dev.pub), /^\d{3} \d{3}$/);
+    assert.equal(await C.pairCode(secret, dev.pub), await C.pairCode(secret, seen.devicePub), 'both screens show the same code');
+
+    const sealed = await C.boxSeal(seen.devicePub, { pairId: id, username, vaultKey: C.b64(vk) });
+    await ok('POST', `/api/pair/${id}/approve`, { box: sealed, mac: await C.pairMac(secret, `pair/give/v1|${id}|${sealed}`) }, token);
+    assert.equal((await api('POST', `/api/pair/${id}/collect`, { ticket: C.b64(C.randomBytes(32)) })).status, 404, 'only with the ticket');
+    const got = await ok('POST', `/api/pair/${id}/collect`, { ticket });
+    assert.ok(await C.checkPairMac(secret, `pair/give/v1|${id}|${got.box}`, got.mac), 'the sealed key came from the signed-in device');
+    const opened = await C.boxOpen(dev.priv, dev.pub, got.box);
+    assert.deepEqual(C.unb64(opened.vaultKey), vk);
+    assert.equal(opened.pairId, id);
+    const account = await ok('GET', '/api/account', null, got.token);
+    assert.equal(account.username, username);
+    assert.deepEqual(await C.unwrapKey(C.unb64(opened.vaultKey), account.keys.boxPrivWrapped, 'box/private'), box.priv);
+    assert.equal((await api('POST', `/api/pair/${id}/collect`, { ticket })).status, 404, 'collected once, then gone');
+    assert.ok((await ok('GET', '/api/sessions', null, token)).sessions.some((s) => s.agent === 'Chrome on Android'), 'listed as a signed-in device');
+    await ok('POST', '/api/auth/logout', null, got.token);
+    // a code that nobody approves can be cancelled
+    const again = await ok('POST', '/api/pair', null, token);
+    await ok('DELETE', `/api/pair/${again.id}`, null, token);
+    assert.equal((await api('GET', `/api/pair/${again.id}`, null, token)).status, 404);
+  });
   await step('the seals form an unbroken hash chain', async () => {
     const { seals } = await ok('GET', '/api/seals?from=1');
     assert.ok(seals.length >= 1);
@@ -587,12 +627,14 @@ try {
     await ok('DELETE', '/api/account', { confirm: 'heir' }, hToken);
   });
   await step('deleting the account removes it, and public seals still stand', async () => {
-    const sealsBefore = (await ok('GET', '/api/seals')).seals.length;
+    const sealsBefore = (await ok('GET', '/api/seals?limit=500')).seals;
     assert.equal((await api('DELETE', '/api/account', { confirm: 'wrong' }, token)).status, 400);
     await ok('DELETE', '/api/account', { confirm: username }, token);
     assert.equal((await api('GET', '/api/vault', null, token)).status, 401);
     assert.equal((await ok('GET', '/api/stats')).vaults, 0);
-    assert.equal((await ok('GET', '/api/seals')).seals.length, sealsBefore);
+    // every seal made before still stands, unchanged (the sealer may add a new one meanwhile)
+    const after = new Map((await ok('GET', '/api/seals?limit=500')).seals.map((s) => [s.seq, s.chain]));
+    assert.ok(sealsBefore.every((s) => after.get(s.seq) === s.chain));
   });
 
   await step('admin panel: only the admin key can publish the token details', async () => {

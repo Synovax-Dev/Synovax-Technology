@@ -1,20 +1,46 @@
 <!--
 title: Phone and devices
-description: Open your SYNOVAX vault on any phone or computer, install it to your home screen, see every signed-in device and sign out any of them.
+description: Open your SYNOVAX vault on any phone or computer, add a device by scanning a QR code, share into your vault from the phone's share menu, and sign out any device.
 section: product
 eyebrow: Product · devices
 h1: Your vault,|on every device
-lead: The vault is a web app: it opens in any modern browser, on a phone or a computer, and installs to your home screen. Every device stays in your list, and you can sign any of them out.
-next: product, security, threat-model
+lead: The vault is a web app: it opens in any modern browser and installs to your home screen. Add a phone by scanning a code from a signed-in device, share into your vault from any app, and sign out any device from your list.
+next: product, extension, security
 -->
+<section class="d-ch" id="qr">
+  <h2>Add a device by QR code</h2>
+  <ol class="d-steps">
+    <li><b>On a signed-in device</b><p>Settings, <b>Signed-in devices</b>, <b>Add a device with a QR code</b>. A code appears; it works once, for 5 minutes.</p></li>
+    <li><b>On the new device</b><p>Scan it with the camera. Your vault opens in the browser and shows a six-digit number.</p></li>
+    <li><b>Compare and approve</b><p>The signed-in device shows the same number and which device is asking ("Safari on iOS"). If they match, press <b>Approve</b>. The new device opens your vault without your passphrase being typed on it.</p></li>
+  </ol>
+  <ol class="p-flow">
+    <li class="is-you"><b>Signed-in device</b><span>Puts a pairing id and a random secret in the code. The secret sits after the # in the address, a part browsers never send to a server.</span></li>
+    <li class="is-you"><b>New device</b><span>Makes a fresh key pair and sends its public key with an HMAC made from the secret.</span></li>
+    <li><b>SYNOVAX server</b><span>Passes it along. Without the secret it can neither swap the key nor fake the HMAC.</span></li>
+    <li class="is-you"><b>Signed-in device</b><span>Checks the HMAC, then seals the vault key for the new device's key (ECDH P-256, AES-256-GCM) with its own HMAC. The server adds a session for the new device.</span></li>
+  </ol>
+  <div class="call call--warn"><svg aria-hidden="true"><use href="#i-warn"/></svg><div><b>Show the code only to your own device</b><p>Anyone who scans it first, and whose number you then approve, opens your vault. Compare the number before you press Approve, and cancel a code you no longer need.</p></div></div>
+</section>
+
+<section class="d-ch" id="capture">
+  <h2>Share into your vault from any app</h2>
+  <p>Install the vault to your phone's home screen, then use the phone's <b>Share</b> menu in any app (a browser, notes, messages) and pick <b>SYNOVAX</b>. The vault opens with a new memory already filled in: check it, pick a folder and save. It is encrypted on your phone like any memory.</p>
+  <ul>
+    <li><b>The shared text stays on your phone.</b> The vault's service worker catches the share in the browser and moves the text into the part of the address after the #, so it never reaches the server, not even its logs.</li>
+    <li>If the vault is locked, you open it first; the shared text waits in that tab.</li>
+    <li>The share menu works on Android with Chrome, once the vault is installed. iPhones do not let web apps receive shares; there, copy and paste, or use the <a href="/extension/">browser extension</a> on a computer.</li>
+  </ul>
+</section>
+
 <section class="d-ch" id="open">
   <h2>Open it anywhere</h2>
   <ol class="d-steps">
     <li><b>Go to the vault</b><p>Open <a href="/vault/">synovax.tech/vault/</a> (or your own server's <code>/vault/</code>) in the browser on that device.</p></li>
-    <li><b>Sign in</b><p>Your vault name and passphrase, and the 6-digit code if two-step sign-in is on. Your keys are made on that device from your passphrase; nothing secret is sent.</p></li>
+    <li><b>Sign in, or scan a code</b><p>Your vault name and passphrase (and the 6-digit code if two-step sign-in is on), or a QR code from a signed-in device. Your keys are made on that device; nothing secret is sent.</p></li>
     <li><b>Install it, if you like</b><p>On a phone, use the browser's "Add to Home Screen" (or "Install app"). On a computer, the install button in the address bar. It then opens in its own window, like any app.</p></li>
   </ol>
-  <div class="call call--note"><svg aria-hidden="true"><use href="#i-info"/></svg><div><b>A new device needs no old one</b><p>There is no pairing step: your passphrase is enough on any device. Lost it? Your 24 recovery words open the vault on any device and set a new passphrase.</p></div></div>
+  <div class="call call--note"><svg aria-hidden="true"><use href="#i-info"/></svg><div><b>A new device needs no old one</b><p>Your passphrase is enough on any device. Lost it? Your 24 recovery words open the vault on any device and set a new passphrase.</p></div></div>
 </section>
 
 <section class="d-ch" id="list">
@@ -30,7 +56,7 @@ next: product, security, threat-model
 <section class="d-ch" id="locked">
   <h2>Locked when you leave</h2>
   <div class="d-grid3">
-    <div class="d-fact"><b>Kept in the tab only</b><p>The session token and your keys live in the open tab's memory. Closing or reloading the tab locks the vault.</p></div>
+    <div class="d-fact"><b>Kept in the tab only</b><p>The session token and your keys live in the open tab's memory. Closing or reloading the tab locks the vault, also on a device added by QR code.</p></div>
     <div class="d-fact"><b>No cookies</b><p>Nothing is left behind in the browser that could open your vault later.</p></div>
     <div class="d-fact d-fact--solid"><b>Two-step sign-in</b><p>Turn on a code from an authenticator app in Settings. Each code works once.</p></div>
   </div>

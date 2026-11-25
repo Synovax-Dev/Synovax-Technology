@@ -236,6 +236,29 @@ export async function legacyOpen(heirPrivPkcs8, heirPubB64, ownerPubB64, box) {
   return { legacyId: p.legacyId, vaultKey: unb64(p.vaultKey), owner: p.owner, heir: p.heir };
 }
 
+// ---------- adding a device by QR code
+// The signed-in device shows a QR code with a pairing id and a random secret in
+// the address's #fragment, which browsers never send to a server. Both devices
+// prove they hold the secret with an HMAC over what they send, so the server
+// can neither swap the new device's key nor hand it a vault key of its own.
+
+export async function pairMac(secret, text) {
+  const k = await subtle.importKey('raw', secret, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  return b64(new Uint8Array(await subtle.sign('HMAC', k, te.encode(text))));
+}
+
+export async function checkPairMac(secret, text, macB64) {
+  const k = await subtle.importKey('raw', secret, { name: 'HMAC', hash: 'SHA-256' }, false, ['verify']);
+  try { return await subtle.verify('HMAC', k, unb64(macB64), te.encode(text)); } catch { return false; }
+}
+
+/** Six digits both screens show, to compare before the vault key goes across. */
+export async function pairCode(secret, devicePubB64) {
+  const d = new Uint8Array(await subtle.digest('SHA-256', concat(te.encode('vault/pair-code/v1|'), secret, te.encode(`|${devicePubB64}`))));
+  const n = ((d[0] << 24) | (d[1] << 16) | (d[2] << 8) | d[3]) >>> 0;
+  return String(n % 1_000_000).padStart(6, '0').replace(/^(\d{3})/, '$1 ');
+}
+
 // ---------- app keys
 
 export function formatAppKey(appId, secret) {

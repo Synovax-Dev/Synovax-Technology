@@ -34,6 +34,7 @@ npm run test:wallet   # connect wallet and top holders
 npm run test:immune   # hidden-instruction checks: every attack held, no false alarms
 npm run test:vectors  # the open standard's test vectors
 npm run test:extension # the browser extension, loaded into headless Chrome or Edge
+npm run test:qr        # the QR encoder, read back by an independent decoder (needs npm install)
 ```
 
 **Browser tests (18 flows):** the real pages run in headless Chrome or Edge (no dependencies, driven over the DevTools protocol), from creating a vault to recovering it. A test fails on any JS error, CSP violation, failed request, or page that scrolls sideways at phone width. Set `UI_SHOTS=<folder>` to save desktop and phone screenshots.

@@ -467,6 +467,83 @@ try {
     await until('return !$(".legacy-in")', 'gone with the vault');
     noProblems();
   });
+  await step('devices: add a device by QR code, both ways, and share into the vault from the phone menu', async () => {
+    const C = await import('../shared/crypto.js');
+    const call = async (p, body, token, method = 'POST', headers = {}) => {
+      const r = await fetch(BASE + p, { method, headers: { 'content-type': 'application/json', ...(token ? { authorization: `Bearer s.${token}` } : {}), ...headers }, body: body ? JSON.stringify(body) : undefined });
+      const data = await r.json().catch(() => ({}));
+      assert.ok(r.ok, `${method} ${p}: ${r.status} ${JSON.stringify(data)}`);
+      return data;
+    };
+    // 1. this browser is the signed-in device; a "phone" (here, the test) scans its code
+    await js('click(".nav-item", "Settings")');
+    await until('return byText(".btn", "Add a device with a QR code")', 'the add-device button');
+    assert.ok(await js('return !/\\bfalse\\b|\\bundefined\\b/.test($(".sessions").textContent)'), 'no stray words in the device list');
+    await js('click(".btn", "Add a device with a QR code")');
+    const link = await until('return $("[data-pair-link]")?.dataset.pairLink', 'the QR code');
+    assert.ok(await js('return $("svg.qr path").getAttribute("d").length > 500'), 'a QR code is drawn');
+    await shot('vault-pair');
+    const m = /#pair=([A-Za-z0-9_-]{22})\.([A-Za-z0-9_-]{43})$/.exec(link);
+    assert.ok(m && link.startsWith(`${BASE}/vault/#pair=`), link);
+    const [, pid, sec] = m, secret = C.unb64(sec), dev = await C.newBoxKeyPair();
+    const { ticket } = await call(`/api/pair/${pid}/join`, { pub: dev.pub, mac: await C.pairMac(secret, `pair/join/v1|${pid}|${dev.pub}`) }, null, 'POST', { 'user-agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Version/18.0 Mobile/15E148 Safari/604.1' });
+    const shown = await until('return $("[data-pair-code]")?.textContent', 'the number to compare');
+    assert.equal(shown, await C.pairCode(secret, dev.pub), 'the same number as on the phone');
+    assert.ok(await js('return byText(".pair-text b", "Safari on iOS")'), 'it says which device asks');
+    await js('click(".pair-panel .btn.primary", "Approve")');
+    await until('return byText(".pair-panel .ok", "is opening your vault")', 'approved');
+    let got;
+    for (let i = 0; i < 20 && !got?.token; i++) { got = await call(`/api/pair/${pid}/collect`, { ticket }); if (!got.token) await sleep(200); }
+    assert.ok(await C.checkPairMac(secret, `pair/give/v1|${pid}|${got.box}`, got.mac));
+    const given = await C.boxOpen(dev.priv, dev.pub, got.box);
+    assert.equal(given.username, user);
+    assert.equal((await call('/api/account', null, got.token, 'GET')).username, user, 'the phone has a working session');
+    await call('/api/auth/logout', null, got.token);
+    noProblems();
+
+    // 2. the other way: this browser is the new device, opened from a code another device shows
+    const s = await call('/api/auth/salt', { username: user });
+    const k = await C.keysFromPassphrase(pass, s.salt, s.iterations);
+    const other = await call('/api/auth/login', { username: user, authKey: k.authKey });
+    const vk = await C.unwrapKey(k.kek, other.keys.wrappedVaultKey, 'vk/passphrase');
+    const { id } = await call('/api/pair', null, other.token);
+    const secret2 = C.randomBytes(32);
+    await js('click(".side-lock")');
+    await until('return $(".au-form")', 'locked');
+    await open('/');
+    await open(`/vault/#pair=${id}.${C.b64(secret2)}`);
+    const code = await until('return $("[data-pair-code]")?.textContent', 'the number on the new device');
+    assert.equal(await js('return location.hash'), '', 'the secret is taken out of the address bar');
+    await shot('vault-pair-join', true);
+    const seen = await call(`/api/pair/${id}`, null, other.token, 'GET');
+    assert.ok(await C.checkPairMac(secret2, `pair/join/v1|${id}|${seen.devicePub}`, seen.deviceMac));
+    assert.equal(code, await C.pairCode(secret2, seen.devicePub));
+    const sealed = await C.boxSeal(seen.devicePub, { pairId: id, username: user, vaultKey: C.b64(vk) });
+    await call(`/api/pair/${id}/approve`, { box: sealed, mac: await C.pairMac(secret2, `pair/give/v1|${id}|${sealed}`) }, other.token);
+    await until('return $(".shell")', 'the vault, opened without the passphrase', 20_000);
+    assert.ok(await js('return byText(".item-title", "Coffee order")'), 'and it decrypts');
+    await call('/api/auth/logout', null, other.token);
+    noProblems();
+
+    // 3. share from another app: the service worker keeps the text out of the request
+    await until('return navigator.serviceWorker.ready.then(() => !!navigator.serviceWorker.controller)', 'the service worker');
+    const hits = [];
+    // a redirect shows up as the next request's redirectResponse
+    listeners.push((msg) => {
+      const r = msg.method === 'Network.responseReceived' ? msg.params.response : msg.method === 'Network.requestWillBeSent' ? msg.params.redirectResponse : null;
+      if (r?.url.includes('/vault/share')) hits.push(r);
+    });
+    await open('/vault/share?title=Trip%20idea&text=Rent%20a%20boat%20in%20Lisbon&url=https%3A%2F%2Fexample.com%2Fboats');
+    await until('return $(".au-form")', 'the sign-in form');
+    assert.equal(await js('return location.pathname + location.search + location.hash'), '/vault/', 'nothing shared is left in the address');
+    assert.ok(hits.length && hits.every((r) => r.fromServiceWorker), 'answered by the service worker, not the server');
+    await js(`type('input[name=username]', ${JSON.stringify(user)}); type('input[name=pass]', ${JSON.stringify(pass)}); $('.au-form').requestSubmit(); return true`);
+    await until('return $("form.editor input[name=title]")?.value === "Trip idea"', 'the shared text in a new memory', 30_000);
+    assert.equal(await js('return $("form.editor textarea[name=body]").value'), 'Rent a boat in Lisbon\n\nhttps://example.com/boats');
+    await shot('vault-shared-in', true);
+    await js('click(".btn", "Close")');
+    noProblems();
+  });
   await step('inbox: a suggestion from the app shows up and can be approved', async () => {
     assert.match((await connector.tool('suggest_memory', { title: 'Likes jazz', body: 'Mentioned Coltrane twice.', folder: 'About me', reason: 'came up twice' })).text, /Suggested/);
     await js('click(".nav-item", "Inbox")');

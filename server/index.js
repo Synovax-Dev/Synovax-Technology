@@ -768,6 +768,65 @@ route('GET', '/api/legacy-for-me/:id', 'owner', async ({ auth, params }) => {
       .map((m) => ({ id: m.id, folderId: m.folder_id, body: m.body, createdAt: m.created_at, updatedAt: m.updated_at })),
   };
 });
+// ---------- adding a device by QR code
+// 1. A signed-in device starts a pairing and shows its id and a secret as a QR code.
+// 2. The new device joins with a fresh public key and an HMAC made with that secret.
+// 3. The signed-in device checks the HMAC, shows a code to compare, and on approval
+//    seals the vault key for the new device (with its own HMAC); the server adds a session.
+// 4. The new device collects the session and the sealed key with the ticket it got at 2.
+
+const PAIR_MS = 5 * 60_000;
+const livePairing = (id) => {
+  db.prepare('DELETE FROM pairings WHERE expires_at < ?').run(now());
+  return db.prepare('SELECT * FROM pairings WHERE id = ?').get(id);
+};
+
+route('POST', '/api/pair', 'owner', ({ auth }) => {
+  rateLimit(`pair:${auth.vaultId}`, 20, 3_600_000);
+  db.prepare('DELETE FROM pairings WHERE expires_at < ? OR vault_id = ?').run(now(), auth.vaultId);
+  const id = newToken(16);
+  db.prepare('INSERT INTO pairings (id, vault_id, created_at, expires_at) VALUES (?, ?, ?, ?)').run(id, auth.vaultId, now(), now() + PAIR_MS);
+  return { id, expiresAt: now() + PAIR_MS };
+});
+
+route('GET', '/api/pair/:id', 'owner', ({ auth, params }) => {
+  const p = livePairing(params.id);
+  need(p && p.vault_id === auth.vaultId, 404, 'This code has expired. Make a new one.');
+  return { devicePub: p.device_pub, deviceMac: p.device_mac, deviceAgent: p.device_agent, expiresAt: p.expires_at, approved: !!p.box };
+});
+
+route('DELETE', '/api/pair/:id', 'owner', ({ auth, params }) => {
+  db.prepare('DELETE FROM pairings WHERE id = ? AND vault_id = ?').run(params.id, auth.vaultId);
+});
+
+route('POST', '/api/pair/:id/join', 'none', ({ req, params, body, ip }) => {
+  rateLimit(`pair-join:${ip}`, 30, 600_000);
+  const p = livePairing(params.id);
+  need(p, 404, 'This code has expired. Make a new one on the other device.');
+  need(!p.device_pub, 409, 'This code was already used by another device.');
+  const ticket = newToken(32);
+  db.prepare('UPDATE pairings SET device_pub = ?, device_mac = ?, device_agent = ?, ticket_hash = ? WHERE id = ? AND device_pub IS NULL')
+    .run(field(body.pub, RE.b64, 'pub', 300), field(body.mac, RE.key, 'mac'), deviceLabel(req.headers['user-agent']), sha256hex(ticket), p.id);
+  return { ticket };
+});
+
+route('POST', '/api/pair/:id/approve', 'owner', ({ req, auth, params, body }) => {
+  const p = livePairing(params.id);
+  need(p && p.vault_id === auth.vaultId, 404, 'This code has expired. Make a new one.');
+  need(p.device_pub && !p.box, 409, 'Nothing is waiting to be approved.');
+  const token = newSession(p.vault_id, req);
+  db.prepare('UPDATE sessions SET agent = ? WHERE token_hash = ?').run(p.device_agent, sha256hex(token));
+  db.prepare('UPDATE pairings SET box = ?, box_mac = ?, token = ? WHERE id = ?').run(field(body.box, RE.box, 'box', 4000), field(body.mac, RE.key, 'mac'), token, p.id);
+});
+
+route('POST', '/api/pair/:id/collect', 'none', ({ params, body, ip }) => {
+  rateLimit(`pair-collect:${ip}`, 600, 600_000);
+  const p = livePairing(params.id);
+  need(p && p.ticket_hash && safeEqualHex(p.ticket_hash, sha256hex(field(body.ticket, RE.key, 'ticket'))), 404, 'This code has expired. Make a new one on the other device.');
+  if (!p.box) return { waiting: true };
+  db.prepare('DELETE FROM pairings WHERE id = ?').run(p.id);
+  return { token: p.token, box: p.box, mac: p.box_mac };
+});
 // ---------- owner: inbox, log, account
 
 route('GET', '/api/inbox', 'owner', ({ auth }) => ({
@@ -1087,6 +1146,14 @@ function send(res, status, data) {
 async function serveStatic(req, res, url) {
   let p;
   try { p = decodeURIComponent(url.pathname); } catch { throw new HttpError(400, 'Bad path.'); }
+  // A share from a phone's share menu, when the vault's service worker is not active yet:
+  // hand it back to the page in the #fragment. Nothing of it is kept. (With the service
+  // worker, which is the usual case, this request never reaches the server.)
+  if (p === '/vault/share') {
+    const q = new URLSearchParams();
+    for (const k of ['title', 'text', 'url']) { const v = url.searchParams.get(k); if (v) q.set(k, v.slice(0, 100_000)); }
+    res.writeHead(303, { location: `/vault/#share=${encodeURIComponent(q.toString())}`, 'cache-control': 'no-store' }); return res.end();
+  }
   // a page folder asked for without its slash: /docs -> /docs/
   if (/^\/[a-z0-9-]+$/.test(p) && existsSync(path.join(ROOT, 'web', p.slice(1), 'index.html'))) {
     res.writeHead(301, { location: `${p}/` }); return res.end();
