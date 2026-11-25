@@ -1,0 +1,39 @@
+<!--
+title: Seals
+description: Every read of your SYNOVAX vault is folded into an hourly seal, a Merkle root chained to the one before, which you can check in your browser.
+section: product
+eyebrow: Product · seals
+h1: Every read,|sealed every hour
+lead: Each time an app touches your vault, it is written to your read log. At the end of every hour, all reads are folded into one fingerprint and chained to the hour before, so the log cannot be quietly rewritten.
+next: verify, security, standard
+-->
+<section class="d-ch" id="what">
+  <h2>What a seal is</h2>
+  <ol class="p-flow">
+    <li><b>A read</b><span>An app lists, searches, reads, suggests, or has hidden instructions removed. The server writes a log line with a random salt.</span></li>
+    <li><b>A leaf</b><span>Each line becomes a salted SHA-256 hash, so a seal reveals nothing about who read what.</span></li>
+    <li><b>A root</b><span>At the end of the hour, every leaf from every vault is folded into one Merkle root.</span></li>
+    <li class="is-you"><b>A chain</b><span>The seal's chain hash covers its root and the chain hash of the seal before, back to the first one.</span></li>
+  </ol>
+  <p>Changing, removing or adding one read in a sealed hour changes that hour's root, and with it every later chain hash. A period without reads makes no seal.</p>
+</section>
+
+<section class="d-ch" id="check">
+  <h2>Check it yourself</h2>
+  <div class="d-grid3">
+    <div class="d-fact"><b>In your read log</b><p>Every entry shows its seal. Your vault checks the entry's proof against the seal's root, in your browser.</p></div>
+    <div class="d-fact"><b>By hand</b><p>Press <b>Copy entry</b> on a read, paste it into <a href="/verify/">Verify</a>, and the page rebuilds the leaf and checks the proof, with no sign-in.</p></div>
+    <div class="d-fact d-fact--solid"><b>The whole chain</b><p><a href="/verify/">Verify</a> also walks the seal chain from the first seal, and your browser remembers the newest seal it saw, so a rewritten history is caught.</p></div>
+  </div>
+  <div class="call call--note"><svg aria-hidden="true"><use href="#i-info"/></svg><div><b>Copies the server cannot change</b><p>A server can set <code>SEAL_PUBLISH_URL</code> so every new seal is also posted somewhere else, like a webhook or a log service. The seal chain is only as strong as its witnesses: your browser, and that copy if there is one.</p></div></div>
+</section>
+
+<section class="d-ch" id="live">
+  <h2>The latest seals</h2>
+  <p>Seals are public: they hold hashes only. These are the newest on this server.</p>
+  <div class="p-live" aria-live="polite">
+    <div class="p-live-head"><div><h3>Latest seals</h3><p>Straight from <code>/api/seals</code>, newest first.</p></div></div>
+    <ul class="p-seals" data-seals><li><span class="empty">Loading…</span></li></ul>
+  </div>
+  <p>The format of the leaves, roots, proofs and chain, with test vectors, is in the <a href="/standard/">open standard</a>.</p>
+</section>

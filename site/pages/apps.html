@@ -1,0 +1,66 @@
+<!--
+title: Apps
+description: Connect Claude Desktop, Claude Code, Cursor, Windsurf, VS Code or any MCP app to your SYNOVAX vault, step by step, each with its own key and only the folders you tick.
+section: product
+eyebrow: Product · apps
+h1: Every AI app,|its own key
+lead: Each AI app you connect gets its own key and sees only the folders you tick. Setup takes a minute: make a key in your vault, paste one block into the app, restart it.
+next: connector, inbox, seals
+-->
+<section class="d-ch" id="steps">
+  <h2>Connect an app</h2>
+  <ol class="d-steps">
+    <li><b>Make a key</b><p>In your vault, open <b>Apps</b>. Name the app, tick the folders it may read, and choose whether it may suggest memories to your inbox. Press <b>Create app key</b>.</p></li>
+    <li><b>Copy the config</b><p>The vault shows the key once, inside a ready config block with your server address. Copy it now: it is not stored anywhere you can see it again.</p></li>
+    <li><b>Paste it into the app</b><p>Add the block to the app's MCP settings (below), save, and fully restart the app. It starts the connector with <code>npx</code>; Node.js 22.13 or newer is the only thing it needs.</p></li>
+  </ol>
+  <div class="code"><div class="code-bar"><span>MCP configuration</span><button type="button" data-copy>copy</button></div><pre><code>{
+  "mcpServers": {
+    "synovax": {
+      "command": "npx",
+      "args": ["-y", "synovax", "connector"],
+      "env": {
+        "VAULT_APP_KEY": "vlt_app.&lt;app id&gt;.&lt;secret&gt;",
+        "VAULT_URL": "https://synovax.tech"
+      }
+    }
+  }
+}</code></pre></div>
+</section>
+
+<section class="d-ch" id="where">
+  <h2>Where it goes, app by app</h2>
+  <div class="tbl"><table>
+    <thead><tr><th>App</th><th>Where to paste</th></tr></thead>
+    <tbody>
+      <tr><td>Claude Desktop</td><td>Settings, Developer, <b>Edit Config</b> (<code>claude_desktop_config.json</code>). Quit and reopen Claude.</td></tr>
+      <tr><td>Claude Code</td><td><code>claude mcp add synovax --scope user --env VAULT_APP_KEY=… --env VAULT_URL=… -- npx -y synovax connector</code></td></tr>
+      <tr><td>Cursor</td><td><code>~/.cursor/mcp.json</code> for every project, or <code>.cursor/mcp.json</code> in one.</td></tr>
+      <tr><td>Windsurf</td><td><code>~/.codeium/windsurf/mcp_config.json</code>, then refresh its server list.</td></tr>
+      <tr><td>VS Code</td><td><code>.vscode/mcp.json</code>, with <code>"servers"</code> instead of <code>"mcpServers"</code> and <code>"type": "stdio"</code>.</td></tr>
+      <tr><td>Any MCP app</td><td>Any app that starts an MCP server over standard input and output takes the same command and environment.</td></tr>
+    </tbody>
+  </table></div>
+  <div class="call call--note"><svg aria-hidden="true"><use href="#i-info"/></svg><div><b>On Windows</b><p>Some apps cannot start <code>npx</code> directly. Use <code>"command": "cmd"</code> with <code>"args": ["/c", "npx", "-y", "synovax", "connector"]</code>. The vault writes it this way for you when you make the key on Windows.</p></div></div>
+</section>
+
+<section class="d-ch" id="tools">
+  <h2>What the app can do</h2>
+  <div class="d-grid2">
+    <div class="d-fact"><b><code>list_folders</code></b><p>The names of the folders it may read, so it knows what kinds of context exist.</p></div>
+    <div class="d-fact"><b><code>search_memories</code></b><p>Search those folders, on your computer, by words (and by meaning if you turned it on).</p></div>
+    <div class="d-fact"><b><code>read_memory</code></b><p>One memory in full, by its id.</p></div>
+    <div class="d-fact d-fact--solid"><b><code>suggest_memory</code></b><p>Only if you allowed it: a suggestion that waits in your <a href="/inbox/">inbox</a>.</p></div>
+  </div>
+  <p>Every call is written to your read log and sealed with its hour. Text the app receives is quoted as data, with hidden instructions removed first.</p>
+</section>
+
+<section class="d-ch" id="change">
+  <h2>Change or revoke</h2>
+  <ul>
+    <li><b>Edit</b> an app to tick or untick folders, or allow or stop suggestions. A folder you take away gets a new key, so a copy the app kept stops working.</li>
+    <li><b>Revoke</b> an app and its key stops working on its very next request. The folders it could read get new keys.</li>
+    <li>Each app card shows its folders and when it was last used. Up to 50 apps per vault.</li>
+  </ul>
+  <div class="call call--warn"><svg aria-hidden="true"><use href="#i-warn"/></svg><div><b>Keep keys out of git</b><p>An app key can read the folders you granted. Prefer the user-level config file over a project file that might be committed, and give each app only the folders it needs.</p></div></div>
+</section>

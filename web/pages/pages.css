@@ -8,7 +8,7 @@
 .p-gh svg { width: 20px; height: 20px; }
 .p-gh:hover { opacity: 0.65; }
 .p-burger { display: inline-flex; }
-.p-menu { position: sticky; top: var(--top-h); z-index: 45; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.5rem; padding: 1.5rem var(--gut) 1.75rem; background: var(--paper); border-bottom: 1px solid var(--line-2); box-shadow: 0 24px 48px -24px rgb(10 10 10 / 0.25); }
+.p-menu { position: sticky; top: var(--top-h); z-index: 45; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1.5rem; padding: 1.5rem var(--gut) 1.75rem; background: var(--paper); border-bottom: 1px solid var(--line-2); box-shadow: 0 24px 48px -24px rgb(10 10 10 / 0.25); }
 .p-menu[hidden] { display: none; }
 .p-menu p, .p-foot-cols p { margin: 0 0 0.6rem; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; color: var(--muted); }
 .p-menu a { display: block; padding: 0.3rem 0; font-size: 15px; text-decoration: none; color: var(--ink); }
@@ -169,7 +169,7 @@
 .p-foot-top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.5rem 1.5rem; margin-bottom: 2rem; }
 .p-foot-top p { margin: 0; font-size: 14px; color: rgb(255 255 255 / 0.6); }
 .p-foot .d-logo svg { color: #fff; }
-.p-foot-cols { display: grid; grid-template-columns: repeat(3, minmax(0, 12rem)); gap: 2rem; }
+.p-foot-cols { display: grid; grid-template-columns: repeat(4, minmax(0, 12rem)); gap: 2rem; }
 .p-foot-cols p { color: rgb(255 255 255 / 0.5); }
 .p-foot-cols a { display: block; padding: 0.25rem 0; font-size: 14px; text-decoration: none; color: rgb(255 255 255 / 0.8); }
 .p-foot-cols a:hover, .p-foot-cols a[aria-current] { color: #fff; text-decoration: underline; text-underline-offset: 3px; }

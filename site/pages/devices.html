@@ -1,0 +1,38 @@
+<!--
+title: Phone and devices
+description: Open your SYNOVAX vault on any phone or computer, install it to your home screen, see every signed-in device and sign out any of them.
+section: product
+eyebrow: Product · devices
+h1: Your vault,|on every device
+lead: The vault is a web app: it opens in any modern browser, on a phone or a computer, and installs to your home screen. Every device stays in your list, and you can sign any of them out.
+next: product, security, threat-model
+-->
+<section class="d-ch" id="open">
+  <h2>Open it anywhere</h2>
+  <ol class="d-steps">
+    <li><b>Go to the vault</b><p>Open <a href="/vault/">synovax.tech/vault/</a> (or your own server's <code>/vault/</code>) in the browser on that device.</p></li>
+    <li><b>Sign in</b><p>Your vault name and passphrase, and the 6-digit code if two-step sign-in is on. Your keys are made on that device from your passphrase; nothing secret is sent.</p></li>
+    <li><b>Install it, if you like</b><p>On a phone, use the browser's "Add to Home Screen" (or "Install app"). On a computer, the install button in the address bar. It then opens in its own window, like any app.</p></li>
+  </ol>
+  <div class="call call--note"><svg aria-hidden="true"><use href="#i-info"/></svg><div><b>A new device needs no old one</b><p>There is no pairing step: your passphrase is enough on any device. Lost it? Your 24 recovery words open the vault on any device and set a new passphrase.</p></div></div>
+</section>
+
+<section class="d-ch" id="list">
+  <h2>Every signed-in device</h2>
+  <p>Settings, <b>Signed-in devices</b> lists every place your vault is open, with a label from the browser ("Chrome on Windows", "Safari on iOS"), when it signed in and when it was last active. This device is marked.</p>
+  <ul>
+    <li><b>Sign out</b> any one of them, or all other devices at once.</li>
+    <li><b>Change your passphrase</b> and every other session is signed out.</li>
+    <li>A session lasts at most 7 days. The server keeps only a hash of its token.</li>
+  </ul>
+</section>
+
+<section class="d-ch" id="locked">
+  <h2>Locked when you leave</h2>
+  <div class="d-grid3">
+    <div class="d-fact"><b>Kept in the tab only</b><p>The session token and your keys live in the open tab's memory. Closing or reloading the tab locks the vault.</p></div>
+    <div class="d-fact"><b>No cookies</b><p>Nothing is left behind in the browser that could open your vault later.</p></div>
+    <div class="d-fact d-fact--solid"><b>Two-step sign-in</b><p>Turn on a code from an authenticator app in Settings. Each code works once.</p></div>
+  </div>
+  <div class="call call--warn"><svg aria-hidden="true"><use href="#i-warn"/></svg><div><b>Your device is part of the lock</b><p>While the vault is open, it is decrypted in that browser. A device with malware, or one someone else is using, can see what you see. Lock the vault (close the tab) on shared computers.</p></div></div>
+</section>

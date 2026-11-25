@@ -1,4 +1,4 @@
-// The latest seals, on the security page.
+// The latest seals, on the security and seals pages.
 import { $, el, getJSON, hourSpan, num } from './util.js';
 
 const list = $('[data-seals]');

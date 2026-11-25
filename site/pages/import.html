@@ -1,0 +1,40 @@
+<!--
+title: Import
+description: Bring what ChatGPT and Claude remember about you into your SYNOVAX vault, or a SYNOVAX export file, encrypted on your device as it comes in.
+section: product
+eyebrow: Product · import
+h1: Bring what your AI|already knows
+lead: ChatGPT and Claude each keep a list of what they remember about you. Paste it into your vault and every fact becomes a memory, encrypted on your device, that every AI app you connect can use.
+next: product, immune, apps
+-->
+<section class="d-ch" id="steps">
+  <h2>From ChatGPT or Claude</h2>
+  <ol class="d-steps">
+    <li><b>Copy the list</b><p>In ChatGPT: Settings, Personalization, Manage memories. In Claude: Settings, Memory. Select what is there and copy it.</p></li>
+    <li><b>Paste it into your vault</b><p>Open the vault, go to Settings, Import, and paste. The vault shows how many memories it found before you import.</p></li>
+    <li><b>Pick a folder and import</b><p>Everything goes into the folder you choose ("About me" by default), encrypted on your device. Each memory keeps "import" as its source.</p></li>
+  </ol>
+</section>
+
+<section class="d-ch" id="formats">
+  <h2>What it understands</h2>
+  <ul>
+    <li><b>A list:</b> one fact per line, with or without bullets (<code>-</code>, <code>*</code>, <code>•</code>) or numbers. Each line becomes a memory; its first sentence becomes the title.</li>
+    <li><b>Paragraphs:</b> text split by blank lines, one memory per paragraph.</li>
+    <li><b>A SYNOVAX export:</b> the <code>.json</code> file from Settings, Export. Folders come back by name, and missing folders are made for you.</li>
+    <li><b>A file:</b> pick a <code>.txt</code>, <code>.md</code> or <code>.json</code> file instead of pasting.</li>
+  </ul>
+  <div class="code"><div class="code-bar"><span>Pasted list</span><button type="button" data-copy>copy</button></div><pre><code>- Prefers metric units
+- Works night shifts as an ER nurse
+- Allergic to penicillin</code></pre></div>
+</section>
+
+<section class="d-ch" id="safe">
+  <h2>Safe by default</h2>
+  <div class="d-grid3">
+    <div class="d-fact"><b>No duplicates</b><p>A memory with the same title and text as one already in your vault is skipped.</p></div>
+    <div class="d-fact"><b>Hidden instructions left out</b><p>Text that looks like it was written to steer an AI stays out unless you tick the box to take it. The vault names the ones it found. See the <a href="/immune/">immune system</a>.</p></div>
+    <div class="d-fact d-fact--solid"><b>Encrypted before it leaves</b><p>Parsing and encryption happen in your browser. The server only ever receives ciphertext.</p></div>
+  </div>
+  <div class="call call--note"><svg aria-hidden="true"><use href="#i-info"/></svg><div><b>Memories, not whole chats</b><p>Import takes the list of facts an assistant keeps about you, or a SYNOVAX export. It does not read full chat history exports.</p></div></div>
+</section>

@@ -38,5 +38,5 @@ for (const b of $$('.code-bar button[data-copy]')) {
 
 // ---------- live parts
 const page = document.body.dataset.page;
-const LIVE = { status: './status.js', immune: './immune.js', security: './seals.js', verify: './verify.js' };
+const LIVE = { status: './status.js', immune: './immune.js', security: './seals.js', seals: './seals.js', verify: './verify.js' };
 if (LIVE[page]) import(LIVE[page]).catch((e) => console.error(e));

@@ -1,0 +1,39 @@
+<!--
+title: Inbox
+description: AI apps you allow can suggest a memory. It is sealed for your vault only and waits in your inbox; nothing is saved until you approve it.
+section: product
+eyebrow: Product · inbox
+h1: Suggested by your AI,|kept only if you say so
+lead: An app you allow can suggest a memory while you talk to it. The suggestion is sealed so only your vault can open it, and it waits in your inbox. Nothing is saved until you approve it.
+next: product, apps, immune
+-->
+<section class="d-ch" id="how">
+  <h2>How a suggestion travels</h2>
+  <ol class="p-flow">
+    <li><b>Your AI app</b><span>Calls <code>suggest_memory</code> with a title, the text, tags, a folder it thinks fits, and why.</span></li>
+    <li class="is-you"><b>Connector, your computer</b><span>Checks that the inbox key really belongs to your vault, then seals the suggestion to it (ECDH P-256, HKDF and AES-256-GCM).</span></li>
+    <li><b>SYNOVAX server</b><span>Stores the sealed box, which it cannot open, and writes "suggested" to your read log.</span></li>
+    <li class="is-you"><b>Your vault</b><span>Opens the box in your browser and shows it in the inbox, ready to edit.</span></li>
+  </ol>
+  <p>The connector checks a tag over your inbox key (an HMAC made with a secret from the app key) before it seals anything. A server that swapped in its own key to read suggestions would fail that check.</p>
+</section>
+
+<section class="d-ch" id="decide">
+  <h2>You decide</h2>
+  <ul>
+    <li><b>Approve</b> saves it to the folder you pick, encrypted on your device, with the app's name as its source. Edit the title, text and tags first if you like.</li>
+    <li><b>Reject</b> deletes it from the server.</li>
+    <li>The vault checks the inbox every 30 seconds while it is open and tells you when something new arrives.</li>
+  </ul>
+  <div class="call call--note"><svg aria-hidden="true"><use href="#i-info"/></svg><div><b>Hidden instructions are flagged</b><p>A suggestion that looks like instructions for an AI shows a "looks like instructions for an AI" note with the reasons, before you approve it. See the <a href="/immune/">immune system</a>.</p></div></div>
+</section>
+
+<section class="d-ch" id="allow">
+  <h2>Which apps may suggest</h2>
+  <p>Only apps you allowed. When you make an app key under <b>Apps</b>, tick "Allow it to suggest memories to my inbox"; you can change it later. An app without it gets a refusal.</p>
+  <div class="d-grid3">
+    <div class="d-fact"><b>30 an hour</b><p>Each app can send at most 30 suggestions an hour.</p></div>
+    <div class="d-fact"><b>500 waiting</b><p>The inbox holds up to 500 suggestions at a time. Decide on some and room opens up.</p></div>
+    <div class="d-fact d-fact--solid"><b>Write only</b><p>Suggesting is the only write an app has. No tool lets an app change or delete a memory.</p></div>
+  </div>
+</section>

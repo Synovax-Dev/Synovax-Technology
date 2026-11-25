@@ -1002,6 +1002,8 @@ li.is-flash .scn-tag { background: #fff; color: var(--surface-black); transition
 .sec-links { display: flex; flex-wrap: wrap; gap: 0.7rem 1.5rem; margin-top: 1.5rem; font-size: 13px; text-transform: uppercase; }
 .sec-links a { color: #fff; text-decoration: none; border-bottom: 1px solid rgb(255 255 255 / 0.35); padding-bottom: 2px; transition: color 150ms var(--ease-entrance), border-color 150ms var(--ease-entrance); }
 .sec-links a:hover, .sec-links a:focus-visible { color: var(--accent); border-color: currentColor; }
+.sec-links-k { color: rgb(255 255 255 / 0.5); padding-bottom: 2px; }
+.sec-links--2 { margin-top: 0.9rem; }
 
 @media (max-width: 1100px) {
   .sec-top { grid-template-columns: 1fr; }

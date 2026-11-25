@@ -21,6 +21,12 @@ const REPO = 'https://github.com/Synovax-Dev/Synovax-Technology';
 
 // every page of the site, for the menu, the footer and "Read next"
 export const PAGES = {
+  product: { title: 'Vault', group: 'Product', blurb: 'Memories, folders, apps and the read log' },
+  inbox: { title: 'Inbox', group: 'Product', blurb: 'Memories your apps suggest, kept only if you approve' },
+  import: { title: 'Import', group: 'Product', blurb: 'Bring what ChatGPT and Claude remember about you' },
+  apps: { title: 'Apps', group: 'Product', blurb: 'Step-by-step setup for every AI app' },
+  devices: { title: 'Phone and devices', group: 'Product', blurb: 'Open and install it anywhere, sign out any device' },
+  seals: { title: 'Seals', group: 'Product', blurb: 'The hourly seals of every read, and how to check them' },
   'how-it-works': { title: 'How it works', group: 'Trust', blurb: 'From your first memory to deleting it all' },
   security: { title: 'Security', group: 'Trust', blurb: 'Keys, encryption and where the limits are' },
   'threat-model': { title: 'Threat model', group: 'Trust', blurb: 'What SYNOVAX protects against, and what it does not' },
@@ -33,8 +39,8 @@ export const PAGES = {
   verify: { title: 'Verify', group: 'Developers', blurb: 'Check a read, a seal or the seal chain by hand' },
   'open-source': { title: 'Open source', group: 'Developers', blurb: 'Read the code, run it yourself' },
 };
-const PRODUCT = [['Vault', '/vault/'], ['Docs', '/docs/'], ['$SYNOVAX', '/#token'], ['Home', '/']];
-const TOP = ['how-it-works', 'security', 'threat-model', 'immune', 'status'];
+const GO = [['Open the vault', '/vault/'], ['Docs', '/docs/'], ['$SYNOVAX', '/#token'], ['Home', '/']];
+const TOP = ['product', 'how-it-works', 'security', 'immune', 'status'];
 
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
@@ -61,9 +67,10 @@ const SPRITE = `<svg width="0" height="0" class="sprite" aria-hidden="true">
   </svg>`;
 
 function groups(current) {
-  const by = { Product: PRODUCT.map(([t, href]) => ({ t, href })) };
+  const by = {};
   for (const [slug, p] of Object.entries(PAGES)) (by[p.group] ??= []).push({ t: p.title, href: `/${slug}/`, on: slug === current });
   by.Developers.push({ t: 'GitHub', href: REPO, ext: true });
+  by['Go to'] = GO.map(([t, href]) => ({ t, href }));
   return by;
 }
 const link = (l, cls = '') => `<a${cls ? ` class="${cls}"` : ''} href="${esc(l.href)}"${l.on ? ' aria-current="page"' : ''}${l.ext ? ' target="_blank" rel="noopener noreferrer"' : ''}>${esc(l.t)}${l.ext ? ' ↗' : ''}</a>`;
