@@ -82,7 +82,7 @@ next: connector, standard, verify
   </div>
 
   <div class="p-ep"><div class="p-ep-h"><span class="p-m">GET</span><code>/api/config</code><span class="auth">public</span></div>
-    <p>What the vault page needs before signing in: <code>{ "appName", "sealPeriodMs", "iterations", "statsMinVaults", "connectorPath" }</code>. <code>connectorPath</code> is set only on a server running on your own machine.</p>
+    <p>What the vault page needs before signing in: <code>{ "appName", "sealPeriodMs", "iterations", "statsMinVaults", "connectorPath" }</code>. <code>connectorPath</code> is set only on a server started from a copy of the code on your own machine; otherwise the vault shows the <code>npx -y synovax connector</code> form.</p>
   </div>
 
   <div class="p-ep"><div class="p-ep-h"><span class="p-m">GET</span><code>/api/token</code> · <code>/api/token/holders</code><span class="auth">public</span></div>

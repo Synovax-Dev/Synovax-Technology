@@ -8,7 +8,16 @@ One place to keep what your AI should know about you. Everything is encrypted on
 
 No install needed to try it: the hosted vault is at https://synovax.tech/vault/. To run your own copy:
 
-Requires Node.js 22.13+ (tested on Node 24 and 26); `npm` comes with Node. SYNOVAX is not published on the npm registry: get the code from this repository. The server **needs no `npm install`**; `npm start` only runs `node server/index.js`. `npm install` is only for semantic search in the connector (optional, see below).
+Requires Node.js 22.13+ (tested on Node 24 and 26); `npm` and `npx` come with Node. SYNOVAX is on npm as [`synovax`](https://www.npmjs.com/package/synovax), with no dependencies:
+
+```sh
+npx synovax                  # start a vault server; data in ~/.synovax (DATA_DIR changes it)
+npx synovax connector        # the connector, normally started by your AI app
+npx synovax admin-password   # reset the admin password
+npx synovax --help
+```
+
+Or from the code. The server **needs no `npm install`**; `npm start` only runs `node server/index.js` and keeps the data in `./data`. `npm install` is only for semantic search in the connector (optional, see below).
 
 ```sh
 git clone https://github.com/Synovax-Dev/Synovax-Technology.git
@@ -26,9 +35,9 @@ npm run test:immune   # hidden-instruction checks: every attack held, no false a
 npm run test:vectors  # the open standard's test vectors
 ```
 
-**Browser tests (17 flows):** the real pages run in headless Chrome or Edge (no dependencies, driven over the DevTools protocol), from creating a vault to recovering it. A test fails on any JS error, CSP violation, failed request, or page that scrolls sideways at phone width. Set `UI_SHOTS=<folder>` to save desktop and phone screenshots.
+**Browser tests (18 flows):** the real pages run in headless Chrome or Edge (no dependencies, driven over the DevTools protocol), from creating a vault to recovering it. A test fails on any JS error, CSP violation, failed request, or page that scrolls sideways at phone width. Set `UI_SHOTS=<folder>` to save desktop and phone screenshots.
 
-**End-to-end tests (32 checks):** a real server, a "browser" built from the same crypto modules, and the connector driven over MCP. This includes a check that the database file **holds no plaintext at all**.
+**End-to-end tests (33 checks):** a real server, a "browser" built from the same crypto modules, and the connector driven over MCP. This includes a check that the database file **holds no plaintext at all**.
 
 ### Server settings
 
@@ -36,7 +45,7 @@ npm run test:vectors  # the open standard's test vectors
 |---|---|---|
 | `PORT` | `8787` | |
 | `HOST` | `127.0.0.1` | Use `0.0.0.0` behind a reverse proxy. |
-| `DATA_DIR` | `./data` | Database, secrets, backups. |
+| `DATA_DIR` | `./data` (`~/.synovax` with `npx synovax`) | Database, secrets, backups. |
 | `SEAL_PERIOD_MS` | `3600000` (1 hour) | How often the read log is sealed. |
 | `ADMIN_PASSWORD` | random | Admin password on the very first start only (min. 12 characters). |
 | `KDF_ITERATIONS` | `600000` | Every new vault must use this value, so the salt endpoint does not reveal which usernames exist. |
@@ -67,13 +76,15 @@ Backups hold the same thing as the database (ciphertext and hashes), so keep the
 {
   "mcpServers": {
     "synovax": {
-      "command": "node",
-      "args": ["C:\\path\\to\\vault\\connector\\index.js"],
+      "command": "npx",
+      "args": ["-y", "synovax", "connector"],
       "env": { "VAULT_APP_KEY": "vlt_app.<id>.<secret>", "VAULT_URL": "http://127.0.0.1:8787" }
     }
   }
 }
 ```
+
+On Windows, if the app cannot start `npx`, use `"command": "cmd"` with `"args": ["/c", "npx", "-y", "synovax", "connector"]` (the vault does this when you make the key on Windows). A server started from a copy of the code shows `"command": "node"` with the path to its `connector/index.js` instead, which is what semantic search needs.
 
 Tools the AI gets: `list_folders`, `search_memories`, `read_memory`, `suggest_memory` (suggestions land in your Inbox, and you approve them; 30 an hour per app).
 
@@ -109,6 +120,7 @@ Run it once, in the vault folder. This is the project's only dependency, and onl
 | Folder | Contents |
 |---|---|
 | `shared/` | Crypto (WebCrypto) and a Merkle tree. **The same code** runs in the browser and the connector. |
+| `bin/synovax.js` | The `synovax` command for `npx`: starts the server, the connector or the admin password reset, with the data in `~/.synovax`. |
 | `server/` | HTTP API, SQLite (`node:sqlite`), the hourly log sealer, and the holder index (`holders.js`). |
 | `web/vault/` | The vault app (plain JS, no build step). Sign-in page with a ciphertext art panel, sign in / create / recover forms with a passphrase strength meter, Caps Lock warning, and the 24-word recovery screen. Dashboard with a dark sidebar, stats strip, and a sliding editor. Entry animations run only when the view changes and are off under `prefers-reduced-motion`. |
 | `web/index.html`, `web/landing.css`, `web/landing/` | Landing page: animation engine (springs, text reveals, scroll), WebGL hero, a memory graph, a live Merkle seal using real SHA-256 in the browser, the MCP flow, and the $SYNOVAX section with the coin, connect wallet (`wallet.js`) and top holders. The security section (`security.js`) lists only facts that exist in the code. Fonts are self-hosted in `web/fonts/`. |

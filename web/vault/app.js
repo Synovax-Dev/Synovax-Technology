@@ -923,11 +923,13 @@ function newAppForm() {
 }
 
 function mcpConfig(key) {
-  const server = {
-    command: 'node',
-    args: [config.connectorPath ?? '/path/to/synovax/connector/index.js'],
-    env: { VAULT_APP_KEY: key, VAULT_URL: location.origin },
-  };
+  // A server run from a copy of the code on this computer gives the connector's
+  // path; otherwise the connector comes from npm (on Windows, apps start npx via cmd).
+  const env = { VAULT_APP_KEY: key, VAULT_URL: location.origin };
+  const npx = ['-y', 'synovax', 'connector'];
+  const server = config.connectorPath ? { command: 'node', args: [config.connectorPath], env }
+    : /Windows/.test(navigator.userAgent) ? { command: 'cmd', args: ['/c', 'npx', ...npx], env }
+    : { command: 'npx', args: npx, env };
   return JSON.stringify({ mcpServers: { [config.appName.toLowerCase().replace(/[^a-z0-9]+/g, '-')]: server } }, null, 2);
 }
 

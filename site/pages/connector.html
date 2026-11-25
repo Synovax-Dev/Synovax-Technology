@@ -19,16 +19,12 @@ next: reference, standard, immune
 
 <section class="d-ch" id="install">
   <h2>Install</h2>
-  <p>The connector is one file in the SYNOVAX repository, <code>connector/index.js</code>, with no dependencies of its own. It needs Node.js 22.13 or newer.</p>
-  <div class="code"><div class="code-bar"><span>Terminal</span><button type="button" data-copy>copy</button></div><pre><code>git clone https://github.com/Synovax-Dev/Synovax-Technology.git
-cd Synovax-Technology
-npm install   # optional: only for search by meaning</code></pre></div>
-  <p>Then make an app key in your vault under <b>Apps</b> and add the connector to your app. The vault shows this block with your key filled in; the key is shown once.</p>
+  <p>The connector is <code>connector/index.js</code> in the SYNOVAX package on npm, <a href="https://www.npmjs.com/package/synovax" target="_blank" rel="noopener"><code>synovax</code></a>, which has no dependencies. It needs Node.js 22.13 or newer. Your app starts it with <code>npx</code>, so there is nothing to install first. Make an app key in your vault under <b>Apps</b> and add the connector to your app. The vault shows this block with your key filled in; the key is shown once.</p>
   <div class="code"><div class="code-bar"><span>MCP configuration</span><button type="button" data-copy>copy</button></div><pre><code>{
   "mcpServers": {
     "synovax": {
-      "command": "node",
-      "args": ["/path/to/Synovax-Technology/connector/index.js"],
+      "command": "npx",
+      "args": ["-y", "synovax", "connector"],
       "env": {
         "VAULT_APP_KEY": "vlt_app.&lt;app id&gt;.&lt;secret&gt;",
         "VAULT_URL": "https://synovax.tech"
@@ -36,6 +32,10 @@ npm install   # optional: only for search by meaning</code></pre></div>
     }
   }
 }</code></pre></div>
+  <p>On Windows some apps cannot start <code>npx</code> directly; use <code>"command": "cmd"</code> with <code>"args": ["/c", "npx", "-y", "synovax", "connector"]</code> (the vault does this for you when you make the key on Windows). Search by meaning needs a copy of the code, where <code>npm install</code> adds the model; then point <code>"command": "node"</code> at the absolute path of its <code>connector/index.js</code>.</p>
+  <div class="code"><div class="code-bar"><span>Terminal</span><button type="button" data-copy>copy</button></div><pre><code>git clone https://github.com/Synovax-Dev/Synovax-Technology.git
+cd Synovax-Technology
+npm install   # optional: only for search by meaning</code></pre></div>
 </section>
 
 <section class="d-ch" id="apps">
@@ -45,14 +45,14 @@ npm install   # optional: only for search by meaning</code></pre></div>
   <div class="code"><div class="code-bar"><span>Terminal</span><button type="button" data-copy>copy</button></div><pre><code>claude mcp add synovax --scope user \
   --env VAULT_APP_KEY=vlt_app.&lt;app id&gt;.&lt;secret&gt; \
   --env VAULT_URL=https://synovax.tech \
-  -- node /path/to/Synovax-Technology/connector/index.js</code></pre></div>
+  -- npx -y synovax connector</code></pre></div>
   <p><b>VS Code</b>, in <code>.vscode/mcp.json</code>:</p>
   <div class="code"><div class="code-bar"><span>.vscode/mcp.json</span><button type="button" data-copy>copy</button></div><pre><code>{
   "servers": {
     "synovax": {
       "type": "stdio",
-      "command": "node",
-      "args": ["/path/to/Synovax-Technology/connector/index.js"],
+      "command": "npx",
+      "args": ["-y", "synovax", "connector"],
       "env": { "VAULT_APP_KEY": "vlt_app.&lt;app id&gt;.&lt;secret&gt;", "VAULT_URL": "https://synovax.tech" }
     }
   }

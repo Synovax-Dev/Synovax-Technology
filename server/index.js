@@ -259,7 +259,9 @@ route('GET', '/api/config', 'none', () => ({
   sealPeriodMs: SEAL_PERIOD_MS,
   iterations: KDF_ITERATIONS,
   statsMinVaults: STATS_MIN_VAULTS,
-  connectorPath: LOOPBACK ? path.join(ROOT, 'connector', 'index.js') : null,
+  // A server started with `npx synovax` lives in npx's cache, which can be cleared,
+  // so the vault then shows the npx form of the connector instead of this path.
+  connectorPath: LOOPBACK && !process.env.SYNOVAX_CLI ? path.join(ROOT, 'connector', 'index.js') : null,
 }));
 
 route('GET', '/api/stats', 'none', () => ({
@@ -1036,5 +1038,6 @@ if (BACKUP_INTERVAL_MS > 0) {
 sealer = startSealer(db, SEAL_PERIOD_MS, { publishUrl: process.env.SEAL_PUBLISH_URL ?? '' });
 server.listen(PORT, HOST, () => {
   console.log(`${APP_NAME} running at ${TLS ? 'https' : 'http'}://${HOST.includes(':') ? `[${HOST}]` : HOST}:${server.address().port}`);
-  console.log('Admin panel: /admin/ (forgot the password? npm run admin:password)');
+  console.log(`Vault: /vault/   Data: ${DATA_DIR}`);
+  console.log(`Admin panel: /admin/ (forgot the password? ${process.env.SYNOVAX_CLI ? 'npx synovax admin-password' : 'npm run admin:password'})`);
 });

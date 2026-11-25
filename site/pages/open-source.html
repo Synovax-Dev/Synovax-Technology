@@ -22,12 +22,14 @@ next: standard, connector, security
 
 <section class="d-ch" id="run">
   <h2>Your own SYNOVAX</h2>
-  <p>Needs Node.js 22.13 or newer, for the built-in SQLite. It serves on <code>http://127.0.0.1:8787</code> and keeps its data in <code>./data</code>. Nothing else is required: no account, no external database, no third-party service.</p>
+  <p>Needs Node.js 22.13 or newer, for the built-in SQLite. It serves on <code>http://127.0.0.1:8787</code>. Nothing else is required: no account, no external database, no third-party service. The quickest way is the npm package, <a href="https://www.npmjs.com/package/synovax" target="_blank" rel="noopener"><code>synovax</code></a>, which keeps its data in <code>.synovax</code> in your home folder:</p>
+  <div class="code"><div class="code-bar"><span>Terminal</span><button type="button" data-copy>copy</button></div><pre><code>npx synovax</code></pre></div>
+  <p>Or from the code, which keeps its data in <code>./data</code>:</p>
   <div class="code"><div class="code-bar"><span>Terminal</span><button type="button" data-copy>copy</button></div><pre><code>git clone https://github.com/Synovax-Dev/Synovax-Technology.git
 cd Synovax-Technology
 npm start</code></pre></div>
   <ul>
-    <li>Your vault then lives on your own machine, and your connector points at your own address. The vault shows the connector's path for you.</li>
+    <li>Your vault then lives on your own machine, and your connector points at your own address. The vault shows the connector's config for you.</li>
     <li>On first start the server prints a random admin password once; change it in the admin panel, or set <code>ADMIN_PASSWORD</code>.</li>
     <li>For a public address, put it behind HTTPS (a reverse proxy) with <code>HOST=0.0.0.0</code> and <code>TRUST_PROXY=1</code>, and back up the data folder.</li>
   </ul>
