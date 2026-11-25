@@ -52,7 +52,7 @@
     <button class="d-burger p-burger" type="button" aria-expanded="false" aria-controls="p-menu" data-menu><svg aria-hidden="true"><use href="#i-menu"/></svg><span>menu</span></button>
   </header>
   <nav class="p-menu" id="p-menu" aria-label="All pages" hidden>
-    <div><p>Product</p><a href="/product/">Vault</a><a href="/inbox/">Inbox</a><a href="/import/">Import</a><a href="/apps/">Apps</a><a href="/sharing/">Sharing</a><a href="/devices/">Phone and devices</a><a href="/seals/">Seals</a></div>
+    <div><p>Product</p><a href="/product/">Vault</a><a href="/inbox/">Inbox</a><a href="/import/">Import</a><a href="/apps/">Apps</a><a href="/sharing/">Sharing</a><a href="/legacy/">Legacy</a><a href="/devices/">Phone and devices</a><a href="/seals/">Seals</a></div>
     <div><p>Trust</p><a href="/how-it-works/">How it works</a><a href="/security/">Security</a><a href="/threat-model/">Threat model</a><a href="/immune/">Immune system</a><a href="/privacy/" aria-current="page">Privacy</a><a href="/status/">Status</a></div>
     <div><p>Developers</p><a href="/connector/">Connector</a><a href="/reference/">API reference</a><a href="/standard/">Open standard</a><a href="/verify/">Verify</a><a href="/open-source/">Open source</a><a href="https://github.com/Synovax-Dev/Synovax-Technology" target="_blank" rel="noopener noreferrer">GitHub ↗</a></div>
     <div><p>Go to</p><a href="/vault/">Open the vault</a><a href="/docs/">Docs</a><a href="/#token">$SYNOVAX</a><a href="/">Home</a></div>
@@ -99,7 +99,8 @@
             <tr><td>Connected apps</td><td>App ids, the encrypted name and app secret, a hash of each app token, which folders each app may read (with the folder key wrapped for that app), whether it may suggest, the tag over your inbox key, when it was made and last used.</td><td>Encrypted and hashed, with readable ids, flags and times</td></tr>
             <tr><td>Suggestions</td><td>Each suggestion waiting in your inbox: an id, which app sent it, when, and a sealed box only your vault can open. Removed once you decide.</td><td>Encrypted, with readable ids and times</td></tr>
             <tr><td>Shared folders</td><td>For each folder you share: which folder, which vault it is shared with, when, the folder key sealed for that vault, and your own note of who it went to (encrypted with your vault key). The recipient's vault name is readable to the server, which needs it to deliver the share.</td><td>Encrypted, with readable ids, vault names and times</td></tr>
-            <tr><td>Read log</td><td>For every request by a connected app: which app, what kind (listed folders, searched, read, suggested, had hidden instructions removed, or a vault you share with opened the folder), which folder or memory id, when, a random salt, and the leaf hash it is sealed as.</td><td>Readable to the server</td></tr>
+            <tr><td>Legacy</td><td>For each vault you name: which vault, the wait you chose, when, your vault key sealed for that vault, and your own note of who it is (encrypted with your vault key). For every vault, when it was last opened, so the wait can be measured.</td><td>Encrypted, with readable ids, vault names and times</td></tr>
+            <tr><td>Read log</td><td>For every request by a connected app: which app, what kind (listed folders, searched, read, suggested, had hidden instructions removed, a vault you share with opened the folder, or an heir opened the vault), which folder or memory id, when, a random salt, and the leaf hash it is sealed as.</td><td>Readable to the server</td></tr>
             <tr><td>Seals</td><td>One Merkle root per hour, the salted leaves it is made of, how many, and the chain hash. They contain no readable personal data.</td><td>Hashes</td></tr>
             <tr><td>Rate limits</td><td>For up to one hour: entries keyed by network address (and, for sign-in, the vault name), to slow down guessing and abuse.</td><td>Readable, deleted after an hour</td></tr>
             <tr><td>Immune record</td><td>The hourly public test rounds. They hold test text only, never anything from a vault.</td><td>Readable, kept 90 days</td></tr>
@@ -185,7 +186,7 @@
       <p>Your AI memory, encrypted on your device.</p>
     </div>
     <div class="p-foot-cols">
-      <div><p>Product</p><a href="/product/">Vault</a><a href="/inbox/">Inbox</a><a href="/import/">Import</a><a href="/apps/">Apps</a><a href="/sharing/">Sharing</a><a href="/devices/">Phone and devices</a><a href="/seals/">Seals</a></div>
+      <div><p>Product</p><a href="/product/">Vault</a><a href="/inbox/">Inbox</a><a href="/import/">Import</a><a href="/apps/">Apps</a><a href="/sharing/">Sharing</a><a href="/legacy/">Legacy</a><a href="/devices/">Phone and devices</a><a href="/seals/">Seals</a></div>
       <div><p>Trust</p><a href="/how-it-works/">How it works</a><a href="/security/">Security</a><a href="/threat-model/">Threat model</a><a href="/immune/">Immune system</a><a href="/privacy/" aria-current="page">Privacy</a><a href="/status/">Status</a></div>
       <div><p>Developers</p><a href="/connector/">Connector</a><a href="/reference/">API reference</a><a href="/standard/">Open standard</a><a href="/verify/">Verify</a><a href="/open-source/">Open source</a><a href="https://github.com/Synovax-Dev/Synovax-Technology" target="_blank" rel="noopener noreferrer">GitHub ↗</a></div>
       <div><p>Go to</p><a href="/vault/">Open the vault</a><a href="/docs/">Docs</a><a href="/#token">$SYNOVAX</a><a href="/">Home</a></div>

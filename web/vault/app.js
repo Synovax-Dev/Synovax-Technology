@@ -38,6 +38,7 @@ const blank = () => ({
   token: null, vaultId: null, username: null, vk: null, boxPub: null, boxPriv: null,
   folders: new Map(), memories: new Map(), apps: new Map(), inbox: [], log: null, seals: new Map(),
   shares: new Map(), sharedIn: [], sharedMems: new Map(), shareCode: null, sharePanel: null, openShared: null,
+  legacy: [], legacyIn: [], legacyView: null,
   view: 'memories', folder: 'all', query: '', editing: null,
   authMode: 'open', pendingPhrase: null, newAppKey: null, editingApp: null, verified: new Map(), chain: null,
 });
@@ -195,7 +196,7 @@ async function loadAll() {
       S.memories.set(m.id, { id: m.id, folderId: m.folderId, title: 'Unreadable memory', body: '', tags: [], broken: true, createdAt: m.createdAt, updatedAt: m.updatedAt });
     }
   }
-  await Promise.all([loadApps(), loadInbox(), loadShares()]);
+  await Promise.all([loadApps(), loadInbox(), loadShares(), loadLegacy()]);
 }
 
 // Folders this vault shares, and folders shared with it. A share is opened here
@@ -346,6 +347,68 @@ async function rotateAfterRevoke(folderIds, appName) {
   return !failed.length;
 }
 
+// ---------- legacy
+
+async function loadLegacy() {
+  const [out, inc] = await Promise.all([api('GET', '/api/legacy'), api('GET', '/api/legacy-for-me')]);
+  S.legacy = [];
+  for (const l of out.heirs) {
+    let meta = null;
+    try { meta = await C.decryptJSON(S.vk, l.meta, `legacy:${l.id}:meta`); } catch {}
+    S.legacy.push({ ...l, broken: !meta || meta.heir !== l.heir });
+  }
+  S.legacyIn = await Promise.all(inc.vaults.map(async (l) => ({ ...l, ownerFingerprint: await C.keyFingerprint(l.ownerBoxPub) })));
+  if (S.legacyView && !S.legacyIn.some((l) => l.id === S.legacyView.id && l.open)) S.legacyView = null;
+}
+
+// Name an heir by their share code: the key must match its fingerprint, then the
+// vault key is sealed for them. The server keeps it until the wait has passed.
+async function nameHeir(codeText, days) {
+  const { username, fingerprint } = C.parseShareCode(codeText);
+  if (username === S.username) throw new Error('That is your own share code. Ask the other person for theirs.');
+  const { boxPub } = await api('POST', '/api/share-key', { username, fingerprint });
+  if (await C.keyFingerprint(boxPub) !== fingerprint) throw new Error('The server answered with a different key than the share code names. Nothing was saved.');
+  const legacyId = C.newId();
+  await api('PUT', `/api/legacy/${legacyId}`, {
+    heir: username,
+    waitDays: days,
+    box: await C.legacySeal(S.boxPriv, S.boxPub, boxPub, { legacyId, vaultKey: S.vk, owner: S.username, heir: username }),
+    meta: await C.encryptJSON(S.vk, { heir: username, fingerprint }, `legacy:${legacyId}:meta`),
+  });
+  await loadLegacy();
+  return username;
+}
+
+// The heir's side: open the vault left to this one, read only, in this tab.
+async function openLegacy(l) {
+  const r = await api('GET', `/api/legacy-for-me/${l.id}`);
+  const d = await C.legacyOpen(S.boxPriv, S.boxPub, r.ownerBoxPub, r.box);
+  if (d.legacyId !== l.id || d.heir !== S.username || d.owner !== l.owner) throw new Error('This vault names another heir or owner.');
+  const folders = new Map();
+  for (const f of r.folders) {
+    try {
+      const key = await C.unwrapKey(d.vaultKey, f.wrappedKey, `folder:${f.id}:key`);
+      folders.set(f.id, { id: f.id, key, name: (await C.decryptJSON(key, f.meta, `folder:${f.id}:meta`)).name });
+    } catch { folders.set(f.id, { id: f.id, key: null, name: 'Unreadable folder' }); }
+  }
+  const memories = [];
+  for (const m of r.memories) {
+    try {
+      const x = await C.decryptJSON(folders.get(m.folderId).key, m.body, `memory:${m.id}:body`);
+      memories.push({ id: m.id, folderId: m.folderId, title: x.title, body: x.body, tags: x.tags ?? [], createdAt: m.createdAt, updatedAt: m.updatedAt });
+    } catch { memories.push({ id: m.id, folderId: m.folderId, title: 'Unreadable memory', body: '', tags: [], updatedAt: m.updatedAt }); }
+  }
+  S.legacyView = { id: l.id, owner: l.owner, folders: [...folders.values()].sort((a, b) => a.name.localeCompare(b.name)), memories };
+}
+
+function downloadJSON(name, data) {
+  const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
+  const a = h('a', { href: url, download: name });
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
 // ---------- sharing
 
 // The share code names a vault and the fingerprint of its key. The key the server
@@ -917,18 +980,55 @@ function viewShared() {
   const out = [...S.shares.values()].sort((a, b) => a.createdAt - b.createdAt);
   return h('div', { class: 'page' },
     pageHead('04', 'between vaults', 'Shared', 'Folders other vaults share with you, read only: the owner keeps the keys. To receive one, give the owner your share code.',
-      h('button', { class: 'btn', onclick: (e) => busy(e.currentTarget, 'Checking…', async () => { await loadShares(); render(); }) }, 'Refresh')),
+      h('button', { class: 'btn', onclick: (e) => busy(e.currentTarget, 'Checking…', async () => { await Promise.all([loadShares(), loadLegacy()]); render(); }) }, 'Refresh')),
     h('div', { class: 'card' },
       h('h2', {}, 'Your share code'),
       h('p', { class: 'muted' }, 'It holds your vault name and a fingerprint of your vault\'s public key, so the other vault can check that the server did not swap the key. It is not a secret, but it only lets people share with you, never read from you.'),
       h('div', { class: 'keybox' }, h('code', { 'data-share-code': '' }, S.shareCode), h('button', { class: 'btn small', onclick: () => copy(S.shareCode) }, 'Copy code'))),
     h('h2', { class: 'sec-h' }, h('span', {}, 'Shared with you'), h('span', { class: 'sec-n' }, String(S.sharedIn.length).padStart(2, '0'))),
     S.sharedIn.length ? S.sharedIn.map(sharedCard) : emptyState('Nothing shared with you yet.', 'Send your share code to someone who wants to share a folder with you.'),
+    S.legacyIn.length ? [
+      h('h2', { class: 'sec-h' }, h('span', {}, 'Left to you'), h('span', { class: 'sec-n' }, String(S.legacyIn.length).padStart(2, '0'))),
+      S.legacyIn.map(legacyInCard)] : null,
     h('h2', { class: 'sec-h' }, h('span', {}, 'You share'), h('span', { class: 'sec-n' }, String(out.length).padStart(2, '0'))),
     out.length ? h('div', { class: 'card' }, h('div', { class: 'sessions' }, out.map((s) => h('div', { class: 'row session' },
       h('span', { class: 'grow' }, h('b', {}, S.folders.get(s.folderId)?.name ?? 'A folder'), ` with ${s.recipient}`, h('br'), h('small', { class: 'fine' }, `shared ${fmt(s.createdAt)}`)),
       h('button', { class: 'btn small', onclick: (e) => stopSharing(s, e.currentTarget) }, 'Stop sharing')))))
       : emptyState('You share nothing yet.', 'Open a folder and choose Share.'));
+}
+
+function legacyInCard(l) {
+  const view = S.legacyView?.id === l.id ? S.legacyView : null;
+  const days = `${l.waitDays} day${l.waitDays === 1 ? '' : 's'}`;
+  return h('div', { class: 'card shared legacy-in' },
+    h('h2', {}, `${l.owner}'s vault`),
+    h('p', { class: 'muted' }, l.open
+      ? `${l.owner} has not opened their vault for ${days}, so it is open to you, read only.`
+      : `${l.owner} named you to receive their vault, read only, if they do not open it for ${days}. Until then it stays closed to you.`),
+    h('p', { class: 'fine' }, `To be sure it is really ${l.owner}: their share code ends in …${l.ownerFingerprint.slice(-8)}.`),
+    h('div', { class: 'row' },
+      l.open && h('button', { class: 'btn primary', 'aria-expanded': String(!!view), onclick: (e) => busy(e.currentTarget, 'Opening…', async () => {
+        if (view) S.legacyView = null;
+        else await openLegacy(l);
+        render();
+      }) }, view ? 'Close' : 'Open vault'),
+      view && h('button', { class: 'btn', onclick: () => downloadJSON(`${l.owner}-vault-${new Date().toISOString().slice(0, 10)}.json`, {
+        exportedAt: new Date().toISOString(), vault: l.owner, receivedBy: S.username,
+        folders: view.folders.map((f) => ({ id: f.id, name: f.name })),
+        memories: view.memories.map((m) => ({ id: m.id, folder: view.folders.find((f) => f.id === m.folderId)?.name, title: m.title, body: m.body, tags: m.tags })),
+      }) }, icon('download'), h('span', {}, 'Download')),
+      h('button', { class: 'btn', onclick: (e) => busy(e.currentTarget, '…', async () => {
+        if (!confirm(`Decline ${l.owner}'s vault? You will not receive it unless they name you again.`)) return;
+        await api('DELETE', `/api/legacy/${l.id}`);
+        await loadLegacy();
+        render();
+      }) }, 'Decline')),
+    view && h('div', { class: 'shared-list' }, view.folders.map((f) => {
+      const mems = view.memories.filter((m) => m.folderId === f.id);
+      return h('details', { class: 'shared-mem' },
+        h('summary', {}, h('b', {}, f.name), h('small', { class: 'fine' }, ` · ${mems.length} memor${mems.length === 1 ? 'y' : 'ies'}`)),
+        mems.map((m) => h('div', { class: 'legacy-mem' }, h('b', {}, m.title || 'Untitled'), h('p', { class: 'shared-body' }, m.body))));
+    })));
 }
 
 function sharedCard(s) {
@@ -1211,6 +1311,10 @@ async function checkChain(newestFirst) {
 }
 
 function describe(e) {
+  if (e.action === 'legacy') {
+    const l = S.legacy.find((x) => x.id === e.target);
+    return { app: l ? `${l.heir} (legacy)` : 'A vault you no longer leave it to', what: 'Opened your vault as your heir, after your chosen wait' };
+  }
   if (e.action === 'shared') {
     const s = S.shares.get(e.target);
     return { app: s ? `${s.recipient} (shared)` : 'A vault you stopped sharing with', what: `Opened the shared folder “${S.folders.get(s?.folderId)?.name ?? 'a folder'}”` };
@@ -1315,12 +1419,45 @@ function viewSettings() {
     pageHead('06', 'account', 'Settings', `Signed in as ${S.username}.`),
     sessionsCard(),
     twoFactorCard(),
+    legacyCard(),
     importCard(),
     h('div', { class: 'card' },
       h('h2', {}, 'Export'),
       h('p', { class: 'muted' }, 'Download every folder and memory, decrypted here on your device, as one JSON file.'),
       h('button', { class: 'btn', onclick: exportVault }, icon('download'), h('span', {}, 'Download export'))),
     pw, del);
+}
+
+// Legacy: who receives this vault, read only, after the owner stays away long enough.
+function legacyCard() {
+  const form = h('form', { class: 'legacy-form', onsubmit: (e) => {
+    e.preventDefault();
+    const f = form.elements;
+    busy(form.querySelector('[type=submit]'), 'Sealing…', async () => {
+      const who = await nameHeir(f.code.value, Number(f.wait.value));
+      toast(`${who} will receive your vault if you do not open it for ${f.wait.value} days.`);
+      render();
+    });
+  } },
+    h('div', { class: 'grid2' },
+      h('label', {}, 'Their share code', h('input', { name: 'code', placeholder: 'synovax-share:name:…', required: true, autocomplete: 'off', spellcheck: 'false' })),
+      h('label', {}, 'After I have not opened my vault for', h('select', { name: 'wait', value: '90' }, [30, 90, 180, 365].map((d) => h('option', { value: String(d) }, `${d} days`))))),
+    h('button', { class: 'btn primary', type: 'submit' }, 'Name this vault'));
+  return h('div', { class: 'card' },
+    h('h2', {}, 'Legacy'),
+    h('p', { class: 'muted' }, 'Choose who receives your vault if something happens to you. They get every folder and memory, read only, and only after you have not opened your vault for the time you pick. Opening it again closes it for them. They see that you named them. Ask for the share code under Shared in their vault.'),
+    S.legacy.length ? h('div', { class: 'sessions' }, S.legacy.map((l) => h('div', { class: 'row session' },
+      h('span', { class: 'grow' }, h('b', {}, l.heir), l.broken ? ' · cannot be checked' : '', h('br'),
+        h('small', { class: 'fine' }, `after ${l.waitDays} day${l.waitDays === 1 ? '' : 's'} without you opening your vault · named ${fmt(l.createdAt)}`)),
+      h('button', { class: 'btn small', onclick: (e) => busy(e.currentTarget, '…', async () => {
+        if (!confirm(`Remove ${l.heir}? They will no longer receive your vault.`)) return;
+        await api('DELETE', `/api/legacy/${l.id}`);
+        await loadLegacy();
+        toast(`${l.heir} removed.`);
+        render();
+      }) }, 'Remove')))) : null,
+    S.legacy.length < 3 && form,
+    h('p', { class: 'fine' }, 'The server keeps the time, so a dishonest server working with your heir could open it early. Name only someone you would trust with it anyway.'));
 }
 
 // Two-step sign-in: after the passphrase, a 6-digit code from an authenticator app.

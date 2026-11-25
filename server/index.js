@@ -26,6 +26,10 @@ const SESSION_TTL_MS = 7 * 24 * 3600 * 1000;
 const MAX_BODY = 4 * 1024 * 1024;
 const LOOPBACK = ['127.0.0.1', 'localhost', '::1'].includes(HOST);
 const LIMITS = { folders: 200, memories: 20_000, apps: 50, suggestions: 500, sharesPerFolder: 20, shares: 200 };
+// Legacy counts inactivity in days. Tests shorten a day; a real server leaves it at 24 hours.
+const LEGACY_DAY_MS = Number(process.env.LEGACY_DAY_MS ?? 86_400_000);
+// how often a busy session refreshes "last seen": often enough to be exact to a small part of a day
+const SEEN_EVERY_MS = Math.min(60_000, Math.max(100, LEGACY_DAY_MS / 20));
 // Every new vault and passphrase uses exactly this many PBKDF2 rounds, so the salt
 // endpoint answers the same for names that exist and names that do not.
 const KDF_ITERATIONS = Number(process.env.KDF_ITERATIONS ?? PBKDF2_ITERATIONS);
@@ -155,8 +159,12 @@ function newSession(vaultId, req) {
   const t = now();
   db.prepare('INSERT INTO sessions (token_hash, id, vault_id, expires_at, created_at, last_used_at, agent) VALUES (?, ?, ?, ?, ?, ?, ?)')
     .run(sha256hex(token), newToken(12), vaultId, t + SESSION_TTL_MS, t, t, deviceLabel(req.headers['user-agent']));
+  db.prepare('UPDATE vaults SET last_seen_at = ? WHERE id = ?').run(t, vaultId);
   return token;
 }
+// vaults from before legacy existed count as seen now, so nothing opens early
+db.prepare('UPDATE vaults SET last_seen_at = ? WHERE last_seen_at IS NULL').run(Date.now());
+
 // sessions from before the session list existed get an id now
 for (const s of db.prepare('SELECT token_hash FROM sessions WHERE id IS NULL').all()) {
   db.prepare('UPDATE sessions SET id = ?, agent = COALESCE(agent, ?) WHERE token_hash = ?').run(newToken(12), 'Unknown device', s.token_hash);
@@ -202,7 +210,10 @@ function ownerAuth(req) {
   const tokenHash = sha256hex(m[1]);
   const row = db.prepare('SELECT id, vault_id, expires_at, last_used_at FROM sessions WHERE token_hash = ?').get(tokenHash);
   need(row && row.expires_at > now(), 401, 'Your session has ended. Open your vault again.');
-  if (!row.last_used_at || now() - row.last_used_at > 60_000) db.prepare('UPDATE sessions SET last_used_at = ? WHERE token_hash = ?').run(now(), tokenHash);
+  if (!row.last_used_at || now() - row.last_used_at > SEEN_EVERY_MS) {
+    db.prepare('UPDATE sessions SET last_used_at = ? WHERE token_hash = ?').run(now(), tokenHash);
+    db.prepare('UPDATE vaults SET last_seen_at = ? WHERE id = ?').run(now(), row.vault_id);
+  }
   return { vaultId: row.vault_id, tokenHash, sessionId: row.id };
 }
 
@@ -701,6 +712,60 @@ route('GET', '/api/shared/:id', 'owner', async ({ auth, params }) => {
   return {
     memories: db.prepare('SELECT id, body, created_at, updated_at FROM memories WHERE folder_id = ? ORDER BY updated_at DESC').all(s.folder_id)
       .map((m) => ({ id: m.id, body: m.body, createdAt: m.created_at, updatedAt: m.updated_at })),
+  };
+});
+// ---------- legacy: who receives the vault, and only when
+// The owner seals the vault key for an heir's vault. The server hands that box,
+// with the vault's ciphertext, to the heir only once the owner has not opened the
+// vault for the chosen number of days. Opening the vault again closes it.
+
+const legacyOpenNow = (l) => now() - (l.last_seen_at ?? l.vault_created) >= l.wait_days * LEGACY_DAY_MS;
+const waitDays = (v) => { need(Number.isInteger(v) && v >= 1 && v <= 3650, 400, 'Choose a wait of 1 to 3650 days.'); return v; };
+
+route('GET', '/api/legacy', 'owner', ({ auth }) => ({
+  heirs: db.prepare('SELECT l.id, l.meta, l.wait_days, l.created_at, v.username, v.box_pub FROM legacy l JOIN vaults v ON v.id = l.heir_id WHERE l.owner_id = ? ORDER BY l.created_at')
+    .all(auth.vaultId).map((l) => ({ id: l.id, meta: l.meta, waitDays: l.wait_days, heir: l.username, heirBoxPub: l.box_pub, createdAt: l.created_at })),
+  dayMs: LEGACY_DAY_MS,
+}));
+
+route('PUT', '/api/legacy/:id', 'owner', ({ auth, params, body }) => {
+  const id = field(params.id, RE.id, 'legacy id');
+  const h = db.prepare('SELECT id FROM vaults WHERE username = ?').get(username(body.heir));
+  need(h, 404, 'No such vault.');
+  need(h.id !== auth.vaultId, 400, 'You cannot leave your vault to yourself.');
+  need(!db.prepare('SELECT 1 FROM legacy WHERE id = ?').get(id), 409, 'That already exists.');
+  need(!db.prepare('SELECT 1 FROM legacy WHERE owner_id = ? AND heir_id = ?').get(auth.vaultId, h.id), 409, 'That vault is already named.');
+  need(count('SELECT COUNT(*) n FROM legacy WHERE owner_id = ?', auth.vaultId) < 3, 400, 'You can name up to 3 vaults.');
+  db.prepare('INSERT INTO legacy (id, owner_id, heir_id, box, meta, wait_days, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+    .run(id, auth.vaultId, h.id, field(body.box, RE.box, 'box', 4000), field(body.meta, RE.ct, 'meta', 2000), waitDays(body.waitDays), now());
+});
+
+// the owner removes an heir, or the heir declines
+route('DELETE', '/api/legacy/:id', 'owner', ({ auth, params }) => {
+  const r = db.prepare('DELETE FROM legacy WHERE id = ? AND (owner_id = ? OR heir_id = ?)').run(params.id, auth.vaultId, auth.vaultId);
+  need(r.changes, 404, 'No such entry.');
+});
+
+// The heir's side. It says whether the vault can be opened now, never when the
+// owner was last seen.
+route('GET', '/api/legacy-for-me', 'owner', ({ auth }) => ({
+  vaults: db.prepare('SELECT l.id, l.wait_days, l.created_at, v.username, v.box_pub, v.last_seen_at, v.created_at AS vault_created FROM legacy l JOIN vaults v ON v.id = l.owner_id WHERE l.heir_id = ? ORDER BY l.created_at')
+    .all(auth.vaultId).map((l) => ({ id: l.id, owner: l.username, ownerBoxPub: l.box_pub, waitDays: l.wait_days, createdAt: l.created_at, open: legacyOpenNow(l) })),
+}));
+
+route('GET', '/api/legacy-for-me/:id', 'owner', async ({ auth, params }) => {
+  const l = db.prepare('SELECT l.*, v.username, v.box_pub, v.last_seen_at, v.created_at AS vault_created FROM legacy l JOIN vaults v ON v.id = l.owner_id WHERE l.id = ? AND l.heir_id = ?').get(params.id, auth.vaultId);
+  need(l, 404, 'No such entry.');
+  need(legacyOpenNow(l), 403, `This vault opens for you only after ${l.username} has not opened it for ${l.wait_days} day${l.wait_days === 1 ? '' : 's'}.`);
+  rateLimit(`legacy:${l.id}`, 60, 3_600_000);
+  await logRead(l.owner_id, null, 'legacy', l.id);
+  return {
+    owner: l.username,
+    ownerBoxPub: l.box_pub,
+    box: l.box,
+    folders: db.prepare('SELECT id, meta, wrapped_key FROM folders WHERE vault_id = ?').all(l.owner_id).map((f) => ({ id: f.id, meta: f.meta, wrappedKey: f.wrapped_key })),
+    memories: db.prepare('SELECT id, folder_id, body, created_at, updated_at FROM memories WHERE vault_id = ? ORDER BY updated_at DESC').all(l.owner_id)
+      .map((m) => ({ id: m.id, folderId: m.folder_id, body: m.body, createdAt: m.created_at, updatedAt: m.updated_at })),
   };
 });
 // ---------- owner: inbox, log, account

@@ -68,7 +68,7 @@ await step('Merkle proofs verify for every leaf, 1 to 9 leaves', async () => {
 
 const dataDir = await mkdtemp(path.join(os.tmpdir(), 'vault-test-'));
 const server = spawn(process.execPath, ['server/index.js'], {
-  cwd: ROOT, env: { ...process.env, PORT: '0', DATA_DIR: dataDir, SEAL_PERIOD_MS: String(SEAL_MS), ADMIN_KEY, KDF_ITERATIONS: '100000', TRUST_PROXY: '1' }, stdio: ['ignore', 'pipe', 'pipe'],
+  cwd: ROOT, env: { ...process.env, PORT: '0', DATA_DIR: dataDir, SEAL_PERIOD_MS: String(SEAL_MS), ADMIN_KEY, KDF_ITERATIONS: '100000', TRUST_PROXY: '1', LEGACY_DAY_MS: '3000' }, stdio: ['ignore', 'pipe', 'pipe'],
 });
 server.stderr.on('data', (d) => process.stderr.write(`[server] ${d}`));
 const BASE = await new Promise((resolve, reject) => {
@@ -331,7 +331,7 @@ try {
   });
 
   await step('the database holds no plaintext', async () => {
-    const files = (await readdir(dataDir)).filter((f) => f.startsWith('vault.db'));
+    const files = (await readdir(dataDir)).filter((f) => f.startsWith('vault.db') && !f.endsWith('-shm')) /* -shm is only the WAL index, and Windows may lock it */;
     const raw = Buffer.concat(await Promise.all(files.map((f) => readFile(path.join(dataDir, f))))).toString('latin1');
     for (const secretText of ['penicillin', 'before nine', 'Morning person', 'Health', 'Claude Desktop', 'metric', pass, phrase.split(' ').slice(0, 3).join(' ')]) {
       assert.ok(!raw.includes(secretText), `found "${secretText}" in the database`);
@@ -518,7 +518,7 @@ try {
     assert.equal((await api('POST', '/api/auth/login', { username, authKey: k.authKey, totp: totpAt(secret, step0 + 1) })).status, 200, 'a fresh code works');
     assert.equal((await api('POST', '/api/auth/login', { username, authKey: k.authKey, totp: totpAt(secret, step0 + 1) })).status, 401, 'and only once');
     assert.equal((await api('POST', '/api/account/2fa/disable', { code: '123456' }, token)).status, 400, 'turning it off needs a real code');
-    const raw = (await readdir(dataDir)).filter((f) => f.startsWith('vault.db'));
+    const raw = (await readdir(dataDir)).filter((f) => f.startsWith('vault.db') && !f.endsWith('-shm')) /* -shm is only the WAL index, and Windows may lock it */;
     const bytes = Buffer.concat(await Promise.all(raw.map((f) => readFile(path.join(dataDir, f))))).toString('latin1');
     assert.ok(!bytes.includes(secret), 'the 2FA secret is not stored in the clear');
   });
@@ -536,6 +536,56 @@ try {
     token = (await ok('POST', '/api/auth/login', { username, authKey: nk.authKey })).token;
   });
 
+  await step('legacy: the heir can open the vault only after the owner stays away, and the owner coming back closes it', async () => {
+    const hSalt = C.b64(C.randomBytes(16)), hk = await C.keysFromPassphrase('heir passphrase here', hSalt, iterations);
+    const hRec = await C.keysFromRecovery(C.newRecoveryPhrase()), hVk = C.randomBytes(32), hBox = await C.newBoxKeyPair();
+    const hToken = (await ok('POST', '/api/auth/register', {
+      username: 'heir', salt: hSalt, iterations, authKey: hk.authKey, recoveryAuthKey: hRec.authKey,
+      wrappedVaultKey: await C.wrapKey(hk.kek, hVk, 'vk/passphrase'), wrappedVaultKeyRecovery: await C.wrapKey(hRec.kek, hVk, 'vk/recovery'),
+      boxPub: hBox.pub, boxPrivWrapped: await C.wrapKey(hVk, hBox.priv, 'box/private'),
+    })).token;
+    const code = C.parseShareCode(C.formatShareCode('heir', await C.keyFingerprint(hBox.pub)));
+    const { boxPub } = await ok('POST', '/api/share-key', code, token);
+    const legacyId = C.newId();
+    const sealed = await C.legacySeal(box.priv, box.pub, boxPub, { legacyId, vaultKey: vk, owner: username, heir: 'heir' });
+    const meta = await C.encryptJSON(vk, { heir: 'heir', fingerprint: code.fingerprint }, `legacy:${legacyId}:meta`);
+    assert.equal((await api('PUT', `/api/legacy/${legacyId}`, { heir: 'heir', box: sealed, meta, waitDays: 0 }, token)).status, 400, 'a wait of at least a day');
+    assert.equal((await api('PUT', `/api/legacy/${legacyId}`, { heir: username, box: sealed, meta, waitDays: 1 }, token)).status, 400, 'not to yourself');
+    await ok('PUT', `/api/legacy/${legacyId}`, { heir: 'heir', box: sealed, meta, waitDays: 1 }, token);
+    assert.equal((await ok('GET', '/api/legacy', null, token)).heirs[0].heir, 'heir');
+
+    // while the owner is around, the heir sees the entry but cannot open it
+    let mine = (await ok('GET', '/api/legacy-for-me', null, hToken)).vaults;
+    assert.equal(mine.length, 1);
+    assert.equal(mine[0].owner, username);
+    assert.equal(mine[0].open, false);
+    assert.ok(!('lastSeenAt' in mine[0]), 'the heir is not told when the owner was last seen');
+    assert.equal((await api('GET', `/api/legacy-for-me/${legacyId}`, null, hToken)).status, 403);
+
+    // the owner stays away for longer than the wait (a "day" is 3 s in this test)
+    await sleep(3300);
+    mine = (await ok('GET', '/api/legacy-for-me', null, hToken)).vaults;
+    assert.equal(mine[0].open, true);
+    const got = await ok('GET', `/api/legacy-for-me/${legacyId}`, null, hToken);
+    const opened = await C.legacyOpen(hBox.priv, hBox.pub, got.ownerBoxPub, got.box);
+    assert.deepEqual(opened.vaultKey, vk);
+    const stranger = await C.newBoxKeyPair();
+    await assert.rejects(C.legacyOpen(hBox.priv, hBox.pub, stranger.pub, got.box), /not left to you/, 'it must come from the vault it names');
+    const work = got.folders.find((f) => f.id === folders.Work.id);
+    const wk = await C.unwrapKey(opened.vaultKey, work.wrappedKey, `folder:${work.id}:key`);
+    const m = got.memories.find((x) => x.id === workMem);
+    assert.match((await C.decryptJSON(wk, m.body, `memory:${m.id}:body`)).body, /before nine/);
+
+    // the opening is in the owner's log; the owner's return closes it again
+    const log = (await ok('GET', '/api/log?limit=5', null, token)).entries;
+    assert.ok(log.some((e) => e.action === 'legacy' && e.target === legacyId && e.appId === null));
+    assert.equal((await api('GET', `/api/legacy-for-me/${legacyId}`, null, hToken)).status, 403, 'the owner is back');
+
+    // the heir can decline
+    await ok('DELETE', `/api/legacy/${legacyId}`, null, hToken);
+    assert.equal((await ok('GET', '/api/legacy', null, token)).heirs.length, 0);
+    await ok('DELETE', '/api/account', { confirm: 'heir' }, hToken);
+  });
   await step('deleting the account removes it, and public seals still stand', async () => {
     const sealsBefore = (await ok('GET', '/api/seals')).seals.length;
     assert.equal((await api('DELETE', '/api/account', { confirm: 'wrong' }, token)).status, 400);

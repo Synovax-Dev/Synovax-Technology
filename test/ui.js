@@ -38,7 +38,7 @@ if (!browserPath) { console.log('No Chrome or Edge found; set BROWSER=<path>. Sk
 const dataDir = await mkdtemp(path.join(os.tmpdir(), 'vault-ui-'));
 const profile = await mkdtemp(path.join(os.tmpdir(), 'vault-ui-browser-'));
 const server = spawn(process.execPath, ['server/index.js'], {
-  cwd: ROOT, env: { ...process.env, PORT: '0', DATA_DIR: dataDir, SEAL_PERIOD_MS: '2000', ADMIN_KEY, KDF_ITERATIONS: '100000', BACKUP_INTERVAL_MS: '0' },
+  cwd: ROOT, env: { ...process.env, PORT: '0', DATA_DIR: dataDir, SEAL_PERIOD_MS: '2000', ADMIN_KEY, KDF_ITERATIONS: '100000', BACKUP_INTERVAL_MS: '0', LEGACY_DAY_MS: '2000' },
   stdio: ['ignore', 'pipe', 'pipe'],
 });
 server.stderr.on('data', (d) => process.stderr.write(`[server] ${d}`));
@@ -219,7 +219,7 @@ try {
   await step('information pages: built, load without errors, live parts answer, fit a phone', async () => {
     const built = spawnSync(process.execPath, ['scripts/build-pages.mjs', '--check'], { cwd: ROOT, encoding: 'utf8' });
     assert.equal(built.status, 0, `pages out of date: ${built.stderr}`);
-    for (const slug of ['product', 'inbox', 'import', 'apps', 'sharing', 'devices', 'seals', 'how-it-works', 'security', 'threat-model', 'immune', 'privacy', 'status', 'connector', 'reference', 'standard', 'verify', 'open-source']) {
+    for (const slug of ['product', 'inbox', 'import', 'apps', 'sharing', 'legacy', 'devices', 'seals', 'how-it-works', 'security', 'threat-model', 'immune', 'privacy', 'status', 'connector', 'reference', 'standard', 'verify', 'open-source']) {
       await open(`/${slug}/`);
       await sleep(400);
       assert.ok(await js('return $("h1").textContent.trim().length > 3 && $$(".d-ch h2").length >= 2'), `${slug}: headline and sections`);
@@ -251,7 +251,7 @@ try {
     await page('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
     await sleep(300);
     await js('$("[data-menu]").click(); return true');
-    assert.ok(await js('return !$("#p-menu").hidden && $$("#p-menu a").length >= 23 && $$("#p-menu a").some((a) => a.pathname === "/devices/")'), 'the page menu');
+    assert.ok(await js('return !$("#p-menu").hidden && $$("#p-menu a").length >= 24 && $$("#p-menu a").some((a) => a.pathname === "/devices/")'), 'the page menu');
     await page('Emulation.clearDeviceMetricsOverride');
     noProblems();
   });
@@ -408,6 +408,65 @@ try {
     noProblems();
   });
 
+  await step('legacy: name an heir; a vault left to you opens only after its owner stays away', async () => {
+    const C = await import('../shared/crypto.js');
+    const call = async (p, body, token, method = 'POST') => {
+      const r = await fetch(BASE + p, { method, headers: { 'content-type': 'application/json', ...(token ? { authorization: `Bearer s.${token}` } : {}) }, body: body ? JSON.stringify(body) : undefined });
+      const data = await r.json().catch(() => ({}));
+      assert.ok(r.ok, `${method} ${p}: ${r.status} ${JSON.stringify(data)}`);
+      return data;
+    };
+    const salt = C.b64(C.randomBytes(16)), k = await C.keysFromPassphrase('elder passphrase here', salt, 100_000);
+    const rec = await C.keysFromRecovery(C.newRecoveryPhrase()), vk = C.randomBytes(32), bx = await C.newBoxKeyPair();
+    const eToken = (await call('/api/auth/register', {
+      username: 'elder', salt, iterations: 100_000, authKey: k.authKey, recoveryAuthKey: rec.authKey,
+      wrappedVaultKey: await C.wrapKey(k.kek, vk, 'vk/passphrase'), wrappedVaultKeyRecovery: await C.wrapKey(rec.kek, vk, 'vk/recovery'),
+      boxPub: bx.pub, boxPrivWrapped: await C.wrapKey(vk, bx.priv, 'box/private'),
+    })).token;
+
+    // 1. in Settings, name "elder" as the heir of this vault, then remove them
+    await js('click(".nav-item", "Settings")');
+    await until('return $(".legacy-form")', 'the legacy card');
+    const elderCode = C.formatShareCode('elder', await C.keyFingerprint(bx.pub));
+    await js(`type('.legacy-form input[name=code]', ${JSON.stringify(elderCode)}); type('.legacy-form select[name=wait]', '30'); $('.legacy-form').requestSubmit(); return true`);
+    await toast('will receive your vault');
+    await until('return byText(".card .session b", "elder")', 'the heir in the list');
+    await shot('vault-legacy');
+    const named = (await call('/api/legacy-for-me', null, eToken, 'GET')).vaults;
+    assert.equal(named.length, 1);
+    assert.equal(named[0].owner, user);
+    assert.equal(named[0].waitDays, 30);
+    assert.equal(named[0].open, false);
+    await js('window.confirm = () => true; click(".card .session .btn", "Remove"); return true');
+    await toast('removed');
+    assert.equal((await call('/api/legacy-for-me', null, eToken, 'GET')).vaults.length, 0);
+
+    // 2. "elder" leaves their vault to this one; it opens once elder stays away a "day" (2 s here)
+    await js('click(".nav-item", "Shared")');
+    const mine = C.parseShareCode(await until('return $("[data-share-code]")?.textContent', 'my share code'));
+    const { boxPub } = await call('/api/share-key', mine, eToken);
+    const fid = C.newId(), fkey = C.randomBytes(32), mid = C.newId();
+    await call(`/api/folders/${fid}`, { meta: await C.encryptJSON(fkey, { name: 'Letters' }, `folder:${fid}:meta`), wrappedKey: await C.wrapKey(vk, fkey, `folder:${fid}:key`) }, eToken, 'PUT');
+    await call(`/api/memories/${mid}`, { folderId: fid, head: await C.encryptJSON(fkey, { title: 'For you', tags: [], snippet: '' }, `memory:${mid}:head`), body: await C.encryptJSON(fkey, { title: 'For you', body: 'The garden key is under the blue pot.', tags: [] }, `memory:${mid}:body`) }, eToken, 'PUT');
+    const lid = C.newId();
+    await call(`/api/legacy/${lid}`, { heir: user, waitDays: 1, box: await C.legacySeal(bx.priv, bx.pub, boxPub, { legacyId: lid, vaultKey: vk, owner: 'elder', heir: user }), meta: await C.encryptJSON(vk, { heir: user, fingerprint: mine.fingerprint }, `legacy:${lid}:meta`) }, eToken, 'PUT');
+    await js('click(".btn", "Refresh")');
+    await until('return byText(".legacy-in h2", "elder")', 'the vault left to me');
+    assert.ok(await js('return $(".legacy-in .muted").textContent.includes("stays closed") && !byText(".legacy-in .btn", "Open vault")'), 'closed while elder is around');
+    await sleep(2400);
+    await js('click(".btn", "Refresh")');
+    await until('return byText(".legacy-in .btn", "Open vault")', 'it opens');
+    await js('click(".legacy-in .btn", "Open vault")');
+    await until('return byText(".legacy-in summary", "Letters")', 'the folders of the vault left to me');
+    await js('$(".legacy-in summary").click(); return true');
+    assert.ok(await js('return byText(".legacy-mem .shared-body", "garden key")'));
+    await shot('vault-legacy-in'); await shot('vault-legacy-in', true);
+    await noSideScroll('a vault left to me');
+    await call('/api/account', { confirm: 'elder' }, eToken, 'DELETE');
+    await js('click(".btn", "Refresh")');
+    await until('return !$(".legacy-in")', 'gone with the vault');
+    noProblems();
+  });
   await step('inbox: a suggestion from the app shows up and can be approved', async () => {
     assert.match((await connector.tool('suggest_memory', { title: 'Likes jazz', body: 'Mentioned Coltrane twice.', folder: 'About me', reason: 'came up twice' })).text, /Suggested/);
     await js('click(".nav-item", "Inbox")');

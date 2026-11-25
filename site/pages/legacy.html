@@ -1,0 +1,38 @@
+<!--
+title: Legacy
+description: Choose who receives your SYNOVAX vault, read only, and only after you have not opened it for the time you pick. Opening it again closes it.
+section: product
+eyebrow: Product · legacy
+h1: Who receives your vault,|and only when
+lead: Name up to three people whose vaults receive yours if something happens to you. They get every folder and memory, read only, and only after you have not opened your vault for the time you choose.
+next: sharing, security, threat-model
+-->
+<section class="d-ch" id="steps">
+  <h2>Name an heir</h2>
+  <ol class="d-steps">
+    <li><b>Get their share code</b><p>They find it in their vault, under <b>Shared</b>. Like sharing a folder, the code lets your vault check that the server hands over their real key.</p></li>
+    <li><b>Choose the wait</b><p>In Settings, <b>Legacy</b>, paste the code and pick how long you must stay away first: 30, 90, 180 or 365 days.</p></li>
+    <li><b>That is all</b><p>Your vault seals its key for them, tagged by both your vaults, and the server keeps the sealed box. They see that you named them, under <b>Left to you</b>, but cannot open anything yet.</p></li>
+  </ol>
+</section>
+
+<section class="d-ch" id="when">
+  <h2>When it opens</h2>
+  <div class="d-grid3">
+    <div class="d-fact"><b>Only after you stay away</b><p>Every time you open your vault, its "last seen" time moves. The sealed key goes to your heir only once that time is older than the wait you chose.</p></div>
+    <div class="d-fact"><b>Coming back closes it</b><p>If you open your vault again, it closes for them at once. A wait that ended by mistake (a long trip, a lost phone) undoes itself.</p></div>
+    <div class="d-fact d-fact--solid"><b>On the record</b><p>Each time an heir opens your vault, that is a line in your read log, sealed with its hour.</p></div>
+  </div>
+  <p>Your heir is never told when you were last seen, only whether the vault is open to them now.</p>
+</section>
+
+<section class="d-ch" id="what">
+  <h2>What they receive</h2>
+  <ul>
+    <li><b>Every folder and memory, read only,</b> decrypted in their browser with your vault key. They can read it there and download it as one file.</li>
+    <li><b>Not your apps or your inbox.</b> They cannot sign in as you, change anything, or use your app keys.</li>
+    <li><b>Nothing readable on the way.</b> The server holds your vault key only as a box sealed for their vault (ECDH P-256 and AES-256-GCM), with a tag that only your two vaults can make.</li>
+    <li>You can remove an heir at any time, and an heir can decline.</li>
+  </ul>
+  <div class="call call--warn"><svg aria-hidden="true"><use href="#i-warn"/></svg><div><b>The server keeps the time</b><p>The cryptography stops the server from reading your vault, but the server decides when the wait has passed. A dishonest server working with your heir could open it early, and once your heir has read your vault, they have it. Name only someone you would trust with it anyway.</p></div></div>
+</section>

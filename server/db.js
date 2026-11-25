@@ -135,6 +135,19 @@ CREATE TABLE IF NOT EXISTS shares (
 );
 CREATE INDEX IF NOT EXISTS shares_owner ON shares(owner_id);
 CREATE INDEX IF NOT EXISTS shares_recipient ON shares(recipient_id);
+-- legacy: the vault key sealed for an heir, handed over only after the owner has
+-- not opened the vault for wait_days (vaults.last_seen_at)
+CREATE TABLE IF NOT EXISTS legacy (
+  id         TEXT PRIMARY KEY,
+  owner_id   TEXT NOT NULL REFERENCES vaults(id) ON DELETE CASCADE,
+  heir_id    TEXT NOT NULL REFERENCES vaults(id) ON DELETE CASCADE,
+  box        TEXT NOT NULL,
+  meta       TEXT NOT NULL,
+  wait_days  INTEGER NOT NULL,
+  created_at INTEGER NOT NULL,
+  UNIQUE (owner_id, heir_id)
+);
+CREATE INDEX IF NOT EXISTS legacy_heir ON legacy(heir_id);
 -- rate limits live here, so a restart does not give a guesser a fresh start
 CREATE TABLE IF NOT EXISTS rate_hits (
   key TEXT NOT NULL,
@@ -169,6 +182,7 @@ const ADDED_COLUMNS = [
   ['vaults', 'totp_enc', 'TEXT'],        // two-step sign-in secret, encrypted with a key derived from server-secret
   ['vaults', 'totp_pending_enc', 'TEXT'],// a secret being set up, not yet confirmed with a code
   ['vaults', 'totp_last', 'INTEGER'],    // the last time step accepted, so a code cannot be used twice
+  ['vaults', 'last_seen_at', 'INTEGER'], // when the owner last opened the vault, for legacy
 ];
 
 function migrate(db) {

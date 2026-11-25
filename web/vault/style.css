@@ -522,3 +522,6 @@ table.log tr:last-child td { border-bottom: 0; }
 .shared-mem { border-bottom: 1px solid var(--line); padding: 10px 0; }
 .shared-mem summary { cursor: pointer; }
 .shared-body { white-space: pre-wrap; overflow-wrap: anywhere; margin: 10px 0 6px; }
+.legacy-form { margin-top: 8px; }
+.legacy-mem { padding: 10px 0 0 14px; border-left: 2px solid var(--line); margin: 10px 0 0; }
+.legacy-mem .shared-body { margin-top: 4px; }

@@ -214,6 +214,28 @@ export async function shareOpen(recipientPrivPkcs8, recipientPubB64, ownerPubB64
   return { shareId: p.shareId, folderId: p.folderId, folderKey: unb64(p.folderKey), folderName: p.folderName, owner: p.owner, recipient: p.recipient };
 }
 
+// ---------- legacy: the vault key, sealed for an heir
+// Same construction as a share, with its own tag text: the box holds the vault
+// key, sealed for the heir's vault and tagged by owner and heir together.
+
+const legacyText = (s) => JSON.stringify(['legacy/v1', s.legacyId, s.vaultKey, s.owner, s.heir]);
+
+export async function legacySeal(ownerPrivPkcs8, ownerPubB64, heirPubB64, s) {
+  const payload = { legacyId: s.legacyId, vaultKey: b64(s.vaultKey), owner: s.owner, heir: s.heir };
+  const k = await subtle.importKey('raw', await pairKey(ownerPrivPkcs8, heirPubB64, ownerPubB64, heirPubB64), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const tag = b64(new Uint8Array(await subtle.sign('HMAC', k, te.encode(legacyText(payload)))));
+  return boxSeal(heirPubB64, { ...payload, tag });
+}
+
+export async function legacyOpen(heirPrivPkcs8, heirPubB64, ownerPubB64, box) {
+  const p = await boxOpen(heirPrivPkcs8, heirPubB64, box);
+  const k = await subtle.importKey('raw', await pairKey(heirPrivPkcs8, ownerPubB64, ownerPubB64, heirPubB64), { name: 'HMAC', hash: 'SHA-256' }, false, ['verify']);
+  if (typeof p?.tag !== 'string' || !(await subtle.verify('HMAC', k, unb64(p.tag), te.encode(legacyText(p))))) {
+    throw new CryptoError('This vault was not left to you by the vault it names.');
+  }
+  return { legacyId: p.legacyId, vaultKey: unb64(p.vaultKey), owner: p.owner, heir: p.heir };
+}
+
 // ---------- app keys
 
 export function formatAppKey(appId, secret) {
