@@ -6,9 +6,13 @@ One place to keep what your AI should know about you. Everything is encrypted on
 
 ## Run it
 
-Requires Node.js 22.13+ (tested on Node 24 and 26). The server **needs no `npm install`**. `npm install` is only for semantic search in the connector (optional, see below).
+No install needed to try it: the hosted vault is at https://synovax.tech/vault/. To run your own copy:
+
+Requires Node.js 22.13+ (tested on Node 24 and 26); `npm` comes with Node. SYNOVAX is not published on the npm registry: get the code from this repository. The server **needs no `npm install`**; `npm start` only runs `node server/index.js`. `npm install` is only for semantic search in the connector (optional, see below).
 
 ```sh
+git clone https://github.com/Synovax-Dev/Synovax-Technology.git
+cd Synovax-Technology
 npm start
 ```
 

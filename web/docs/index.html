@@ -63,9 +63,10 @@
         <div class="dq-bar"><span>quickstart · about a minute</span><span class="dq-dots" aria-hidden="true"><i></i><i></i><i></i></span></div>
         <ol>
           <li><b>01</b><code>node --version</code><em>22.13 or newer</em></li>
-          <li><b>02</b><code>npm start</code><em>nothing to install</em></li>
-          <li><b>03</b><code>127.0.0.1:8787/vault/</code><em>create your vault</em></li>
-          <li><b>04</b><code>apps → create app key</code><em>paste into your ai app</em></li>
+          <li><b>02</b><code>git clone …</code><em>code from github</em></li>
+          <li><b>03</b><code>npm start</code><em>nothing to install</em></li>
+          <li><b>04</b><code>127.0.0.1:8787/vault/</code><em>create your vault</em></li>
+          <li><b>05</b><code>apps → create app key</code><em>paste into your ai app</em></li>
         </ol>
         <a class="dq-go" href="#install">read the full setup <svg aria-hidden="true"><use href="#i-arrow"/></svg></a>
       </div>
@@ -160,11 +161,15 @@
       <section class="d-ch" id="install" data-level="01">
         <header class="d-ch-h"><span class="lvl">01 · first steps</span><span class="mins">3 min</span></header>
         <h2>Run it</h2>
-        <p>The server has no dependencies to install. You need <b>Node.js 22.13 or newer</b> (it is tested on Node 24 and 26). Search by meaning in the connector is optional and is the one thing that needs <code>npm install</code>.</p>
+        <p>The quickest way needs nothing on your computer: open the hosted vault at <a href="/vault/">synovax.tech/vault/</a>. The steps below are for running your own copy instead.</p>
+        <p>SYNOVAX is not published on the npm registry; you get the code from GitHub. The server has no dependencies to install. You need <b>Node.js 22.13 or newer</b> (it is tested on Node 24 and 26), and <code>npm</code> comes with it. Here <code>npm</code> only runs scripts from the project's own <code>package.json</code>: <code>npm start</code> is the same as <code>node server/index.js</code>. Search by meaning in the connector is optional and is the one thing that downloads packages, with <code>npm install</code>.</p>
         <ol class="d-steps">
           <li><b>Check Node</b><p>Open a terminal and check the version. If it is older than 22.13, install the current LTS from nodejs.org.</p>
             <div class="code"><div class="code-bar"><span>terminal</span><button type="button" data-copy>copy</button></div><pre><code>node --version</code></pre></div></li>
-          <li><b>Start the server</b><p>From the project folder. There is no <code>npm install</code> step.</p>
+          <li><b>Get the code</b><p>Clone the repository from GitHub. Without git, open <a href="https://github.com/Synovax-Dev/Synovax-Technology" target="_blank" rel="noopener">the repository</a>, choose <b>Code</b>, then <b>Download ZIP</b>, unzip it and open a terminal in that folder.</p>
+            <div class="code"><div class="code-bar"><span>terminal</span><button type="button" data-copy>copy</button></div><pre><code>git clone https://github.com/Synovax-Dev/Synovax-Technology.git
+cd Synovax-Technology</code></pre></div></li>
+          <li><b>Start the server</b><p>In that folder. Nothing is downloaded and there is no <code>npm install</code> step; <code>node server/index.js</code> does the same.</p>
             <div class="code"><div class="code-bar"><span>terminal</span><button type="button" data-copy>copy</button></div><pre><code>npm start</code></pre></div></li>
           <li><b>Open the vault</b><p>Go to <code>http://127.0.0.1:8787/vault/</code>. The landing page is at <code>/</code> and these docs at <code>/docs/</code>.</p></li>
         </ol>
@@ -555,7 +560,7 @@ node connector/index.js</code></pre></div>
         <header class="d-ch-h"><span class="lvl">05 · expert</span><span class="mins">2 min</span></header>
         <h2>Testing</h2>
         <div class="code"><div class="code-bar"><span>terminal</span><button type="button" data-copy>copy</button></div><pre><code>npm test</code></pre></div>
-        <p>31 end-to-end checks against a real server in a throwaway data folder, a “browser” built from the same crypto module, and the real connector spoken to over MCP. Then <code>npm run test:ui</code> drives the real pages in headless Chrome or Edge (17 flows, from creating a vault to recovering it) and fails on any JS error, CSP violation, failed request or page that scrolls sideways on a phone. Among the checks:</p>
+        <p>33 end-to-end checks against a real server in a throwaway data folder, a “browser” built from the same crypto module, and the real connector spoken to over MCP. Then <code>npm run test:ui</code> drives the real pages in headless Chrome or Edge (18 flows, from creating a vault to recovering it) and fails on any JS error, CSP violation, failed request or page that scrolls sideways on a phone. Among the checks:</p>
         <ul class="d-list">
           <li>AES-GCM refuses a wrong context or a single flipped bit.</li>
           <li>An app sees only its folders; a removed folder or revoked key stops it.</li>
